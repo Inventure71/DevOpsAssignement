@@ -20,6 +20,8 @@ Apps like Musical Roulette, SpotTheFan and TuneTaste already let friends guess w
 | Manual song picks | **In** | For friends who don't have Apple Music |
 | Demo mode | **In** | The app must run right after cloning, without API keys |
 | Leaderboard (per room) | **In** | Simple, and part of the game |
+| Room history (30 days) | **In** | Friends can look back at past games and scores |
+| Audio on all devices (optional mode) | **In** | Lets the game work when players aren't together; host device only stays the default |
 | Spotify import | Stretch | Depends on the professor's feedback |
 | Mashup rounds | Stretch | Fun, but not needed for the core game |
 | Chat, user accounts | **Out** | Not needed for a party game played in one sitting |
