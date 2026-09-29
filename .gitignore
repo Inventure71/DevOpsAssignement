@@ -21,3 +21,6 @@ data/
 
 # Personal working notes (drafts, not decided yet)
 notes/
+
+# Proof-of-concept throwaway code (never committed)
+poc/

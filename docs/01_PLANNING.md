@@ -22,6 +22,7 @@ Apps like Musical Roulette, SpotTheFan and TuneTaste already let friends guess w
 | Leaderboard (per room) | **In** | Simple, and part of the game |
 | Room history (30 days) | **In** | Friends can look back at past games and scores |
 | Audio on all devices (optional mode) | **In** | Lets the game work when players aren't together; host device only stays the default |
+| Decoy songs (host can turn off) | **In** | Adds surprise: some rounds play a song nobody in the room has |
 | Spotify import | Stretch | Depends on the professor's feedback |
 | Mashup rounds | Stretch | Fun, but not needed for the core game |
 | Chat, user accounts | **Out** | Not needed for a party game played in one sitting |
@@ -54,7 +55,7 @@ Apps like Musical Roulette, SpotTheFan and TuneTaste already let friends guess w
 ## SMART goals
 | # | Goal | Measured by | Deadline |
 |---|---|---|---|
-| G1 | **Design documented:** planning, requirements, PoC and architecture docs committed, with ADR-2 written | Files `docs/01`–`04` + ADR-2 in the repo | Sep 29 |
+| G1 | **Design documented:** planning, requirements, game rules, PoC and architecture docs committed, with ADR-2 written | Files `docs/01`–`05` + ADR-2 in the repo | ~~Sep 29~~ **Sep 30** (moved: added a game rules phase) |
 | G2 | **Playable core:** 3 demo players complete a 10-round classic game end to end, with no API keys, started with `python app.py` | A full demo game played locally without errors | Oct 1 |
 | G3 | **Tested logic:** unit tests cover the rooms and game logic | `pytest --cov` reports **≥70%** | Oct 2 |
 | G4 | **Real music:** at least 3 real players import their Apple Music history and play a game where ≥80% of rounds have a playable clip | A test game with friends | Oct 3 |
