@@ -2,6 +2,11 @@
 
 The core business logic of the Game domain. Everything here must be covered by unit tests.
 
+After the Sep 29 PoC, the first playable milestone uses demo/manual songs and
+host-device audio. Apple familiarity levels apply only when personal imports
+are validated. Spotify familiarity mapping is not decided here; all-device
+audio is conditional (see `02_REQUIREMENTS.md` and `05_ARCHITECTURE.md`).
+
 ## 1. Round flow
 1. The system picks a song (see §5) and plays its clip (host device only, or all devices).
 2. Each player answers within the answer time (10 / 20 / 30 s):
@@ -23,6 +28,7 @@ The core business logic of the Game domain. Everything here must be covered by u
 - 1 correct song + **3 wrong options**, shuffled
 - **Decoys on:** the 3 wrong options are **2 songs from the room + 1 decoy-pool song**, in every round. An unfamiliar option therefore doesn't give away a decoy round.
 - **Decoys off:** all 3 wrong options are songs from the room
+- **Decoy pool unavailable:** use a normal round and take all 3 wrong options from the room; never block a round on an unavailable decoy distractor
 - A wrong option can't be the same song as the correct one (§7)
 
 ## 4. Scoring
@@ -54,7 +60,7 @@ Players who own the song are treated **exactly like everyone else**: they can ea
 - **Use exact fractions** (Python's `fractions.Fraction`), not floats. With floats, 187.5 can come out as 187.4999… and round down. Python's built-in `round()` is also wrong here, because it rounds 2.5 to 2.
 
 ### Fairness of the speed bonus
-In host-device mode, everyone hears the clip at the same moment. In all-devices mode, every phone starts at the server's start time (PoC Q5). Network delay (~0.1 s) is small compared to the answer time, and the phone's clock is never trusted.
+In host-device mode, players share the same audio output. The server measures answers from the announced round start, so network delay can still affect the speed bonus. The PoC did not retain all-device timing measurements; that mode stays conditional until drift and audible playback are checked. A client's own clock never determines scoring.
 
 ### Worked examples
 **Normal round.** Listeners = {Anna, Ben}, 8 players in the room, medium song (×1.5), answer time 20 s.
@@ -105,7 +111,7 @@ Each song a player adds gets a level, based on how often that player listens to 
 5. If that player has no song left, move on to the next player. If nobody has songs left, the game ends early.
 6. Randomness comes from a random generator passed in, so tests can use a fixed seed.
 
-**Decoy pool:** Apple Music's public top charts (developer token only, no user login). In demo mode, a fixed list of songs. (Availability is tested in PoC Q7.)
+**Decoy pool:** Apple Music's public top charts when developer credentials are available (no user login). Without those credentials, a fixed pool with demo clips; if no suitable decoy exists, use a normal round (§9). PoC Q7 established chart metadata/preview URLs; audible chart playback remains a separate check.
 
 ## 7. Same song, several listeners
 Two songs are the **same song** when:
