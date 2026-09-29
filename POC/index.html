@@ -1,0 +1,1105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Who's On Repeat — Feasibility Lab</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23171713'/%3E%3Cpath d='M42 12v30.5c0 5-4.5 9.5-10 9.5s-10-3.3-10-7.5S26.5 37 32 37c2 0 3.7.4 5 1V20l-18 4v21.5c0 5-4.5 9.5-10 9.5S-1 51.7-1 47.5 3.5 40 9 40c2 0 3.7.4 5 1V18l28-6z' fill='%23ec315f'/%3E%3C/svg%3E">
+  <script async src="https://js-cdn.music.apple.com/musickit/v3/musickit.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f3f0e8;
+      --ink: #171713;
+      --muted: #6e6c63;
+      --line: #c9c5ba;
+      --accent: #ec315f;
+      --accent-dark: #b91e45;
+      --good: #176b49;
+      --warn: #a05b14;
+      --surface: rgba(255, 255, 255, 0.52);
+      --shadow: 0 18px 55px rgba(42, 36, 24, 0.09);
+    }
+
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 88% 5%, rgba(236, 49, 95, 0.12), transparent 27rem),
+        var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: 0.45; }
+    a { color: inherit; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 66px;
+      padding: 0 4vw;
+      border-bottom: 1px solid color-mix(in srgb, var(--line), transparent 20%);
+      background: color-mix(in srgb, var(--paper), transparent 8%);
+      backdrop-filter: blur(18px);
+    }
+
+    .wordmark {
+      display: flex;
+      align-items: baseline;
+      gap: 0.7rem;
+      font-weight: 760;
+      letter-spacing: -0.035em;
+    }
+
+    .wordmark small {
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 650;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .status-line {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--warn);
+      box-shadow: 0 0 0 5px rgba(160, 91, 20, 0.1);
+    }
+    .status-dot.ready {
+      background: var(--good);
+      box-shadow: 0 0 0 5px rgba(23, 107, 73, 0.1);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(190px, 0.32fr) minmax(0, 1fr);
+      gap: clamp(2rem, 7vw, 7rem);
+      width: min(1180px, 92vw);
+      margin: 0 auto;
+      padding: clamp(3.5rem, 8vw, 7rem) 0 8rem;
+    }
+
+    .rail {
+      align-self: start;
+      position: sticky;
+      top: 104px;
+    }
+
+    .eyebrow {
+      margin: 0 0 0.8rem;
+      color: var(--accent-dark);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .rail h1 {
+      max-width: 8ch;
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2.5rem, 5vw, 4.8rem);
+      font-weight: 500;
+      letter-spacing: -0.055em;
+      line-height: 0.92;
+    }
+
+    .rail-copy {
+      max-width: 25ch;
+      margin: 1.4rem 0 2rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .steps {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      border-top: 1px solid var(--line);
+    }
+
+    .steps a {
+      display: grid;
+      grid-template-columns: 2rem 1fr;
+      gap: 0.4rem;
+      padding: 0.72rem 0;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.82rem;
+      text-decoration: none;
+      transition: color 150ms ease, padding-left 150ms ease;
+    }
+    .steps a:hover, .steps a:focus-visible { color: var(--ink); padding-left: 0.25rem; }
+    .steps b { color: var(--accent-dark); }
+
+    main { min-width: 0; }
+    .intro {
+      min-height: 44vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding-bottom: clamp(3rem, 6vw, 5rem);
+      animation: rise 480ms ease-out both;
+    }
+    .intro h2 {
+      max-width: 14ch;
+      margin: 0;
+      font-size: clamp(2.6rem, 7vw, 6rem);
+      font-weight: 710;
+      letter-spacing: -0.07em;
+      line-height: 0.94;
+    }
+    .intro p {
+      max-width: 55ch;
+      margin: 1.5rem 0 0;
+      color: var(--muted);
+      font-size: clamp(1rem, 1.6vw, 1.2rem);
+    }
+
+    .notice {
+      margin: 0 0 1.5rem;
+      padding: 1rem 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .probe {
+      padding: clamp(2.7rem, 6vw, 5.5rem) 0;
+      border-top: 1px solid var(--ink);
+      scroll-margin-top: 88px;
+    }
+
+    .probe-head {
+      display: grid;
+      grid-template-columns: 4.5rem 1fr auto;
+      align-items: start;
+      gap: 1.2rem;
+      margin-bottom: 2rem;
+    }
+    .question {
+      color: var(--accent-dark);
+      font-size: 0.76rem;
+      font-weight: 850;
+      letter-spacing: 0.12em;
+    }
+    .probe h3 {
+      margin: 0;
+      font-size: clamp(1.55rem, 3.2vw, 2.6rem);
+      letter-spacing: -0.045em;
+      line-height: 1;
+    }
+    .state {
+      padding: 0.25rem 0.5rem;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 760;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .state.pass { border-color: var(--good); color: var(--good); }
+    .state.fail { border-color: var(--warn); color: var(--warn); }
+    .probe-copy {
+      max-width: 62ch;
+      margin: -0.7rem 0 1.7rem 5.7rem;
+      color: var(--muted);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.7rem;
+      margin-left: 5.7rem;
+    }
+
+    .button {
+      min-height: 44px;
+      padding: 0.72rem 1rem;
+      border: 1px solid var(--ink);
+      border-radius: 2px;
+      background: var(--ink);
+      color: white;
+      font-weight: 700;
+      transition: transform 150ms ease, background 150ms ease;
+    }
+    .button:hover:not(:disabled) { transform: translateY(-2px); background: #000; }
+    .button.secondary { background: transparent; color: var(--ink); }
+    .button.secondary:hover:not(:disabled) { background: rgba(255,255,255,0.5); }
+    .button.accent { border-color: var(--accent); background: var(--accent); }
+
+    input[type="text"], input[type="url"] {
+      min-width: min(320px, 100%);
+      min-height: 44px;
+      padding: 0.7rem 0.8rem;
+      border: 0;
+      border-bottom: 1px solid var(--ink);
+      border-radius: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--ink);
+    }
+    input:focus { border-bottom-color: var(--accent); box-shadow: 0 2px 0 var(--accent); }
+
+    .output {
+      min-height: 2.8rem;
+      margin: 1.4rem 0 0 5.7rem;
+      padding: 1.1rem 0 0;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+    .output:empty { display: none; }
+    .output pre {
+      overflow: auto;
+      max-height: 32rem;
+      margin: 0;
+      padding: 1rem;
+      background: rgba(255,255,255,0.42);
+      color: var(--ink);
+      font: 0.78rem/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+      white-space: pre-wrap;
+    }
+
+    .metric-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+      gap: 1px;
+      margin-bottom: 1rem;
+      background: var(--line);
+      border: 1px solid var(--line);
+    }
+    .metric {
+      padding: 1rem;
+      background: var(--paper);
+    }
+    .metric strong { display: block; color: var(--ink); font-size: 1.45rem; letter-spacing: -0.04em; }
+    .metric span { font-size: 0.73rem; text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .samples { display: grid; gap: 1px; margin-top: 1rem; background: var(--line); }
+    .sample {
+      display: grid;
+      grid-template-columns: minmax(9rem, 1fr) minmax(200px, 1.5fr);
+      gap: 1rem;
+      align-items: center;
+      padding: 1rem;
+      background: var(--paper);
+    }
+    .sample strong, .sample small { display: block; }
+    .sample small { color: var(--muted); }
+    audio { width: 100%; height: 36px; }
+
+    .song-browser { margin-top: 1rem; }
+    .song-browser summary {
+      cursor: pointer;
+      color: var(--ink);
+      font-weight: 700;
+    }
+    .song-list {
+      display: grid;
+      max-height: 28rem;
+      overflow: auto;
+      margin-top: 0.8rem;
+      border: 1px solid var(--line);
+    }
+    .song-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.75rem 0.9rem;
+      background: var(--paper);
+      border-bottom: 1px solid var(--line);
+    }
+    .song-item:last-child { border-bottom: 0; }
+    .song-item strong, .song-item small { display: block; }
+    .song-item small, .song-item code { color: var(--muted); }
+    .song-item code { flex: 0 0 auto; font-size: 0.72rem; }
+
+    .sync-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-left: 5.7rem;
+    }
+    .sync-grid h4 { margin: 0 0 0.7rem; }
+    .sync-grid p { color: var(--muted); font-size: 0.86rem; }
+    .sync-grid .actions { margin-left: 0; }
+    .sync-grid input { width: 100%; }
+    .join-link {
+      overflow-wrap: anywhere;
+      padding: 0.7rem 0;
+      color: var(--accent-dark);
+      font: 0.78rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .report {
+      margin-top: 2rem;
+      padding: 1.4rem;
+      background: var(--ink);
+      color: #f8f5ed;
+      box-shadow: var(--shadow);
+    }
+    .report pre { margin: 0 0 1rem; white-space: pre-wrap; font: 0.82rem/1.6 ui-monospace, monospace; }
+    .report .button { border-color: #f8f5ed; }
+
+    .spinner::after {
+      content: "";
+      display: inline-block;
+      width: 0.75rem;
+      height: 0.75rem;
+      margin-left: 0.5rem;
+      border: 2px solid currentColor;
+      border-right-color: transparent;
+      border-radius: 50%;
+      vertical-align: -0.1rem;
+      animation: spin 650ms linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes rise { from { opacity: 0; transform: translateY(20px); } }
+
+    @media (max-width: 780px) {
+      .topbar { padding: 0 5vw; }
+      .status-line span:last-child { display: none; }
+      .layout { display: block; width: min(92vw, 700px); padding-top: 3rem; }
+      .rail { position: static; margin-bottom: 4rem; }
+      .rail h1 { max-width: none; }
+      .rail-copy { max-width: 46ch; }
+      .steps { display: none; }
+      .intro { min-height: auto; padding-bottom: 3rem; }
+      .probe-head { grid-template-columns: 3.6rem 1fr; }
+      .probe-head .state { grid-column: 2; justify-self: start; }
+      .probe-copy, .actions, .output, .sync-grid { margin-left: 0; }
+      .metric-row, .sync-grid { grid-template-columns: 1fr; }
+      .sample { grid-template-columns: 1fr; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wordmark">Who's On Repeat <small>Feasibility lab</small></div>
+    <div class="status-line"><i id="server-dot" class="status-dot"></i><span id="server-state">Checking local server</span></div>
+  </header>
+
+  <div class="layout">
+    <aside class="rail">
+      <p class="eyebrow">Proof before architecture</p>
+      <h1>Seven hard questions.</h1>
+      <p class="rail-copy">Run each probe in order. No secret or user token is written to disk.</p>
+      <ol class="steps">
+        <li><a href="#q1"><b>01</b><span>Developer token</span></a></li>
+        <li><a href="#q2"><b>02</b><span>Apple sign-in</span></a></li>
+        <li><a href="#q3"><b>03</b><span>Apple history</span></a></li>
+        <li><a href="#q4"><b>04</b><span>Preview coverage</span></a></li>
+        <li><a href="#q5"><b>05</b><span>Synced start</span></a></li>
+        <li><a href="#q6"><b>06</b><span>Spotify import</span></a></li>
+        <li><a href="#q7"><b>07</b><span>Decoy pool</span></a></li>
+      </ol>
+    </aside>
+
+    <main>
+      <section class="intro">
+        <h2>Measure the music layer before building the game.</h2>
+        <p>This local lab can use Apple Music history or Spotify top/recent tracks as the personal song source. Every imported song is then resolved through Apple by ISRC before the preview fallbacks run. The report stays in memory until you copy it.</p>
+      </section>
+
+      <p id="setup-notice" class="notice" role="status">Reading local configuration…</p>
+
+      <section id="q1" class="probe">
+        <div class="probe-head"><span class="question">Q1</span><h3>Developer token</h3><span id="q1-state" class="state">Not run</span></div>
+        <p class="probe-copy">Sign an ES256 JWT and make one catalog search. Only safe song fields are displayed.</p>
+        <div class="actions">
+          <input id="catalog-term" type="text" value="Billie Eilish" aria-label="Catalog search term">
+          <button id="catalog-run" class="button">Test catalog</button>
+        </div>
+        <div id="q1-output" class="output" aria-live="polite"></div>
+      </section>
+
+      <section id="q2" class="probe">
+        <div class="probe-head"><span class="question">Q2</span><h3>Browser sign-in</h3><span id="q2-state" class="state">Not run</span></div>
+        <p class="probe-copy">MusicKit JS v3 opens Apple's own authorization UI. Personal Apple history requires an active Apple Music subscription; catalog and preview tests do not. Any resulting user token is sent to Python memory only.</p>
+        <div class="actions">
+          <button id="apple-signin" class="button accent">Sign in with Apple Music</button>
+        </div>
+        <div id="q2-output" class="output" aria-live="polite"></div>
+      </section>
+
+      <section id="q3" class="probe">
+        <div class="probe-head"><span class="question">Q3</span><h3>Apple listening data</h3><span id="q3-state" class="state">Not run</span></div>
+        <p class="probe-copy">Follow every page of heavy rotation, recently played tracks, and library songs. Mixed resource types are reported honestly rather than converted into songs.</p>
+        <div class="actions"><button id="listening-run" class="button" disabled>Analyze my lists</button></div>
+        <div id="q3-output" class="output" aria-live="polite"></div>
+      </section>
+
+      <section id="q4" class="probe">
+        <div class="probe-head"><span class="question">Q4</span><h3>Preview coverage</h3><span id="q4-state" class="state">Not run</span></div>
+        <p class="probe-copy">Import songs from Apple Q3 or Spotify Q6. This check resolves each unique song through Apple by ISRC, exact iTunes title/artist match, then Deezer by ISRC. Play all three samples to confirm browser playback.</p>
+        <p id="preview-source" class="notice">No personal song list loaded yet.</p>
+        <div class="actions"><button id="previews-run" class="button" disabled>Resolve previews</button></div>
+        <div id="q4-output" class="output" aria-live="polite"></div>
+      </section>
+
+      <section id="q5" class="probe">
+        <div class="probe-head"><span class="question">Q5</span><h3>Synced start</h3><span id="q5-state" class="state">Not run</span></div>
+        <p class="probe-copy">Create a run, open its link on a second device, arm both devices, then schedule. Seven clock samples reduce device-clock skew before drift is calculated.</p>
+        <div class="sync-grid">
+          <div>
+            <h4>1 · Create or join</h4>
+            <input id="sync-preview" type="url" placeholder="Resolved preview URL" aria-label="Preview URL for sync test">
+            <div class="actions" style="margin-top:.7rem">
+              <button id="sync-create" class="button secondary">Create run</button>
+            </div>
+            <p id="sync-link" class="join-link"></p>
+            <input id="sync-code" type="text" placeholder="Run code" aria-label="Synchronization run code">
+            <div class="actions" style="margin-top:.7rem">
+              <button id="sync-join" class="button secondary">Join run</button>
+            </div>
+          </div>
+          <div>
+            <h4>2 · Arm, then schedule</h4>
+            <p>Arming loads the audio and estimates this device's clock offset. Do it on both devices before scheduling.</p>
+            <div class="actions">
+              <button id="sync-arm" class="button" disabled>Arm this device</button>
+              <button id="sync-schedule" class="button accent" disabled>Start in 3 seconds</button>
+            </div>
+            <audio id="sync-audio" preload="auto"></audio>
+            <div id="audibility" class="actions" hidden>
+              <span>Did you hear it?</span>
+              <button id="heard-yes" class="button secondary">Yes</button>
+              <button id="heard-no" class="button secondary">No</button>
+            </div>
+          </div>
+        </div>
+        <div id="q5-output" class="output" aria-live="polite"></div>
+      </section>
+
+      <section id="q6" class="probe">
+        <div class="probe-head"><span class="question">Q6</span><h3>Spotify song import</h3><span id="q6-state" class="state">Not run</span></div>
+        <p class="probe-copy">Connect Spotify with the top-track and recently-played scopes, load a sanitized list of your songs, then use their ISRCs to exercise Apple's catalog and previews. Spotify tokens remain in server memory.</p>
+        <div class="actions">
+          <button id="spotify-signin" class="button secondary">Sign in with Spotify</button>
+          <button id="spotify-run" class="button" disabled>Load my Spotify songs</button>
+          <button id="spotify-continue" class="button secondary" hidden>Test these songs with Apple</button>
+        </div>
+        <div id="q6-output" class="output" aria-live="polite"></div>
+      </section>
+
+      <section id="q7" class="probe">
+        <div class="probe-head"><span class="question">Q7</span><h3>Decoy pool</h3><span id="q7-state" class="state">Not run</span></div>
+        <p class="probe-copy">Request 50 chart songs using only the developer token and measure how many have both ISRC and preview.</p>
+        <div class="actions"><button id="charts-run" class="button">Test top charts</button></div>
+        <div id="q7-output" class="output" aria-live="polite"></div>
+      </section>
+
+      <section class="probe">
+        <div class="probe-head"><span class="question">OUT</span><h3>Sanitized report</h3><span class="state">Memory only</span></div>
+        <p class="probe-copy">This summary contains measurements, never keys or tokens. Copy it only after the real manual checks are complete.</p>
+        <div class="actions"><button id="report-refresh" class="button">Refresh report</button></div>
+        <div class="report"><pre id="report-text">No probes run yet.</pre><button id="report-copy" class="button secondary">Copy report</button></div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    "use strict";
+
+    const $ = (selector) => document.querySelector(selector);
+    function ephemeralId() {
+      if (window.crypto && typeof window.crypto.randomUUID === "function") {
+        return window.crypto.randomUUID();
+      }
+      if (window.crypto && typeof window.crypto.getRandomValues === "function") {
+        const bytes = new Uint8Array(16);
+        window.crypto.getRandomValues(bytes);
+        return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+      }
+      // This ID separates timing observations; it is not an auth credential.
+      return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    const clientId = sessionStorage.getItem("repeat-poc-client") || ephemeralId();
+    sessionStorage.setItem("repeat-poc-client", clientId);
+
+    const syncState = {
+      run: null,
+      armed: false,
+      offsetMs: 0,
+      bestRttMs: 0,
+      scheduledFor: null,
+      observation: null,
+      poller: null,
+    };
+    let previewSamples = [];
+    let musicKitInstance = null;
+    let lanSyncOrigins = [];
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, {
+        ...options,
+        headers: {"Content-Type": "application/json", ...(options.headers || {})},
+        cache: "no-store",
+      });
+      let payload = {};
+      try { payload = await response.json(); } catch (_) { /* sanitized generic error below */ }
+      if (!response.ok) throw new Error(payload.detail || `Request failed (${response.status})`);
+      return payload;
+    }
+
+    function setState(question, status, label) {
+      const node = $(`#${question}-state`);
+      node.className = `state ${status || ""}`.trim();
+      node.textContent = label;
+    }
+
+    function setBusy(button, busy, busyLabel) {
+      if (!button.dataset.label) button.dataset.label = button.textContent;
+      button.disabled = busy;
+      button.classList.toggle("spinner", busy);
+      button.textContent = busy ? busyLabel : button.dataset.label;
+    }
+
+    function providerLabel(provider) {
+      if (provider === "spotify") return "Spotify top and recently played tracks";
+      if (provider === "apple_personal") return "Apple Music personal history";
+      return "personal songs";
+    }
+
+    function setPreviewCorpus(provider, count) {
+      const hasSongs = Number(count) > 0;
+      $("#previews-run").disabled = !hasSongs;
+      $("#preview-source").textContent = hasSongs
+        ? `${count} unique song(s) loaded from ${providerLabel(provider)}. Apple ISRC matching is ready.`
+        : "No personal song list loaded yet.";
+      previewSamples = [];
+      $("#q4-output").replaceChildren();
+      setState("q4", "", hasSongs ? `${count} songs ready` : "Not run");
+      $("#sync-preview").value = "";
+    }
+
+    function showJson(target, payload, intro = "") {
+      const root = $(target);
+      root.replaceChildren();
+      if (intro) {
+        const text = document.createElement("p");
+        text.textContent = intro;
+        root.append(text);
+      }
+      const pre = document.createElement("pre");
+      pre.textContent = JSON.stringify(payload, null, 2);
+      root.append(pre);
+    }
+
+    function renderSpotifyResult(result) {
+      const root = $("#q6-output");
+      root.replaceChildren();
+
+      const metrics = document.createElement("div");
+      metrics.className = "metric-row";
+      [
+        [result.unique_songs, "Unique songs"],
+        [`${result.unique_isrc_percent}%`, "With ISRC"],
+        [result.recently_played.usable_song_count, "Recent tracks"],
+      ].forEach(([value, label]) => {
+        const metric = document.createElement("div");
+        metric.className = "metric";
+        const strong = document.createElement("strong");
+        strong.textContent = value;
+        const span = document.createElement("span");
+        span.textContent = label;
+        metric.append(strong, span);
+        metrics.append(metric);
+      });
+      root.append(metrics);
+
+      const explanation = document.createElement("p");
+      explanation.textContent = result.unique_songs
+        ? "This list is now the active input for Q4. Spotify preview URLs are ignored; Apple is tested first for every valid ISRC."
+        : "Spotify returned no usable songs. Any previous preview input has been cleared.";
+      root.append(explanation);
+
+      if (!result.songs.length) return;
+      const browser = document.createElement("details");
+      browser.className = "song-browser";
+      browser.open = result.songs.length <= 20;
+      const summary = document.createElement("summary");
+      summary.textContent = `Show ${result.songs.length} imported song(s)`;
+      const list = document.createElement("div");
+      list.className = "song-list";
+      result.songs.forEach((song) => {
+        const row = document.createElement("div");
+        row.className = "song-item";
+        const meta = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = song.title;
+        const artist = document.createElement("small");
+        const sources = song.sources.map((source) => source.replaceAll("_", " ")).join(" · ");
+        artist.textContent = `${song.artist}${sources ? ` · ${sources}` : ""}`;
+        const isrc = document.createElement("code");
+        isrc.textContent = song.isrc || "No ISRC";
+        meta.append(title, artist);
+        row.append(meta, isrc);
+        list.append(row);
+      });
+      browser.append(summary, list);
+      root.append(browser);
+    }
+
+    function showError(question, target, error) {
+      setState(question, "fail", "Needs attention");
+      const root = $(target);
+      root.textContent = error.message;
+      refreshReport().catch(() => {});
+    }
+
+    async function refreshReport() {
+      const payload = await api("/api/report");
+      $("#report-text").textContent = payload.markdown;
+    }
+
+    async function initialize() {
+      try {
+        const status = await api("/api/health");
+        $("#server-dot").classList.add("ready");
+        $("#server-state").textContent = "Local server ready";
+        lanSyncOrigins = status.lan_sync_origins || [];
+        const appleStatus = status.apple_configured
+          ? `Apple catalog ready (${status.storefront.toUpperCase()})`
+          : `Apple blocked: ${status.apple_missing.join(", ")}`;
+        const spotifyStatus = !status.spotify_configured
+          ? "Spotify app client ID not configured"
+          : status.spotify_authorized
+            ? "Spotify connected"
+            : "Spotify ready to connect";
+        const clientStatus = status.loopback_client ? "loopback client" : "LAN sync client";
+        const syncStatus = status.lan_sync_enabled ? "LAN sync enabled" : "LAN sync unavailable";
+        $("#setup-notice").textContent = `${appleStatus} · ${spotifyStatus} · ${clientStatus} · ${syncStatus}.`;
+        $("#spotify-signin").disabled = !status.spotify_configured || !status.loopback_client;
+        $("#spotify-run").disabled = !status.spotify_authorized;
+        if (!status.loopback_client) $("#apple-signin").disabled = true;
+        if (status.song_count > 0) {
+          setPreviewCorpus(status.song_provider, status.song_count);
+          $("#spotify-continue").hidden = status.song_provider !== "spotify";
+        }
+      } catch (error) {
+        $("#server-state").textContent = "Local server unavailable";
+        $("#setup-notice").textContent = error.message;
+      }
+
+      const params = new URLSearchParams(location.search);
+      if (params.get("spotify") === "connected") {
+        $("#spotify-run").disabled = false;
+        $("#q6-output").textContent = "Spotify authorization succeeded. Load your songs next.";
+        history.replaceState({}, "", location.pathname);
+      }
+      if (params.get("spotify_error")) {
+        showError("q6", "#q6-output", new Error(`Spotify authorization: ${params.get("spotify_error")}`));
+      }
+      if (params.get("run")) {
+        $("#sync-code").value = params.get("run");
+        await joinSyncRun(params.get("run"));
+        document.querySelector("#q5").scrollIntoView();
+      }
+    }
+
+    $("#catalog-run").addEventListener("click", async () => {
+      const button = $("#catalog-run");
+      setBusy(button, true, "Testing");
+      try {
+        const result = await api("/api/apple/catalog-test", {
+          method: "POST",
+          body: JSON.stringify({term: $("#catalog-term").value}),
+        });
+        setState("q1", result.passes ? "pass" : "fail", result.passes ? "Pass" : "No results");
+        showJson("#q1-output", result.songs, `${result.songs.length} sanitized catalog result(s).`);
+        await refreshReport();
+      } catch (error) { showError("q1", "#q1-output", error); }
+      finally { setBusy(button, false); }
+    });
+
+    function waitForMusicKit() {
+      if (window.MusicKit) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error("MusicKit JS v3 did not load")), 12000);
+        document.addEventListener("musickitloaded", () => {
+          clearTimeout(timeout);
+          resolve();
+        }, {once: true});
+      });
+    }
+
+    $("#apple-signin").addEventListener("click", async () => {
+      const button = $("#apple-signin");
+      setBusy(button, true, "Opening Apple");
+      let userToken = "";
+      let authorizationAttempted = false;
+      try {
+        const config = await api("/api/apple/music-kit-config");
+        authorizationAttempted = true;
+        await waitForMusicKit();
+        if (!musicKitInstance) {
+          await window.MusicKit.configure({
+            developerToken: config.developerToken,
+            storefrontId: config.storefront,
+            app: {name: "Who's On Repeat PoC", build: "1.0.0"},
+          });
+          musicKitInstance = window.MusicKit.getInstance();
+        }
+        userToken = await musicKitInstance.authorize();
+        await api("/api/apple/user-token", {
+          method: "POST",
+          body: JSON.stringify({token: userToken, transport: location.protocol.replace(":", "")}),
+        });
+        userToken = "";
+        setState("q2", "pass", "Pass");
+        $("#q2-output").textContent = `Authorization succeeded on ${location.protocol}//${location.host}. The user token is held in server memory only.`;
+        $("#listening-run").disabled = false;
+        await refreshReport();
+      } catch (error) {
+        userToken = "";
+        if (authorizationAttempted) {
+          await api("/api/apple/authorization-failure", {
+            method: "POST",
+            body: JSON.stringify({
+              transport: location.protocol.replace(":", ""),
+              reason: `${error.name || "AuthorizationError"}: authorization did not return a user token`,
+            }),
+          }).catch(() => {});
+        }
+        showError("q2", "#q2-output", error);
+      } finally { setBusy(button, false); }
+    });
+
+    $("#listening-run").addEventListener("click", async () => {
+      const button = $("#listening-run");
+      setBusy(button, true, "Following pages");
+      try {
+        const result = await api("/api/apple/listening-data", {method: "POST", body: "{}"});
+        setState("q3", result.passes ? "pass" : "fail", result.passes ? "Pass" : "Investigate");
+        showJson("#q3-output", result, `${result.unique_songs} unique song(s) across the returned lists.`);
+        setPreviewCorpus("apple_personal", result.unique_songs);
+        $("#spotify-continue").hidden = true;
+        await refreshReport();
+      } catch (error) { showError("q3", "#q3-output", error); }
+      finally { setBusy(button, false); }
+    });
+
+    function renderPreviewResult(result) {
+      const root = $("#q4-output");
+      root.replaceChildren();
+      const context = document.createElement("p");
+      context.textContent = `Testing ${result.input_song_count} song(s) imported from ${providerLabel(result.input_provider)}.`;
+      root.append(context);
+      const metrics = document.createElement("div");
+      metrics.className = "metric-row";
+      [
+        [result.apple_catalog_match_percent, "Apple match"],
+        [result.apple_percent, "Apple preview"],
+        [result.after_itunes_percent, "+ iTunes"],
+        [result.after_deezer_percent, "+ Deezer"],
+      ].forEach(([value, label]) => {
+        const metric = document.createElement("div");
+        metric.className = "metric";
+        const strong = document.createElement("strong");
+        strong.textContent = `${value}%`;
+        const span = document.createElement("span");
+        span.textContent = label;
+        metric.append(strong, span);
+        metrics.append(metric);
+      });
+      root.append(metrics);
+      const samples = document.createElement("div");
+      samples.className = "samples";
+      result.samples.forEach((sample) => {
+        const row = document.createElement("div");
+        row.className = "sample";
+        const meta = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = sample.title;
+        const artist = document.createElement("small");
+        artist.textContent = `${sample.artist} · ${sample.source}`;
+        meta.append(title, artist);
+        const audio = document.createElement("audio");
+        audio.controls = true;
+        audio.preload = "metadata";
+        audio.src = sample.url;
+        audio.addEventListener("playing", async () => {
+          if (audio.dataset.recorded) return;
+          audio.dataset.recorded = "true";
+          try {
+            const played = await api("/api/apple/previews/played", {
+              method: "POST",
+              body: JSON.stringify({identity: sample.identity}),
+            });
+            setState("q4", played.three_clip_check_passes && result.coverage_passes ? "pass" : "", played.three_clip_check_passes ? "Playback checked" : `${played.manual_playback_confirmed}/3 played`);
+            await refreshReport();
+          } catch (_) { /* playback itself remains visible evidence */ }
+        });
+        row.append(meta, audio);
+        samples.append(row);
+      });
+      root.append(samples);
+      if (result.samples.length < 3) {
+        const warning = document.createElement("p");
+        warning.textContent = "Fewer than three previews resolved, so the manual playback criterion cannot pass.";
+        root.append(warning);
+      }
+    }
+
+    $("#previews-run").addEventListener("click", async () => {
+      const button = $("#previews-run");
+      setBusy(button, true, "Checking providers");
+      try {
+        const result = await api("/api/apple/previews", {method: "POST", body: "{}"});
+        previewSamples = result.samples;
+        setState("q4", result.coverage_passes ? "" : "fail", result.coverage_passes ? "Play 3 samples" : "Below 80%");
+        renderPreviewResult(result);
+        if (previewSamples[0]) $("#sync-preview").value = previewSamples[0].url;
+        await refreshReport();
+      } catch (error) { showError("q4", "#q4-output", error); }
+      finally { setBusy(button, false); }
+    });
+
+    async function bestClockEstimate() {
+      const samples = [];
+      for (let index = 0; index < 7; index += 1) {
+        const sent = Date.now();
+        const payload = await api(`/api/time?nonce=${ephemeralId()}`);
+        const received = Date.now();
+        samples.push({rtt: received - sent, offset: payload.server_time_ms - ((sent + received) / 2)});
+      }
+      samples.sort((a, b) => a.rtt - b.rtt);
+      return samples[0];
+    }
+
+    function syncPublicUrl(runId) {
+      const isLoopback = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(location.hostname);
+      const base = isLoopback ? lanSyncOrigins[0] : location.origin;
+      if (!base) return null;
+      const url = new URL(location.pathname, base);
+      url.search = "";
+      url.searchParams.set("run", runId);
+      url.hash = "q5";
+      return url.toString();
+    }
+
+    async function joinSyncRun(runId) {
+      const run = await api(`/api/sync/runs/${encodeURIComponent(runId)}`);
+      syncState.run = run;
+      syncState.scheduledFor = null;
+      $("#sync-code").value = run.run_id;
+      $("#sync-preview").value = run.preview_url;
+      $("#sync-audio").src = run.preview_url;
+      const publicUrl = syncPublicUrl(run.run_id);
+      $("#sync-link").textContent = publicUrl
+        ? `Second-device link: ${publicUrl}`
+        : "Second-device link unavailable. Restart with --host 0.0.0.0, then recreate the run.";
+      $("#sync-arm").disabled = false;
+      $("#sync-schedule").disabled = !syncState.armed;
+      showJson("#q5-output", run, "Joined. Arm this device, then wait for the host to schedule.");
+      startSyncPolling();
+    }
+
+    $("#sync-create").addEventListener("click", async () => {
+      const button = $("#sync-create");
+      setBusy(button, true, "Creating");
+      try {
+        const run = await api("/api/sync/runs", {
+          method: "POST",
+          body: JSON.stringify({preview_url: $("#sync-preview").value, title: "PoC preview"}),
+        });
+        await joinSyncRun(run.run_id);
+      } catch (error) { showError("q5", "#q5-output", error); }
+      finally { setBusy(button, false); }
+    });
+
+    $("#sync-join").addEventListener("click", async () => {
+      try { await joinSyncRun($("#sync-code").value.trim()); }
+      catch (error) { showError("q5", "#q5-output", error); }
+    });
+
+    $("#sync-arm").addEventListener("click", async () => {
+      const button = $("#sync-arm");
+      setBusy(button, true, "Measuring clock");
+      try {
+        const audio = $("#sync-audio");
+        audio.muted = true;
+        await audio.play();
+        audio.pause();
+        audio.currentTime = 0;
+        audio.muted = false;
+        const estimate = await bestClockEstimate();
+        syncState.offsetMs = estimate.offset;
+        syncState.bestRttMs = estimate.rtt;
+        syncState.armed = true;
+        $("#sync-schedule").disabled = false;
+        $("#q5-output").textContent = `Armed. Best clock round-trip: ${estimate.rtt.toFixed(1)} ms. Server offset estimate: ${estimate.offset.toFixed(1)} ms. Arm the other device before scheduling.`;
+      } catch (error) { showError("q5", "#q5-output", new Error(`Could not arm audio: ${error.message}`)); }
+      finally { setBusy(button, false); }
+    });
+
+    async function scheduleLocalPlayback(run) {
+      if (!syncState.armed || !run.start_at_ms || syncState.scheduledFor === run.start_at_ms) return;
+      syncState.scheduledFor = run.start_at_ms;
+      const audio = $("#sync-audio");
+      audio.currentTime = 0;
+      const localTarget = run.start_at_ms - syncState.offsetMs;
+      const delay = localTarget - Date.now();
+      if (delay < -250) {
+        $("#q5-output").textContent = "The scheduled start was missed. Ask the host to schedule again.";
+        return;
+      }
+      const onPlaying = async () => {
+        const observation = {
+          client_id: clientId,
+          estimated_server_start_ms: Date.now() + syncState.offsetMs,
+          scheduled_server_start_ms: run.start_at_ms,
+          clock_offset_ms: syncState.offsetMs,
+          best_rtt_ms: syncState.bestRttMs,
+          audio_current_time: audio.currentTime,
+          audible: null,
+        };
+        syncState.observation = observation;
+        try {
+          const summary = await api(`/api/sync/runs/${encodeURIComponent(run.run_id)}/observations`, {
+            method: "POST",
+            body: JSON.stringify(observation),
+          });
+          $("#audibility").hidden = false;
+          renderSyncSummary(summary);
+        } catch (error) { showError("q5", "#q5-output", error); }
+      };
+      audio.addEventListener("playing", onPlaying, {once: true});
+      setTimeout(async () => {
+        try { await audio.play(); }
+        catch (error) { showError("q5", "#q5-output", new Error(`Scheduled playback was blocked: ${error.message}`)); }
+      }, Math.max(0, delay));
+      $("#q5-output").textContent = `Scheduled for ${new Date(run.start_at_ms).toLocaleTimeString()}. Keep this page open.`;
+    }
+
+    function renderSyncSummary(summary) {
+      const enough = summary.observation_count >= 2;
+      let label = `${summary.observation_count}/2 devices`;
+      let style = "";
+      if (enough && summary.awaiting_audibility) {
+        label = `${summary.audible_confirmed_count}/2 heard`;
+      } else if (enough) {
+        label = summary.passes ? "Pass" : "Timing failed";
+        style = summary.passes ? "pass" : "fail";
+      }
+      setState("q5", style, label);
+      const intro = enough
+        ? `Drift: ${summary.inter_device_drift_ms} ms. Largest scheduled-start error: ${summary.max_absolute_start_error_ms} ms. Both devices must confirm audible playback.`
+        : "Waiting for the second device observation.";
+      showJson("#q5-output", summary, intro);
+      refreshReport().catch(() => {});
+    }
+
+    function startSyncPolling() {
+      clearInterval(syncState.poller);
+      syncState.poller = setInterval(async () => {
+        if (!syncState.run) return;
+        try {
+          const run = await api(`/api/sync/runs/${encodeURIComponent(syncState.run.run_id)}`);
+          syncState.run = run;
+          await scheduleLocalPlayback(run);
+          if (run.observation_count) renderSyncSummary(run);
+        } catch (_) { /* keep the visible last known state */ }
+      }, 450);
+    }
+
+    $("#sync-schedule").addEventListener("click", async () => {
+      if (!syncState.run || !syncState.armed) return;
+      try {
+        const run = await api(`/api/sync/runs/${encodeURIComponent(syncState.run.run_id)}/schedule`, {
+          method: "POST",
+          body: JSON.stringify({delay_ms: 3000}),
+        });
+        syncState.run = run;
+        await scheduleLocalPlayback(run);
+      } catch (error) { showError("q5", "#q5-output", error); }
+    });
+
+    async function recordAudibility(audible) {
+      if (!syncState.run || !syncState.observation) return;
+      syncState.observation.audible = audible;
+      const summary = await api(`/api/sync/runs/${encodeURIComponent(syncState.run.run_id)}/observations`, {
+        method: "POST",
+        body: JSON.stringify(syncState.observation),
+      });
+      renderSyncSummary(summary);
+    }
+    $("#heard-yes").addEventListener("click", () => recordAudibility(true));
+    $("#heard-no").addEventListener("click", () => recordAudibility(false));
+
+    $("#spotify-signin").addEventListener("click", () => { location.href = "/api/spotify/login"; });
+    $("#spotify-run").addEventListener("click", async () => {
+      const button = $("#spotify-run");
+      setBusy(button, true, "Reading Spotify");
+      try {
+        const result = await api("/api/spotify/probe", {method: "POST", body: "{}"});
+        setState("q6", result.passes ? "pass" : "fail", result.passes ? `${result.unique_songs} songs loaded` : "No ISRC top tracks");
+        renderSpotifyResult(result);
+        setPreviewCorpus("spotify", result.unique_songs);
+        $("#spotify-continue").hidden = result.unique_songs === 0;
+        await refreshReport();
+      } catch (error) { showError("q6", "#q6-output", error); }
+      finally { setBusy(button, false); }
+    });
+    $("#spotify-continue").addEventListener("click", () => {
+      document.querySelector("#q4").scrollIntoView({behavior: "smooth", block: "start"});
+      $("#previews-run").focus({preventScroll: true});
+    });
+
+    $("#charts-run").addEventListener("click", async () => {
+      const button = $("#charts-run");
+      setBusy(button, true, "Reading charts");
+      try {
+        const result = await api("/api/apple/charts", {method: "POST", body: "{}"});
+        setState("q7", result.passes ? "pass" : "fail", result.passes ? "Pass" : "Below 30");
+        showJson("#q7-output", result);
+        await refreshReport();
+      } catch (error) { showError("q7", "#q7-output", error); }
+      finally { setBusy(button, false); }
+    });
+
+    $("#report-refresh").addEventListener("click", refreshReport);
+    $("#report-copy").addEventListener("click", async () => {
+      await navigator.clipboard.writeText($("#report-text").textContent);
+      const button = $("#report-copy");
+      const original = button.textContent;
+      button.textContent = "Copied";
+      setTimeout(() => { button.textContent = original; }, 1200);
+    });
+
+    initialize();
+  </script>
+</body>
+</html>

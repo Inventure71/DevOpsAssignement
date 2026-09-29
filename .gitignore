@@ -22,5 +22,5 @@ data/
 # Personal working notes (drafts, not decided yet)
 notes/
 
-# Proof-of-concept throwaway code (never committed)
-poc/
+# Proof-of-concept source is isolated on the POC branch.
+# Its virtual environment and caches are covered by the rules above.
