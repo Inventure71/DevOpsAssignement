@@ -1,9 +1,11 @@
 # 03 — Game Rules
 
-The core business logic of the Game domain. Everything here must be covered by unit tests.
+The core business logic of the Game domain must be covered by unit tests.
+Cover rendering and its load-failure fallback also need browser verification.
 
-After the Sep 29 PoC, the first playable milestone uses demo/manual songs and
-host-device audio. Apple familiarity levels apply only when personal imports
+After the Sep 30 clarification, the first playable milestone uses assigned demo
+songs and host-device audio. Manual song picking is excluded.
+Apple familiarity levels apply only when personal imports
 are validated. Spotify familiarity mapping is not decided here; all-device
 audio is conditional (see `02_REQUIREMENTS.md` and `05_ARCHITECTURE.md`).
 
@@ -12,8 +14,8 @@ audio is conditional (see `02_REQUIREMENTS.md` and `05_ARCHITECTURE.md`).
 2. Each player answers within the answer time (10 / 20 / 30 s):
    - **Which song?** One of **4 options**
    - **Who listens to it?** Select one or more players, **or "Nobody"**
-3. The round closes when the time runs out or everyone has answered. A player who didn't answer scores 0.
-4. **Reveal:** song title, artist and cover, who listens to it (or "Nobody: decoy!"), and each player's points for the round.
+3. The round closes when the time runs out or every player in the starting roster has answered. Disconnected players remain in that roster. A missing answer becomes blank with 0 points at the deadline; an already submitted answer stays valid if its player disconnects.
+4. **Reveal:** song title, artist and cover from the frozen game snapshot, who listens to it (or "Nobody: decoy!"), and each player's points for the round. Use a bundled placeholder if `artwork_url` is absent or fails to load; missing artwork does not invalidate the round.
 5. The leaderboard updates. The **host taps "Next"** to start the next round.
 
 ## 2. Host settings that affect the rules
@@ -84,13 +86,16 @@ In host-device mode, players share the same audio output. The server measures an
 | Eve | ❌ | 3 s | Nobody | 1 | (0 + 100) × 1 | **100** |
 
 ## 5. Song difficulty (familiarity)
-Each song a player adds gets a level, based on how often that player listens to it:
+Each automatically loaded song gets a level per player, based on the available
+listening signal; demo data supplies fixed levels. Players never tag or choose
+the songs themselves:
 
 | Source | Easy | Medium | Hard |
 |---|---|---|---|
 | Apple Music | In **heavy rotation** | In **recently played** | Only in the **library** |
-| Manual picks | Tagged "on repeat" | Tagged "sometimes" | Tagged "rarely" |
+| Demo | Assigned easy level | Assigned medium level | Assigned hard level |
 
+- Song identity is deduplicated within each room. Familiarity belongs to a player's relationship to a song, not the shared song record. Players do not inspect the source lists or choose the game's pool before play; manual picks and manual familiarity tags are excluded.
 - If a song appears in several Apple lists, the **easiest** level wins
 - If several players have the song, the level of the player it was **picked from** is used
 - Decoys have no level (×1)
@@ -116,29 +121,36 @@ Each song a player adds gets a level, based on how often that player listens to 
 ## 7. Same song, several listeners
 Two songs are the **same song** when:
 - they have the same **ISRC** (a standard recording ID from Apple/Spotify), or
-- for manual picks without an ISRC: the same **title + artist**, compared lowercase, with spaces trimmed and "(feat. …)" removed
+- when an ISRC is missing: the same **title + artist**, compared case-insensitively, with spaces trimmed and "(feat. …)" removed; preserve Unicode letters
 
 All players who have the song count as its listeners. A decoy is only valid if it matches **no** player's song.
 
 ## 8. Leaderboard
-- Total = sum of a player's round scores in the game
+- Total = sum of a player's scores from `revealed` attempts in the game
+- Only `revealed` attempts contribute to totals or final rankings. Keep answers from `void` attempts for diagnosis, but exclude any recorded points from them.
 - **Ties share the same rank** (1, 1, 3…)
-- A room's history (30 days) keeps each game's final ranking
+- The room retains final rankings, rounds, guesses and scores until 30 days after its last completed game (or creation if none completes). The initial history UI shows final rankings only; detailed screens are deferred. Aborted games retain clearly labelled partial rankings and do not extend retention.
 
 ## 9. Edge cases
 | Case | Rule |
 |---|---|
-| Player doesn't answer | 0 points for the round |
+| Player disconnects or does not answer | Keep the starting identity; missing answers are blank with 0 points at the deadline |
 | Player answers the song but not "who" | who_score = 0 |
 | Every player listens to the song | Normal scoring: selecting everyone is then fully correct |
-| Clip fails to load during a round | The round isn't scored and is replaced by another song, if one is available |
+| Clip fails to load during a round | Save the answers, mark the attempt `void`, exclude its points from rankings, and replace it with another song if available |
+| Cover reference missing or image fails | Show the bundled placeholder; continue the reveal and scoring normally |
 | Decoy pool empty or unavailable | That round becomes a normal round |
-| Host leaves | The game ends for everyone (FR16) |
+| New browser tries to join mid-game | Reject it; existing same-browser identities can reconnect |
+| Song import/change during play | Reject it; allow changes again in the lobby |
+| Host explicitly leaves | End immediately for everyone (FR16) |
+| Host loses connectivity | 60-second grace from its last accepted heartbeat, then end; late reconnects do not revive the game |
 
-## 10. What to unit test (feeds ADR-4)
+## 10. What to test (feeds ADR-4)
 - **Scoring:** every row of both worked-example tables; the speed bonus (0 s, half time, full time, wrong song = no bonus); who_score for every row of the table in §4, including decoys and "Nobody"; perfect-round bonus; the minimum of 0; half-up rounding with exact fractions (187.5 → 188)
-- **Difficulty levels** from Apple sources and manual tags, including "easiest wins"
+- **Difficulty levels** from validated Apple source signals and assigned demo levels, including "easiest wins"; add Spotify mapping tests when that mapping is decided
 - **Song picking:** rotation, even spread, no repeats, the difficulty fallback, skipping a player with no songs left, ending early, decoy count and positions (never round 1), decoys never matching a room song
 - **Answer options:** 4 options, the correct one included, no duplicates, the 2 room + 1 decoy mix when decoys are on
-- **Same-song matching:** ISRC, and normalised title + artist
-- **Leaderboard:** totals and shared ranks
+- **Same-song matching:** ISRC, normalized title + artist without losing Unicode, room-local identity and shared songs with different per-player familiarity
+- **Leaderboard:** totals and shared ranks, including disconnected starting players; blank answers distinct from "Nobody"; retained round details and the completed-game retention anchor
+- **Failed attempts:** retain their answers, exclude their points from live/final rankings, and keep replacement attempts separate
+- **Cover fallback:** the reveal uses the frozen reference; absent or failed artwork shows a placeholder without changing scores (browser verification)

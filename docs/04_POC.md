@@ -197,7 +197,7 @@ fail for a subscribed user.
 | Q6 | **Functionally verified; measurements pending** | OAuth/PKCE succeeded and the tester confirmed that personal songs loaded · exact counts/ISRC percentage not retained | Rerun once and preserve the generated aggregate report |
 | Q7 | **API criterion passed; playback pending** | chart songs: 50 · with ISRC: 100% · with preview URL: 100% · both: 50 · 332 ms | Apple charts are suitable for the decoy pool; browser audibility is still a separate check |
 
-### Impact on the design
+### Impact on the design (2026-09-29)
 
 Apple developer-token access is sufficient for catalog metadata, storefronts,
 genres, search, ISRC matching, chart-based decoys and preview discovery without
@@ -226,6 +226,15 @@ Rooms from Game, and personal-history import from preview delivery. Remaining
 measurements gate optional integrations, not the start of the demo/manual core.
 The recorded PoC tests cover experimental mechanics, not the assignment's
 required Rooms/Game business-logic coverage.
+
+### Later product decision (2026-09-30)
+
+The manual fallback discussed in the Sep 29 handoff was removed after the user
+confirmed that players should neither select nor inspect the game song pool.
+The first playable milestone now uses assigned hidden demo data. Real personal
+songs require automatic import; provider choice and familiarity mapping remain
+open. This scope change adds no new PoC measurements. See `06_DATA_MODEL.md`
+for the room-local song model, frozen roster and retention decisions.
 
 ### Remaining validation
 
