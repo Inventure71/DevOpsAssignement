@@ -1,8 +1,10 @@
 # 06 — Data Model
 
-Date: 2026-09-30. Planned SQLite schema; the application is not implemented yet.
-This follows [ADR-2 and ADR-3](../ADR.md) and the
-[domain boundary](05_ARCHITECTURE.md#4-the-boundary-at-game-start).
+Date: 2026-09-30. SQLite migration 1 implements the ten-table schema below.
+See [implementation status](08_IMPLEMENTATION_STATUS.md) for Demo test evidence.
+This follows [the ADRs](../ADR.md), the
+[domain boundary](05_ARCHITECTURE.md#4-the-boundary-at-start) and
+[API/runtime contract](07_API_AND_RUNTIME.md).
 
 ## 1. Decisions made today
 
@@ -11,9 +13,9 @@ This follows [ADR-2 and ADR-3](../ADR.md) and the
   player–song relationship, not the shared song.
 - Freeze songs and membership during a game. Only lobby automatic imports/updates are
   allowed. Players do not choose or inspect the normal game's song pool before
-  play. Manual song picking is excluded; unavailable personal imports fall back to
-  assigned demo data.
-- Copy the starting roster and song facts into Game. A disconnected player
+  play. Manual song picking is excluded. The host explicitly chooses Normal or
+  Demo before joins; failed Normal imports never silently substitute demo data.
+- Copy the starting roster, nickname/character and song/credited-artist facts into Game. A disconnected player
   remains in that game's roster and ranking; a missing answer is blank and
   scores zero. Reconnecting does not add a new participant.
 - Reject new joins during a game, including a different browser attempting
@@ -32,9 +34,13 @@ This follows [ADR-2 and ADR-3](../ADR.md) and the
 
 ## 2. Ownership and relationships
 
-Rooms owns four tables. Game owns four tables. Both use the same SQLite file
+Rooms owns five tables, including the seeded `demo_catalog`. Game owns five,
+including durable command receipts. Both use the same SQLite file
 at `DATA_DIR/whos_on_repeat.sqlite3` (`DATA_DIR` defaults to `./data`). The app
-creates the schema automatically; no manual migration is needed for a fresh run.
+creates/seeds the schema automatically; versioned migrations handle later
+upgrades. Demo fixtures are application-owned templates, not another room
+whose retention can expire. Their song facts are copied into room-local songs
+when assigned; deleting a room does not delete the shared fixture catalog.
 All timestamps are server UTC milliseconds. IDs are random opaque strings.
 
 ```mermaid
@@ -48,10 +54,13 @@ erDiagram
     games ||--o{ rounds : contains
     game_players ||--o{ answers : submits_or_defaults
     rounds ||--o{ answers : records
+    games ||--o{ game_commands : remembers
+    game_players ||--o{ game_commands : issues
 
     rooms {
         TEXT id PK
         TEXT code UK
+        TEXT mode
         INTEGER revision
         TEXT state
         INTEGER created_at_ms
@@ -62,6 +71,9 @@ erDiagram
         TEXT room_id FK
         TEXT nickname
         TEXT nickname_key
+        TEXT character_id
+        TEXT music_status
+        TEXT music_provider
         TEXT session_token_hash UK
         INTEGER is_host
         INTEGER joined_at_ms
@@ -74,6 +86,7 @@ erDiagram
         TEXT isrc
         TEXT title
         TEXT artist
+        TEXT artists_json
         TEXT preview_url
         TEXT artwork_url
     }
@@ -87,9 +100,16 @@ erDiagram
         TEXT id PK
         TEXT room_id FK
         INTEGER room_revision
+        TEXT start_request_id
+        INTEGER state_version
         TEXT status
+        TEXT phase
         TEXT settings_json
         TEXT songs_snapshot_json
+        TEXT round_plan_json
+        INTEGER prepared_at_ms
+        INTEGER phase_ends_at_ms
+        TEXT end_reason
         INTEGER started_at_ms
         INTEGER ended_at_ms
     }
@@ -97,6 +117,7 @@ erDiagram
         TEXT game_id PK, FK
         TEXT player_id PK
         TEXT nickname
+        TEXT character_id
         INTEGER is_host
         INTEGER final_score
         INTEGER final_rank
@@ -113,6 +134,12 @@ erDiagram
         TEXT picked_player_id FK
         INTEGER starts_at_ms
         INTEGER deadline_at_ms
+        INTEGER readiness_generation
+        INTEGER readiness_deadline_at_ms
+        TEXT ready_player_ids_json
+        TEXT excluded_player_ids_json
+        INTEGER revealed_at_ms
+        TEXT void_reason
     }
     answers {
         TEXT game_id FK
@@ -125,9 +152,28 @@ erDiagram
         INTEGER received_at_ms
         INTEGER points
     }
+    demo_catalog {
+        TEXT id PK
+        TEXT pool_kind
+        TEXT isrc
+        TEXT title
+        TEXT artist
+        TEXT artists_json
+        TEXT preview_url
+        TEXT artwork_url
+    }
+    game_commands {
+        TEXT game_id PK, FK
+        TEXT request_id PK
+        TEXT actor_player_id FK
+        TEXT command_type
+        TEXT payload_json
+        TEXT result_json
+        INTEGER accepted_at_ms
+    }
 ```
 
-The diagram shows the eight tables and their columns. Multi-column uniqueness,
+The diagram shows the ten tables and their columns. Multi-column uniqueness,
 checks and deletion rules are specified by the DDL below. The `game_players`
 identity is copied from Rooms; it deliberately has no foreign key to `players`.
 Deleting/changing live membership later must not change old rankings.
@@ -148,11 +194,38 @@ than creating duplicates, with the easiest source level winning.
 
 Game uses relational rows for its roster, rounds and answers. Its immutable
 song snapshot is a JSON array of song objects containing `song_key`, title,
-artist, ISRC, preview source/URL, optional `artwork_url`, and listeners with their
+display artist plus structured credited-artist keys/names, ISRC, preview source/URL,
+optional `artwork_url`, and listeners with their
 per-player familiarity.
 Decoy song facts are added during preparation with an empty listener list.
 The snapshot does not contain provider user tokens or browser session tokens.
-Game settings are another frozen JSON object.
+Game settings are another frozen JSON object, including mode and original
+requested round count. The roster/characters freeze at Start; final song facts
+and `round_plan_json` freeze when setup completes (`prepared_at_ms`), before
+initial readiness/scored play. Neither receives live edits afterward.
+
+`songs.artists_json` and demo fixtures contain bounded structured credits such
+as `[{"artist_key":"demo:artist-a","name":"Artist A"}]`. Use provider-qualified
+canonical IDs for real credits, reconciling candidates from different adapters.
+Do not infer guest identities by substring/splitting a display string. Validate
+credit completeness with the chosen real provider before enabling its artist
+partial-credit path; fixtures provide known identities from the start.
+
+`round_plan_json` contains one object per original requested slot: slot number,
+source player/difficulty, original candidate, ordered checked candidates and
+four-option sets, setup candidate-check outcomes, substitutions already used,
+chosen playable song or skipped status, and remaining checked reserves. Keep
+candidate song facts in the frozen song snapshot. Preserve requested slot
+numbers and the original denominator for strict 30% cancellation. Runtime
+attempt rows refer to these prepared candidates; runtime failure/retry progress
+does not rewrite the immutable plan. Count setup and runtime skips once per
+original slot. Enough distinct songs/options/reserves are a service check.
+
+`demo_catalog` is seeded automatically from `catalog/demo_catalog.json`, with
+`personal` and `decoy` entries, explicit artist keys and root-relative media.
+The Rooms demo adapter makes hidden random assignments into `songs` and
+`player_songs`, with per-player familiarity. The shared catalog contains no
+personal provider tokens and is independent of room cleanup.
 
 `songs.artwork_url` is nullable: a provider image URL or a root-relative demo
 asset URL, such as `/static/demo/covers/song-a.svg`, rather than a filesystem
@@ -170,7 +243,8 @@ The reveal reads it from the frozen snapshot instead of fetching the current
 Rooms record or calling a provider. Use the bundled placeholder
 `/static/images/cover-placeholder.svg` when the reference is missing or the
 image fails to load. A missing cover never invalidates an audio round. The
-assets and reveal UI are planned, not files already present in this repository.
+bundled assets and reveal UI are present in `temporary_frontend/`; real provider enrichment
+remains pending.
 
 The service validates the snapshot against the roster before creating a game.
 SQLite validates JSON shape; Game validates song keys, option uniqueness and
@@ -180,40 +254,81 @@ History queries do not need to join against the current Rooms song pool.
 
 ## 4. Lifecycle, answers and retention
 
-The game-start transaction checks the room revision, creates the game and
-roster, and changes the room from `lobby` to `playing`. No network calls run
-inside that transaction. A changed revision or failed insert rolls it back.
-New joins, imports and edits are rejected while the room is playing.
+The Start transaction verifies host/mode/import readiness and room revision,
+creates a `preparing` game/starting roster and sets the room to `playing`
+(including setup). No provider calls run inside it. New joins, character edits,
+imports and membership changes are rejected until the lobby returns. Setup
+completes/finalizes the full checked sequence before the first readiness cycle.
+A setup cancellation or initial ten-second readiness timeout aborts preparation
+and restores the lobby without renewing retention or awarding points.
 
-Each round keeps four options in fixed slot order. An answer stores the slot,
-not a client-supplied claim about which song was correct. `who_mode` distinguishes
-`blank`, `nobody` and `players`; an empty selection is not silently scored as
-"Nobody". Game validates selected player IDs against the frozen roster.
+Games separate terminal `status` from presentation `phase`: status is preparing,
+playing, completed or aborted; phase is setup, ready, countdown, answering,
+reveal, leaderboard or finished. `phase_ends_at_ms` owns the five-second setup
+minimum, three-second countdown, five-second reveal and five-second leaderboard.
+`started_at_ms` is host Start acceptance, not the audio/scoring start. A game
+becomes playing when its first countdown is scheduled. Completed/aborted games
+have a finished phase, end time/cause and saved full-roster rankings.
 
-On round closure, insert a `missing` answer with zero points for every roster
-member who did not submit. A disconnected player still waits for the deadline;
-disconnection is not an early blank submission. A valid submitted answer is
-preserved if the player disconnects afterwards. Late and duplicate submissions
-are rejected. Scoring and round closure occur once in a transaction.
+Create an actual round attempt only when activating a prepared slot. `ready`
+includes waiting for check-ins and a scheduled countdown; `playing` begins at
+`starts_at_ms`. One ready/playing attempt per game prevents duplicate activation.
+Round rows hold fixed option order, difficulty/source player, server audio start
+and deadline, readiness generation/deadline, ACK IDs, barrier exclusions and
+reveal/void cause. Retry increments generation and clears ACKs/exclusions for the
+same unstarted attempt. Continue can exclude only currently unready non-host IDs
+from the current barrier; it never changes the roster or creates an answer.
+Initial timeout aborts setup; later timeouts wait for the host's recovery choice.
+The host cannot be excluded. Exclusions expire at the next generation/round.
 
-Failed clips produce a `void` attempt. Save its answers for diagnosis; do not
-delete them. Any recorded points remain diagnostic and are excluded from
-rankings. A replacement uses the same round number and a new attempt.
-Only `revealed` attempts contribute to live totals and saved final rankings.
-For example, 150 recorded points on a void attempt plus 200 points on its
-revealed replacement contribute 200 points, while both answer rows remain.
-The same song is never played
-twice, including failed attempts. When a game ends, persist the roster's final
-scores and shared ranks; use `completed` for a normally finished game and
-`aborted` for a host leave, grace expiry or server interruption. Aborted games
-can display partial rankings clearly labelled as interrupted.
+An answer stores the selected option slot, not a client claim of correctness.
+A submitted empty listener list becomes `who_mode = 'nobody'`; a nonempty list
+becomes `players`. `blank` is reserved for a missing submission. A null song
+option can coexist with a submitted who guess. No Submit by deadline inserts a
+`missing` answer with zero total points for that roster member. A disconnected
+or barrier-excluded player can reconnect and submit before the deadline; absence
+alone is not an early blank answer. Validate all selected IDs against the frozen
+roster. Identical accepted-answer retries return the stored receipt even after
+closure; changed second answers conflict. Enforce `[start, deadline)` and atomic
+closure/scoring as specified in `07_API_AND_RUNTIME.md`.
 
-Rooms owns heartbeat times and browser identity; the application asks Rooms
-for host presence and tells Game to end when the 60-second grace expires.
-Check expiry before accepting a returning host's heartbeat, so a late return
-cannot revive an ended game. The exact heartbeat interval and cookie transport
-will be specified in the API/security design. Only a digest of the random
-browser credential is stored; recover the same player, never identify by nickname.
+Artist-only credit uses frozen structured identities: a wrong option sharing any
+credited artist earns 50 once, no speed/perfect bonus. Correct song and ordinary
+listener/difficulty/exact arithmetic rules remain in `03_GAME_RULES.md`.
+
+A current audio failure accepted before closure produces `void`; retain answers
+and any diagnostic points but never count them in rankings. Revealed attempts
+are final. A replacement uses the same original slot number with a new attempt,
+within its total original-plus-three candidate budget; `attempt` is therefore
+bounded by 4, while readiness Retry does not increment it. If all checked
+reserves are exhausted, skip that original slot and enforce the cumulative strict
+30% cancellation rule. Preserve partial results on a runtime abort. Only
+`revealed` attempts count toward live/saved rankings: diagnostic 150 on void plus
+200 on its revealed replacement contributes 200, retaining both answer rows.
+
+`games.start_request_id` is unique per room. It finds an earlier Start even after
+completion/restart, preventing a repeated request from starting another match.
+`game_commands` records accepted host-command IDs, actor, normalized payload and
+minimal result in the same transaction as their effect. Identical retries return
+that effect; changed ID reuse conflicts. Selected attempt/generation is explicit,
+never whichever round happens to be current. This receipt table contains no
+provider/browser secrets or audio manifest. `state_version` increases for visible
+state changes so clients ignore older polls; ACK validity uses attempt/generation,
+not a state version changed by someone else's ACK.
+
+Rooms owns five-second heartbeats and room-scoped browser identity. An in-process
+presence check enforces the host's 60-second grace; requests enforce expiry before
+accepting a returning heartbeat. Polling and ACKs do not renew presence. Capture
+only a credential digest in SQLite; no nickname/device recovery. During host
+absence the current timed phases can finish, then wait on the leaderboard before
+opening the next readiness window. Explicit leave aborts immediately. One host
+browser tab controls audio; lease state is transient and discarded on restart.
+
+Startup recovery voids ready/playing attempts in interrupted preparing/playing
+games, preserves revealed scores, aborts with a server-restart cause, saves partial
+ranks and restores surviving rooms to lobby in one transaction. This does not
+pretend completion or renew retention. Use migration/version metadata so automatic
+setup handles schema evolution without discarding existing rooms/results.
 
 A completed game and `rooms.last_completed_at_ms` are saved in one transaction.
 The retention deadline is `COALESCE(last_completed_at_ms, created_at_ms)` plus
@@ -236,7 +351,8 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE rooms (
     id TEXT PRIMARY KEY NOT NULL,
-    code TEXT NOT NULL UNIQUE,
+    code TEXT NOT NULL UNIQUE CHECK (length(code) = 6),
+    mode TEXT NOT NULL CHECK (mode IN ('normal', 'demo')),
     revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
     state TEXT NOT NULL DEFAULT 'lobby' CHECK (state IN ('lobby', 'playing')),
     created_at_ms INTEGER NOT NULL,
@@ -248,10 +364,14 @@ CREATE TABLE players (
     room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     nickname TEXT NOT NULL,
     nickname_key TEXT NOT NULL,
+    character_id TEXT NOT NULL,
+    music_status TEXT NOT NULL CHECK (music_status IN ('authorized', 'ready', 'failed', 'demo')),
+    music_provider TEXT,
     session_token_hash TEXT NOT NULL UNIQUE,
     is_host INTEGER NOT NULL CHECK (is_host IN (0, 1)),
     joined_at_ms INTEGER NOT NULL,
     last_seen_at_ms INTEGER NOT NULL,
+    CHECK ((music_status = 'demo' AND music_provider IS NULL) OR (music_status != 'demo' AND music_provider IS NOT NULL)),
     UNIQUE (room_id, id),
     UNIQUE (room_id, nickname_key)
 );
@@ -264,10 +384,22 @@ CREATE TABLE songs (
     isrc TEXT,
     title TEXT NOT NULL,
     artist TEXT NOT NULL,
+    artists_json TEXT NOT NULL CHECK (json_valid(artists_json) AND json_type(artists_json) = 'array' AND json_array_length(artists_json) >= 1),
     preview_url TEXT,
     artwork_url TEXT,
     UNIQUE (room_id, id),
     UNIQUE (room_id, identity_key)
+);
+
+CREATE TABLE demo_catalog (
+    id TEXT PRIMARY KEY NOT NULL,
+    pool_kind TEXT NOT NULL CHECK (pool_kind IN ('personal', 'decoy')),
+    isrc TEXT,
+    title TEXT NOT NULL,
+    artist TEXT NOT NULL,
+    artists_json TEXT NOT NULL CHECK (json_valid(artists_json) AND json_type(artists_json) = 'array' AND json_array_length(artists_json) >= 1),
+    preview_url TEXT NOT NULL,
+    artwork_url TEXT
 );
 
 CREATE TABLE player_songs (
@@ -284,20 +416,35 @@ CREATE TABLE games (
     id TEXT PRIMARY KEY NOT NULL,
     room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE RESTRICT,
     room_revision INTEGER NOT NULL CHECK (room_revision >= 0),
-    status TEXT NOT NULL CHECK (status IN ('playing', 'completed', 'aborted')),
+    start_request_id TEXT NOT NULL,
+    state_version INTEGER NOT NULL DEFAULT 0 CHECK (state_version >= 0),
+    status TEXT NOT NULL CHECK (status IN ('preparing', 'playing', 'completed', 'aborted')),
+    phase TEXT NOT NULL CHECK (phase IN ('setup', 'ready', 'countdown', 'answering', 'reveal', 'leaderboard', 'finished')),
     settings_json TEXT NOT NULL CHECK (json_valid(settings_json) AND json_type(settings_json) = 'object'),
     songs_snapshot_json TEXT NOT NULL CHECK (json_valid(songs_snapshot_json) AND json_type(songs_snapshot_json) = 'array'),
+    round_plan_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(round_plan_json) AND json_type(round_plan_json) = 'array'),
     started_at_ms INTEGER NOT NULL,
+    prepared_at_ms INTEGER CHECK (prepared_at_ms >= started_at_ms),
+    phase_ends_at_ms INTEGER,
+    end_reason TEXT,
     ended_at_ms INTEGER CHECK (ended_at_ms >= started_at_ms),
-    CHECK ((status = 'playing' AND ended_at_ms IS NULL) OR (status != 'playing' AND ended_at_ms IS NOT NULL))
+    UNIQUE (room_id, start_request_id),
+    CHECK ((status IN ('preparing', 'playing') AND ended_at_ms IS NULL AND end_reason IS NULL AND phase != 'finished')
+        OR (status IN ('completed', 'aborted') AND ended_at_ms IS NOT NULL AND end_reason IS NOT NULL AND phase = 'finished' AND phase_ends_at_ms IS NULL)),
+    CHECK (status != 'preparing' OR phase IN ('setup', 'ready')),
+    CHECK (status != 'playing' OR phase IN ('ready', 'countdown', 'answering', 'reveal', 'leaderboard')),
+    CHECK (status NOT IN ('playing', 'completed') OR prepared_at_ms IS NOT NULL),
+    CHECK (phase NOT IN ('setup', 'countdown', 'reveal', 'leaderboard') OR phase_ends_at_ms IS NOT NULL),
+    CHECK (phase_ends_at_ms IS NULL OR phase_ends_at_ms >= started_at_ms)
 );
 CREATE INDEX games_by_room ON games(room_id);
-CREATE UNIQUE INDEX one_active_game ON games(room_id) WHERE status = 'playing';
+CREATE UNIQUE INDEX one_active_game ON games(room_id) WHERE status IN ('preparing', 'playing');
 
 CREATE TABLE game_players (
     game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
     player_id TEXT NOT NULL,
     nickname TEXT NOT NULL,
+    character_id TEXT NOT NULL,
     is_host INTEGER NOT NULL CHECK (is_host IN (0, 1)),
     final_score INTEGER CHECK (final_score >= 0),
     final_rank INTEGER CHECK (final_rank >= 1),
@@ -310,7 +457,7 @@ CREATE TABLE rounds (
     id TEXT PRIMARY KEY NOT NULL,
     game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
     round_number INTEGER NOT NULL CHECK (round_number BETWEEN 1 AND 15),
-    attempt INTEGER NOT NULL DEFAULT 1 CHECK (attempt >= 1),
+    attempt INTEGER NOT NULL DEFAULT 1 CHECK (attempt BETWEEN 1 AND 4),
     status TEXT NOT NULL CHECK (status IN ('ready', 'playing', 'revealed', 'void')),
     song_key TEXT NOT NULL,
     options_json TEXT NOT NULL CHECK (json_valid(options_json) AND json_type(options_json) = 'array' AND json_array_length(options_json) = 4),
@@ -318,15 +465,23 @@ CREATE TABLE rounds (
     picked_player_id TEXT,
     starts_at_ms INTEGER,
     deadline_at_ms INTEGER,
+    readiness_generation INTEGER NOT NULL DEFAULT 1 CHECK (readiness_generation >= 1),
+    readiness_deadline_at_ms INTEGER NOT NULL,
+    ready_player_ids_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(ready_player_ids_json) AND json_type(ready_player_ids_json) = 'array'),
+    excluded_player_ids_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(excluded_player_ids_json) AND json_type(excluded_player_ids_json) = 'array'),
+    revealed_at_ms INTEGER,
+    void_reason TEXT,
     UNIQUE (game_id, id),
     UNIQUE (game_id, round_number, attempt),
     UNIQUE (game_id, song_key),
     FOREIGN KEY (game_id, picked_player_id) REFERENCES game_players(game_id, player_id),
     CHECK ((difficulty = 'decoy' AND picked_player_id IS NULL) OR (difficulty != 'decoy' AND picked_player_id IS NOT NULL)),
     CHECK ((starts_at_ms IS NULL AND deadline_at_ms IS NULL) OR (starts_at_ms IS NOT NULL AND deadline_at_ms IS NOT NULL AND deadline_at_ms > starts_at_ms)),
-    CHECK (status != 'playing' OR starts_at_ms IS NOT NULL)
+    CHECK (status NOT IN ('playing', 'revealed') OR starts_at_ms IS NOT NULL),
+    CHECK ((status = 'revealed' AND revealed_at_ms IS NOT NULL AND revealed_at_ms >= starts_at_ms) OR (status != 'revealed' AND revealed_at_ms IS NULL)),
+    CHECK ((status = 'void' AND void_reason IS NOT NULL) OR (status != 'void' AND void_reason IS NULL))
 );
-CREATE UNIQUE INDEX one_playing_round ON rounds(game_id) WHERE status = 'playing';
+CREATE UNIQUE INDEX one_active_round ON rounds(game_id) WHERE status IN ('ready', 'playing');
 
 CREATE TABLE answers (
     game_id TEXT NOT NULL,
@@ -342,7 +497,19 @@ CREATE TABLE answers (
     FOREIGN KEY (game_id, round_id) REFERENCES rounds(game_id, id) ON DELETE CASCADE,
     FOREIGN KEY (game_id, player_id) REFERENCES game_players(game_id, player_id) ON DELETE CASCADE,
     CHECK ((who_mode = 'players' AND json_array_length(who_player_ids_json) > 0) OR (who_mode != 'players' AND json_array_length(who_player_ids_json) = 0)),
-    CHECK ((status = 'submitted' AND received_at_ms IS NOT NULL) OR (status = 'missing' AND received_at_ms IS NULL AND song_option IS NULL AND who_mode = 'blank' AND points IS NOT NULL AND points = 0))
+    CHECK ((status = 'submitted' AND received_at_ms IS NOT NULL AND who_mode IN ('nobody', 'players')) OR (status = 'missing' AND received_at_ms IS NULL AND song_option IS NULL AND who_mode = 'blank' AND points IS NOT NULL AND points = 0))
+);
+
+CREATE TABLE game_commands (
+    game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+    request_id TEXT NOT NULL,
+    actor_player_id TEXT NOT NULL,
+    command_type TEXT NOT NULL CHECK (command_type IN ('start', 'end', 'preload_check', 'retry', 'continue', 'audio_failure', 'leave')),
+    payload_json TEXT NOT NULL CHECK (json_valid(payload_json) AND json_type(payload_json) = 'object'),
+    result_json TEXT NOT NULL CHECK (json_valid(result_json) AND json_type(result_json) = 'object'),
+    accepted_at_ms INTEGER NOT NULL,
+    PRIMARY KEY (game_id, request_id),
+    FOREIGN KEY (game_id, actor_player_id) REFERENCES game_players(game_id, player_id)
 );
 ```
 
@@ -363,26 +530,28 @@ GROUP BY p.game_id, p.player_id, p.nickname;
 Round-failure handling marks the attempt void and invalidates any derived
 ranking in the same transaction. Final scores/ranks are saved from this filtered
 total; diagnostic answer rows are never summed without their attempt status.
-The API design must settle when a clip-failure report can be accepted relative
-to reveal/finalization so a late report cannot leave a stale saved ranking.
+A host failure report is accepted only before closure/reveal. Revealed/final
+results cannot be voided by a late report; see `07_API_AND_RUNTIME.md`.
 
 ## 6. What the database cannot decide
 
 Services must enforce the 3–10 player start limit, at least ten songs per player,
 exactly one host at creation, room/game state transitions, snapshot revision,
-JSON contents and candidate/listener identity, time limits, host authorization,
-half-up scoring and retention. Database constraints back those checks; they
+JSON contents and candidate/listener/artist identity, mode-specific admission,
+character allowlists, readiness barriers/exclusions, replacement budget/strict
+30% skips, phase clocks, host authorization, half-up scoring and retention. Database constraints back those checks; they
 do not replace the service behavior or its tests.
 
-Before real-provider implementation: choose the first import provider and its
-familiarity mapping. Next, define API/session behavior and implement the demo
-core. The schema serves assigned demo data without live provider credentials
-and has no manual-pick or manual-tagging path.
+The API/session design is now in `07_API_AND_RUNTIME.md`. Implement the Demo
+core against this contract. Real-provider work still needs provider/authorization,
+source lists/candidate counts, credit metadata and familiarity validation. No
+manual-pick/manual-tagging or silent Normal-to-Demo path exists.
 
 
-## 7. Schema review on 2026-09-30
+## 7. Verification history and current acceptance
 
-The SQL above was executed against a temporary SQLite 3.46.0 database, with
+Before the API/runtime revision, the earlier eight-table draft was executed
+against a temporary SQLite 3.46.0 database, with
 foreign keys enabled. Checks passed for room/nickname/host uniqueness, room-local
 song deduplication, different per-player familiarity, cross-room membership
 rejection, JSON shapes, one active game/round, option counts, timestamp pairs,
@@ -398,9 +567,29 @@ These are checks of the proposed schema. They are not application service tests,
 proof of heartbeat/scoring behavior or the assignment's 70% coverage result.
 The chosen Python/SQLite runtime must support the JSON functions used here.
 
-Follow-up verification checked nullable/local artwork references and frozen
+The earlier artwork follow-up checked nullable/local references and frozen
 artwork surviving changes to the live song. The documented ranking query
 excluded a void attempt's 150 recorded points, counted its revealed replacement's
 200 points, and kept unanswered roster members at zero. Both attempts and their
 answers remained stored. Placeholder rendering still needs browser verification
 once the reveal UI and bundled assets exist.
+
+The revised ten-table DDL was executed against temporary SQLite 3.46.0
+with foreign keys enabled. Checks passed for mode/code/credit shapes, provider
+readiness metadata, preparing/playing/terminal phase constraints, one ready-or-
+playing attempt, the four-candidate bound, submitted Nobody versus missing blank,
+duplicate answers and durable command uniqueness. A barrier-excluded identity
+could still store an answer. The documented ranking query excluded void/pending
+points and retained all three roster members. Character/artist/artwork/plan copies
+survived live edits; results/receipts survived reopening. Game-first deletion
+removed room-owned data without deleting the independent demo catalog/other room,
+and left no foreign-key violations. Diagram tables/columns matched the DDL.
+
+All thirteen worked scoring results and strict 30% thresholds for 5/10/15 requested
+rounds were checked with exact fractions. These are documentation/schema checks,
+not, at that review point, implemented service tests, command/ACK race proof, browser audio acceptance,
+load results or a coverage claim. Those implementation gates remain pending.
+
+The current Demo service/database tests are recorded in
+[08_IMPLEMENTATION_STATUS.md](08_IMPLEMENTATION_STATUS.md); the checks above are
+historical evidence and do not substitute for that implementation report.

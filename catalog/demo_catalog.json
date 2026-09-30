@@ -1,0 +1,62 @@
+[
+  {
+    "id": "song-001",
+    "pool_kind": "personal",
+    "isrc": null,
+    "title": "Fake Song 1",
+    "artist": "Fake Artist 1",
+    "artists": [
+      {
+        "artist_key": "demo:fake-artist-1",
+        "name": "Fake Artist 1"
+      }
+    ],
+    "preview_url": "/static/demo/clips/song-001.mp3",
+    "artwork_url": "/static/demo/covers/act-01.svg"
+  },
+  {
+    "id": "song-002",
+    "pool_kind": "personal",
+    "isrc": null,
+    "title": "Fake Song 2",
+    "artist": "Fake Artist 2",
+    "artists": [
+      {
+        "artist_key": "demo:fake-artist-2",
+        "name": "Fake Artist 2"
+      }
+    ],
+    "preview_url": "/static/demo/clips/song-002.mp3",
+    "artwork_url": null
+  },
+  {
+    "id": "song-003",
+    "pool_kind": "personal",
+    "isrc": null,
+    "title": "Fake Song 3",
+    "artist": "Fake Artist 3",
+    "artists": [
+      {
+        "artist_key": "demo:fake-artist-3",
+        "name": "Fake Artist 3"
+      }
+    ],
+    "preview_url": "/static/demo/clips/song-003.mp3",
+    "artwork_url": null
+  },
+  {
+    "id": "song-004",
+    "pool_kind": "personal",
+    "isrc": null,
+    "title": "Fake Song 4",
+    "artist": "Fake Artist 4",
+    "artists": [
+      {
+        "artist_key": "demo:fake-artist-4",
+        "name": "Fake Artist 4"
+      }
+    ],
+    "preview_url": "/static/demo/clips/song-004.mp3",
+    "artwork_url": null
+  }
+]
