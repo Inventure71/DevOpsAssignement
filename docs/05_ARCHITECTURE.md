@@ -1,209 +1,231 @@
 # 05 — Architecture
 
-Date: 2026-09-29. High-level design for the app we will build from scratch.
-The PoC source stays on `POC`; only its findings inform this design. The
-diagram below describes the target structure, not an implemented application.
+Date: 2026-10-01. This checkpoint prepares the Demo backend independently of
+the game frontend. The earlier `feature/demo-core` checkpoint retains its
+temporary UI; real provider integration and optional all-device audio remain
+target design.
+See [implementation status](08_IMPLEMENTATION_STATUS.md) for current evidence.
+The PoC source stays on `POC`; its findings inform this design without proving
+production readiness. [07_API_AND_RUNTIME.md](07_API_AND_RUNTIME.md) defines the
+browser, command and runtime contract; [06_DATA_MODEL.md](06_DATA_MODEL.md)
+defines persistence.
 
-## 1. What the PoC changes
+## 1. Evidence and first milestone
 
-- Apple developer-token access worked for catalog search, ISRC matching,
-  previews and charts. It does not grant personal listening-history access.
-- Apple personal history is unverified because the available account could
-  not obtain a Music User Token without a subscription.
-- Spotify supplied personal songs and Apple-resolved previews played in the
-  browser. The unique-song count and preview coverage were not retained.
-- The two-device room worked after enabling LAN access. Its start-time drift
-  was not retained, so synchronized playback has no quantitative acceptance yet.
+Apple developer-token catalog lookup, ISRC matching, previews and charts worked
+in the PoC. Personal Apple listening history remains unverified. Spotify
+supplied personal songs with Apple-resolved previews, but unique-song counts
+and preview coverage were not retained. The two-device room worked over LAN;
+its start-time drift was not retained. See [04_POC.md](04_POC.md).
 
-The first playable milestone uses assigned demo songs and host-device audio.
-The Sep 30 clarification hides the normal song pool and removes player song
-selection from play; manual picks are excluded.
-Apple history, Spotify import and all-device audio remain subject to validation.
-History import and preview delivery therefore have separate interfaces.
-See [the PoC results](04_POC.md#question-outcomes) for the evidence and limits.
+The first milestone is a three-browser demo game with shared audio from the
+host device. The host also guesses and sees the same game as every player;
+there is no required central display. Only the host has administrative controls.
+Real imports need a selected, validated provider and familiarity mapping.
+All-device audio remains conditional on audible playback and timing acceptance.
 
-## 2. Two feature domains
+## 2. Ownership and data flow
 
-| Domain | Owns | Does not own |
+| Component | Owns | Boundary |
 |---|---|---|
-| **Rooms** | Room codes, host/player membership, player identification, song lists, per-player familiarity, imports and lobby song counts | Round selection, guesses, scoring and game results |
-| **Game** | Game settings, game snapshots, round selection, answer options, deadlines, guesses, scoring, reveals and rankings | Player identity, live membership edits and personal-history imports |
-
-Each domain has a narrow service interface and its own SQLite persistence
-code. A room can have several past games. Rooms history pages obtain those
-results through Game's public service, without querying Game's tables.
-Rooms maps source-list signals to familiarity; demo fixtures assign fixed
-levels. Each room deduplicates its own song identities and keeps
-familiarity on the player–song relationship. Game applies the
-scoring and selection rules in [03_GAME_RULES.md](03_GAME_RULES.md).
-
-## 3. Target architecture
+| Rooms | Room mode/code, admission, room-specific browser credentials, host membership, nickname/character, provider authorization and imports, shared songs and familiarity, demo catalog, presence | Returns values through its service; does not select rounds or score answers |
+| Game | Frozen roster/settings/song facts, complete round plan and reserves, readiness generations, deadlines, options, answers, scores, reveals and rankings | Receives snapshots; does not query Rooms tables or hold provider credentials |
+| Application coordination | Authorization, room command ordering, cross-domain lifecycle transactions, provider work and runtime tasks | Calls narrow domain interfaces; repositories retain table ownership |
+| Audio adapters | Preview resolution and metadata enrichment | Return playable candidates or unavailable; do not determine listeners or scores |
+| Browser | Phase presentation, automatic acknowledgements, estimated server-clock offset, host playback | Server remains authoritative for identity, phase and scoring |
 
 ```mermaid
 flowchart TD
-    Browser["Phone browsers: HTML / CSS / JS"] -->|"JSON requests and polling"| App["FastAPI routes and application coordination"]
-    App --> Rooms["Rooms service"]
-    App --> Game["Game service"]
-    Rooms -->|"RoomSnapshot returned to application"| App
-    Rooms --> History["History interface: assigned demo / validated imports"]
-    App --> Preview["Preview interface: demo clips / Apple / iTunes / Deezer"]
+    Browser["Phone browsers: HTML / CSS / JS"] -->|"JSON commands, polling and automatic ACKs"| App["FastAPI routes and application coordination"]
+    App --> Rooms["Rooms service: admission, import and presence"]
+    App --> Game["Game service: plan, readiness and scoring"]
+    Rooms --> History["History adapters / SQLite demo catalog"]
     History --> Providers["Optional external music APIs"]
-    Preview --> Providers
+    App --> Audio["Preview adapters"]
+    Audio --> Providers
     Rooms --> RoomsStore["Rooms repository"]
     Game --> GameStore["Game repository"]
     RoomsStore --> SQLite[("One SQLite file")]
     GameStore --> SQLite
 ```
 
-Everything except the browsers and external APIs runs in one process. The same
-process serves the frontend. Use plain HTML/CSS/JavaScript and JSON polling
-every 500 ms while in a lobby or game; stop polling after the game ends.
-Polling is simpler than WebSockets for this scale. Its responsiveness and the
-20-room target still need verification; the diagram is not a capacity result.
+The target deployment uses one server process for the API, catalog assets and
+frontend. This backend checkpoint serves the API and `/static/demo` catalog
+assets; it contains no game frontend. A future browser client polls every 500 ms
+in active lobby/game views with no overlapping requests. Heartbeats are separate,
+every five seconds. This is a design choice, not a demonstrated capacity result:
+20 rooms × 10 players × 2 polls/second means about 400 state requests/second.
+Final rankings remain visible; active game polling stops when the game ends.
 
-## 4. The boundary at game start
+## 3. Admission and lobby preparation
 
-The application calls `rooms.service.get_room_snapshot(room_id)`, then gives
-the snapshot to Game. The snapshot is an immutable value containing:
+The host chooses **normal** or **demo** at room creation, before anyone joins.
+Normal requires verified personal music authorization for every player, including
+the host, before admission. Imported songs are prepared automatically in the
+lobby; Start stays disabled until required imports/checks finish. Demo explicitly
+bypasses provider authorization and assigns hidden random fixtures from the
+seeded SQLite `demo_catalog`, including local clips and optional covers.
+Import failure never silently changes a normal room into demo mode.
 
-- Room ID, room revision and host player ID.
-- Player IDs and nicknames.
-- Song identity, title, artist and optional `artwork_url`, with each player's familiarity level.
-- The listener IDs for each song, including shared songs.
+The backend imports each player's candidates using that player's authorization.
+The host's account does not expose other players' histories. Candidate-list
+sources/counts and the first real provider remain pending; enough unique songs
+are needed for the complete requested game, wrong options and replacements.
+Import once per lobby pool build, not once per round. Membership changes can
+require a new build. Players neither inspect nor manually choose the song pool.
 
-The application resolves preview candidates before starting scored rounds and
-passes those results separately. Game persists the snapshot facts it needs for
-rounds and scoring. Imports and song changes are rejected during play and allowed again in the
-lobby. Later changes cannot alter a game snapshot. Starting player identities
-remain in Game even if they disconnect; new joins during play are rejected.
-Before play, lobby responses expose counts/readiness, never the imported song
-pool or listener mappings. Hiding an HTML element is not this boundary. Game receives values, not a database connection to Rooms or a
-provider token. Returning players are identified by Rooms before a command
-reaches Game; host-only commands are checked on the server.
+Rooms deduplicates within each room and stores familiarity on each player–song
+relationship. Provider secrets stay outside snapshots, SQLite song/game data and
+browser-visible responses; transient personal authorization is discarded after
+its required import. Provider calls have bounded timeouts/concurrency and run
+outside SQLite transactions. Lobby responses expose nicknames, character IDs,
+connection/import readiness, counts and settings, never songs or listener maps.
 
-Provider calls stay outside SQLite transactions. After preview preparation,
-start-game coordination checks that the room revision still matches the
-snapshot; membership, song or setting changes abort preparation for a retry.
-It then validates the lobby, freezes membership/imports, saves the snapshot
-and creates the game in one local SQLite transaction. Both
-repositories participate in that transaction while retaining ownership of
-their tables. A failed start leaves the room in its lobby state.
-This is a local transaction, not a promise that a later distributed split is free.
+## 4. The boundary at Start
 
-## 5. History and preview interfaces
+Start checks the host identity, room revision, player limits, mode readiness and
+settings. In a short transaction it locks room membership/imports, creates a
+`preparing` game and copies the starting roster, including nickname and
+`character_id`. Starting player identities remain eligible throughout the game;
+new identities cannot join until the room returns to the lobby.
 
-| Interface | Returns | Responsibility |
-|---|---|---|
-| History import | Normalized song entries, source-list labels and optional `artwork_url` | Convert provider-specific listening data into Rooms input |
-| Preview resolution | A preview URL and source, or unavailable; optional artwork from the matched catalog song | Find playable audio and normalize available artwork without deciding listeners or score |
+The application passes Game a value snapshot: room ID/revision/host, roster,
+shared song identity/title/display artists/structured artist IDs/ISRC, optional
+artwork, preview facts and each listener's familiarity. Game receives no Rooms
+connection or user token. Repositories participate in shared local transactions
+without querying one another's domain tables.
 
-Demo assigns hidden song data and local short clips without credentials or a
-remote API. Normal real-song play uses automatic import and server-side preview
-resolution. Manual song picking is excluded. The first real import provider and its
-familiarity mapping still need decisions; the PoC does not establish those
-product choices.
+Setup prepares the full requested sequence and checked reserves. Each original
+requested slot allows its initial candidate and up to three distinct substitutes
+across setup and later recovery. Exhausted slots are skipped. Cancel if
+`skipped_original_slots / requested_round_count > 0.30`; exactly 30% is allowed.
+Never change the denominator after skipping. Announce the actual playable count;
+original slot numbers remain stable and the surviving decoy proportion can differ.
+Unique candidates and four distinct options are checked before play. Freeze the
+validated song snapshot/plan at preparation completion; mutable readiness and
+attempt state are stored separately. No normal provider lookup occurs per round.
 
-For real songs, the preview chain is Apple by ISRC, then iTunes by title/artist,
-then Deezer by ISRC. Missing credentials skip that provider; missing previews
-make a song unavailable. Apple charts supply optional real decoys; demo mode
-has a separate fixed pool. Provider calls happen during preparation, with
-timeouts and bounded concurrency, not in scoring or the answer path.
+The five-second setup countdown is a minimum presentation period, not an import
+or network guarantee. Continue showing preparation if needed. The host preloads
+all planned audio and checked reserves during setup. Other browsers receive only
+the current round's public data. The host audio controller needs private future
+playback references for preloading; these references can reveal provider metadata
+and do not offer secrecy against a participant inspecting their own browser.
+Never include future song labels, correct markers or listener mappings in public
+payloads. See the API contract for this trust limit.
 
-Rooms persists artwork supplied with imported songs; demo fixtures supply
-root-relative asset URLs. When an Apple catalog match supplies artwork, its
-adapter resolves `attributes.artwork.url` placeholders `{w}` and `{h}` to
-300 each. The application passes this optional artwork with preview results
-during preparation; Game uses it when the incoming song has no artwork and
-freezes the final reference for normal and decoy songs. Game never writes
-Rooms tables. Reveal loads the image from that reference, with a bundled
-placeholder on absence/load failure; no catalog lookup runs during reveal.
-SQLite stores references, not image bytes. See the source details in
-[the data model](06_DATA_MODEL.md#3-shared-songs-and-frozen-game-data).
+## 5. Preview and artwork adapters
 
-`app.py` selects concrete adapters from environment configuration and passes
-them into services. Use adapters and explicit dependencies; no global provider
-singleton or general-purpose music service. Add more abstractions only when
-the implementation needs them. Personal tokens are used for an import and
-discarded afterwards; they are not part of the game snapshot or SQLite data.
-
-## 6. Control flow and failure handling
-
-1. **Lobby:** create/join a room, load songs without exposing their pool, choose
-   settings. Rooms enforces the
-   player limits and rejects joins once the game starts.
-2. **Preparation:** validate song counts, resolve playable candidates, load the
-   decoy pool and create the game snapshot. If preparation cannot build a
-   playable round with four distinct options, starting fails with an explanation.
-3. **Playing:** the server announces a future start time after host audio is
-   ready. The browser preloads the clip; the server owns start/deadline times.
-   Each answer is accepted at most once and timestamped by the server.
-4. **Reveal:** close when all players answer or the deadline passes, calculate
-   scores once, persist the result and show the answer and ranking. Cover art
-   comes from the frozen snapshot; a missing/broken reference uses the bundled
-   placeholder without failing the round or requiring a provider call.
-5. **Next/finished:** only the host advances after reveal. Final rankings plus
-   rounds, guesses and scores are saved; a completed game updates the room
-   retention anchor in the same transaction. The room returns to its lobby.
-
-Before handling a game request, Game checks whether an active round's deadline
-has passed. Polling exposes the transition without a separate worker; late
-answers are rejected even if the browser still shows the answering screen.
-The polling interval is not the scoring clock.
-
-| Failure | Planned behavior |
+| Interface | Returns |
 |---|---|
-| Provider unavailable | Keep existing room songs; report the failed import or try the next preview provider |
-| Clip fails during a round | Save the answers, mark the attempt `void`, exclude its points from rankings and replace the song if possible |
-| Cover absent or image fails | Use the bundled placeholder and continue reveal/scoring |
-| Empty decoy pool | Use a normal round, as specified in the game rules |
-| Player refreshes | Restore identity and load the server's current state |
-| Host explicitly leaves | Abort immediately for everyone and retain labelled partial results |
-| Host disconnects | End after a 60-second grace from the last accepted heartbeat; late reconnects do not revive it |
-| Non-host disconnects | Preserve the starting identity and accepted answers; missing answers are blank with zero points at timeout |
-| No requests arrive | Enforce deadlines on the next request; never accept a late answer |
-| Process restarts during a game | Mark the interrupted game as aborted; preserve already saved results without pretending the game completed |
+| History import | Normalized identities, credited artist identities, source-list signals and optional artwork |
+| Preview resolution | Playable URL/source or unavailable, optionally artwork/credited artist metadata from the resolved catalog entry |
+| Demo catalog | Fixture songs, familiarity assignments, stable artist IDs and local asset references |
 
-A closed tab cannot reliably send a leave command. An in-process presence
-check enforces the agreed 60-second host grace even if no browser is polling;
-requests also enforce the deadline before accepting a returning heartbeat.
-There is no external worker. The heartbeat interval, blocked-host-audio behavior
-and exact retry protocol will be specified in the API/security design.
+The proposed real preview chain is Apple by ISRC, then iTunes by title/artist,
+then Deezer by ISRC. Missing configured catalog credentials skip that adapter;
+missing mandatory personal authorization blocks normal admission. Apple charts
+can supply real decoys; demo uses its fixture pool. Real adapter capabilities,
+terms and browser playback need validation before integration.
 
-## 7. Implementation boundaries
+Artwork is a reference, not image bytes in SQLite. The Apple adapter resolves
+`attributes.artwork.url` `{w}`/`{h}` placeholders to 300 each. Game freezes optional
+imported artwork or preview-match enrichment, including decoys, without writing
+Rooms tables. The reveal contract uses the snapshot and requires a frontend
+placeholder if the image is absent/broken; it makes no catalog request and never
+changes scoring. This backend checkpoint stores and exposes optional artwork
+references and serves the bundled demo cover. Placeholder rendering belongs to
+the future frontend.
+
+Future provider integration must wire explicit adapters from configuration at
+application composition. Avoid a shared mutable provider singleton or a general
+music service owning unrelated concerns; no real-provider adapter is included in
+this backend checkpoint.
+
+## 6. Game phase and failure ownership
+
+The normal loop is `setup` (minimum 5 s) → `ready` (automatic check-ins) →
+`countdown` (3 s) → `answering` (10/20/30 s, or all starting players submit) →
+`reveal` (5 s) → `leaderboard` (5 s) → next `ready`. The final leaderboard stays.
+There is no routine host Next action.
+
+Game scopes ACKs to attempt and readiness generation. State versions order
+browser updates; another player’s ACK does not invalidate an ACK. Initially
+all starting players must ACK within ten seconds; timeout aborts preparation and
+returns everyone to the lobby with affected nicknames. A later timeout keeps the
+same unstarted attempt and offers host Retry (new ten-second generation) or
+Continue without named unready players **from the barrier only**. Their roster,
+score and answer eligibility remain. The host's audio readiness is mandatory.
+
+Once required ACKs arrive, Game publishes a common future `starts_at_ms`; clients
+estimate clock offset. ACKs prove state readiness, not audible playback or exact
+synchronization. Server ordering/time govern answer acceptance and scoring.
+During play, all screens show each nickname/character and Listening/Submitted
+status, separate from connectivity; guesses stay hidden until reveal.
+
+| Failure | Required behavior |
+|---|---|
+| Import fails | Report it; normal mode stays normal and cannot start while required imports are incomplete |
+| Setup exceeds five seconds | Show preparation; never start an unchecked sequence |
+| Initial readiness timeout | Abort setup, return lobby, name missing ACK players |
+| Later readiness timeout | Host Retry or Continue; no unstarted answer/score is created |
+| Playback fails before closure | Retain answers, mark attempt `void`, exclude points; use only checked frozen reserves and the original slot's remaining replacement budget |
+| Cumulative skips exceed 30% | Abort with a clear cause; preserve labelled partial results if play began |
+| Failure report after reveal | Reject; revealed results are final |
+| Artwork unavailable | Placeholder; continue |
+| Non-host disconnects | Preserve identity/answers; missing submission earns zero at deadline |
+| Host disconnects | Current timed round can close; wait before next readiness window; expire after 60 s from last accepted heartbeat |
+| Host explicitly leaves | Abort immediately; save labelled partial rankings |
+| Server restarts | Void interrupted unclosed attempts, abort preparing/playing games, preserve revealed scores, restore surviving rooms to lobby |
+
+Host refresh restores its identity but can interrupt shared audio. One active
+host audio-controller lease prevents competing tabs. Prechecking cannot eliminate
+browser rejection/network/device failures; void handling remains necessary.
+Neither a readiness exclusion nor a stale heartbeat bypasses host audio or the
+60-second grace. Host transfer is excluded in v1.
+
+An in-process lifespan task advances deadlines/phases and checks presence even
+without polls. Requests enforce expiry before accepting commands/heartbeats.
+Close/score atomically once; retained `void` answers never contribute to rankings.
+
+## 7. Module placement and runtime
 
 | Area | Purpose |
 |---|---|
-| `app.py`, `config.py`, database setup | Start the server, wire dependencies, configure SQLite and coordinate cross-domain actions |
-| `rooms/` | Public snapshot contract, membership/import service, familiarity logic, repository and history adapters |
-| `game/` | Game service, round selection, pure scoring, result repository |
-| `audio/` | Preview interface, adapters and demo clips |
-| `static/` | Plain frontend, state polling and audio playback |
-| `tests/` | Rooms and Game business-logic tests, persistence checks and a few integration checks |
+| `backend/app.py`, `backend/core/` | Dependency wiring, configuration, health and lifespan |
+| `backend/api/` | HTTP routes, strict request schemas, origin checks, cookies and rate limits |
+| `backend/application/` | Per-room mutation ordering, authorization, cross-domain transactions and audio leases |
+| `backend/rooms/` | Admission/credentials, membership/characters, presence, demo fixtures and repository |
+| `backend/game/` | Preparation/selection, readiness/phases, pure scoring and Game repository |
+| `backend/storage/` | SQLite connections and versioned schema migrations |
+| `catalog/` | Runtime Demo metadata, bundled clips/cover and provenance; real-song population remains pending |
+| Future frontend | Phase rendering, polling, ACKs, clock estimates and host audio; excluded from this checkpoint |
+| `tests/unit/`, `tests/integration/`, `tests/support/` | Pure rules, actual service/persistence paths and isolated fixture helpers |
+| `tools/` | Optional development and capacity probes |
 
-This is a responsibility map, not a requirement to create an empty file for
-every component. Final schema and file layout come with the low-level design.
-Both domains must read/write SQLite to count toward the assignment.
+See [the codebase map](09_CODEBASE_MAP.md) for concrete module ownership and
+change locations. The backend boundaries are implemented; frontend presentation
+and provider adapters remain separate future work. Both feature
+domains persist their own data. Deploy one worker/replica with SQLite on a
+persistent compatible local volume under `DATA_DIR`; do not run a second writer
+process. Offload synchronous database work from the async event loop. Enable
+foreign keys and a busy timeout per connection. WAL requires compatible storage;
+validate the selected Azure volume before enabling it. Backups must preserve a
+consistent database including WAL contents. Provider calls never hold room locks
+or transactions across network waits.
 
-## 8. Verification and next steps
+## 8. Acceptance and remaining decisions
 
-- Unit-test scoring, selection, identity matching, familiarity, membership
-  limits and state transitions, using a fixed random seed and fake adapters.
-- Verify each domain's SQLite persistence and rollback on a failed game start.
-- Check late/duplicate answers, repeated host commands, refresh, failed clips
-  and interrupted games through the actual service paths.
-- Check retained void-attempt answers never affect rankings, and frozen cover
-  references use a placeholder on absence or load failure without a provider call.
-- Play a 10-round demo game with three browsers and no API keys, including
-  host-device audio. Then measure core-logic coverage against the 70% target.
-- Check the deployment contract: one process, root `requirements.txt`, one
-  start command, `0.0.0.0`, `PORT`, SQLite under `DATA_DIR`, automatic setup.
-- Verify whole-room expiry 30 days after the last completed game (creation
-  if none completes); Game deletes its data before Rooms, in one transaction.
-  Heartbeats, visits and aborted games do not extend retention.
-- Check the fixed roster, reconnect/new-join distinction, blank timeout answers,
-  hidden lobby song data and both host-ending paths.
+Verify pure scoring plus real service paths: partial artist credit, empty
+submitted Nobody versus missing blank, stale ACKs/retries, deadlines/closure races,
+immutable snapshots, strict 30% arithmetic, shared replacement budgets, host
+lease/grace and final reveal immutability. Verify rollback/startup/retention and
+both domains' persistence. Browser checks must exercise three players through a
+full demo game, preloading, automatic check-ins/phases, character/status rendering,
+readiness recovery, audio failure, reconnect and cover fallback. Load-test the
+400-polls/second scenario and measure the defined readiness/start target.
 
-The planned schema and ADR-3 are now in [06_DATA_MODEL.md](06_DATA_MODEL.md).
-Next: choose the first real import provider and its familiarity mapping, then
-define API/session behavior and the testing approach. Remaining ADRs will be
-added when those decisions are made; the app and its tests do not exist yet.
+The executable migration matches the schema. Automated application evidence
+and remaining browser/load acceptance gates are recorded in the implementation status. Real import provider/familiarity/quantity policy and all-device audio
+remain independent gates. See [07_API_AND_RUNTIME.md](07_API_AND_RUNTIME.md) for
+commands, timings, security and operational acceptance.

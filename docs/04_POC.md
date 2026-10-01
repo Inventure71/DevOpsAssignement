@@ -2,14 +2,16 @@
 
 Test the riskiest parts **before** designing the architecture around them (SDLC "Proof of Concept" phase).
 This file is also the **brief for the agent that implements the PoC**. The results section is filled in afterwards.
+The original brief and dated handoff remain historical evidence. Later product
+decisions below supersede its manual fallback; current contracts are in phases 02–07.
 
 ## Questions the PoC must answer
 | # | Question | Why it matters |
 |---|---|---|
 | Q1 | Can the server create an Apple Music **developer token** from my key? | Needed for every Apple call |
 | Q2 | Can a player **sign in with Apple Music in the browser** and give us a user token? | Needed for FR6 (import history) |
-| Q3 | What listening data do we actually get: **heavy rotation, recently played, library**? How many songs, and with which fields (ISRC)? | Difficulty levels (game rules §4) depend on these three lists; FR9 needs ≥10 songs per player |
-| Q4 | What share of those songs have a **playable 30-second preview**? Do iTunes Search / Deezer fill the gaps? | NFR4, and SMART goal G4 (≥80% of rounds playable) |
+| Q3 | What listening data do we actually get: **heavy rotation, recently played, library**? How many songs, and with which fields (ISRC)? | Difficulty levels (game rules §5) depend on these three lists; FR9 needs ≥10 songs per player |
+| Q4 | What share of those songs have a **playable 30-second preview**? Do iTunes Search / Deezer fill the gaps? | NFR4, and current SMART goal G4 (≥80% of unique candidate songs with a playable preview) |
 | Q5 | Can two browsers **start the same clip at the same moment** from a server-given start time, and how far apart are they? | "All devices" audio mode |
 | Q6 *(optional)* | Can Spotify sign-in return top tracks + recently played, with ISRC? | Spotify is the backup for Apple (risk table) |
 | Q7 | Do Apple Music's **top charts** return songs with ISRC and playable previews, using only the developer token? | Decoy songs (FR21) |
@@ -236,6 +238,21 @@ songs require automatic import; provider choice and familiarity mapping remain
 open. This scope change adds no new PoC measurements. See `06_DATA_MODEL.md`
 for the room-local song model, frozen roster and retention decisions.
 
+### API/runtime decisions after the PoC (2026-09-30)
+
+Normal mode now requires each player's successful music authorization before
+admission; Demo is an explicit host choice and bypasses it. Demo songs come from
+a seeded database catalog with bundled clips, rather than invented listening
+histories attributed to real providers. Import once in the lobby, then prepare
+the full sequence and reserves. The backend coordinates automatic readiness
+and common start times; the host remains a player and supplies shared audio.
+
+The agreed flow, artist partial credit, submitted-empty versus missing answers,
+three replacement limit, strict 30% skip threshold and host readiness recovery
+are specified in `03_GAME_RULES.md` and `07_API_AND_RUNTIME.md`. These are product
+decisions, not additional PoC results. Prechecking cannot prove future audible
+playback, and no new synchronization/performance measurements are claimed.
+
 ### Remaining validation
 
 1. Rerun Q6 and retain the unique-song count and ISRC percentage from the
@@ -247,3 +264,6 @@ for the room-local song model, frozen roster and retention decisions.
    start error and audible confirmation on both devices.
 5. If available, repeat Q2–Q4 once with a subscribed Apple Music tester; keep
    that result separate from the Spotify-backed result.
+6. Validate the chosen Normal provider for all intended testers, its source-list
+   selection/candidate volume and structured credited-artist identities. A single
+   tester's import does not prove those admission/scoring contracts.
