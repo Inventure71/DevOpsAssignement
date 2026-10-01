@@ -10,7 +10,7 @@ class Body(BaseModel):
 
 class Identity(Body):
     nickname: Annotated[str, Field(min_length=1, max_length=24)]
-    character_id: str = 'vinyl'
+    character_id: str = 'coral'
 
 
 class Create(Identity):
@@ -37,6 +37,7 @@ class Preload(Command):
     lease_id: str
     candidate_id: str
     ok: bool
+    waveform: Annotated[list[Annotated[float, Field(ge=0, le=1)]], Field(min_length=8, max_length=64)] | None = None
 
 
 class Ready(Body):
@@ -58,7 +59,7 @@ class Failure(Recovery):
 
 
 class Answer(Body):
-    song_option: Annotated[int, Field(ge=0, le=3)] | None = None
+    song_guess_token: Annotated[str, Field(min_length=1, max_length=12000)] | None = None
     who_player_ids: Annotated[list[str], Field(max_length=10)] = []
 
 

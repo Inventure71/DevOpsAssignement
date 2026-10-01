@@ -39,9 +39,9 @@ class Match:
         self.settings = {"round_count": rounds, "answer_seconds": 10, "difficulty": "mixed", "decoys_enabled": True}
         with self.db.transaction() as conn:
             seed_demo(conn, self.catalog_path)
-            host = self.rooms.create(conn, "Host", "vinyl", "demo", self.now)
+            host = self.rooms.create(conn, "Host", "coral", "demo", self.now)
             self.room_id, self.host, self.token = host["room"]["id"], host["player"]["id"], host["token"]
-            guests = [self.rooms.join(conn, self.room_id, f"Guest {i}", "moon", self.now + i) for i in range(1, 3)]
+            guests = [self.rooms.join(conn, self.room_id, f"Guest {i}", "lavender", self.now + i) for i in range(1, 3)]
             self.ids = [self.host, *(guest["player"]["id"] for guest in guests)]
             self.tokens = {host["player"]["id"]: host["token"],
                            **{guest["player"]["id"]: guest["token"] for guest in guests}}
@@ -83,20 +83,20 @@ class Match:
         _, attempt = self.fetch()
         self.advance(attempt["starts_at_ms"])
 
-    def submit(self, actor, song_option=None, who=(), now=None):
+    def submit(self, actor, song_guess=None, who=(), now=None):
         if now is not None:
             self.now = now
         with self.db.transaction() as conn:
             attempt = self.game.repo.current(conn, self.game_id)
             return self.game.answer(conn, self.game_id, attempt["id"], actor,
-                                    {"song_option": song_option, "who_player_ids": list(who)}, self.now)
+                                    {"song_guess": song_guess, "who_player_ids": list(who)}, self.now)
 
     def correct(self):
         with self.db.read() as conn:
             game, attempt = self.game.repo.game(conn, self.game_id), self.game.repo.current(conn, self.game_id)
             songs = {song["song_key"]: song for song in json.loads(game["songs_snapshot_json"])}
             song = songs[attempt["song_key"]]
-            return json.loads(attempt["options_json"]).index(attempt["song_key"]), [item["player_id"] for item in song["listeners"]]
+            return song, [item["player_id"] for item in song["listeners"]]
 
     def close(self):
         _, attempt = self.fetch()
@@ -174,9 +174,8 @@ def test_artist_partial_credit_is_scored_from_frozen_structured_ids(tmp_path):
     with match.db.read() as conn:
         game, attempt = match.game.repo.game(conn, match.game_id), match.game.repo.current(conn, match.game_id)
         songs = {song["song_key"]: song for song in json.loads(game["songs_snapshot_json"])}
-        options = [songs[key] for key in json.loads(attempt["options_json"])]
-        wrong = next(i for i, song in enumerate(options)
-                     if i != correct and song["artists"][0]["artist_key"] == "demo:shared")
+        wrong = next(song for song in songs.values()
+                     if song["song_key"] != correct["song_key"] and song["artists"][0]["artist_key"] == "demo:shared")
     match.submit(match.host, wrong, listeners, match.now + 2000)
     match.close()
     with match.db.read() as conn:
@@ -193,10 +192,10 @@ def test_final_submission_is_idempotent_after_closure_and_cannot_change(match):
     match.close()
     with match.db.transaction() as conn:
         assert match.game.answer(conn, match.game_id, attempt["id"], match.host,
-                                 {"song_option": None, "who_player_ids": []}, match.now + 5000) == receipt
+                                 {"song_guess": None, "who_player_ids": []}, match.now + 5000) == receipt
         with pytest.raises(DomainError) as error:
             match.game.answer(conn, match.game_id, attempt["id"], match.host,
-                              {"song_option": 0, "who_player_ids": []}, match.now + 5000)
+                              {"song_guess": {"song_key": "other"}, "who_player_ids": []}, match.now + 5000)
         assert error.value.code == "answer_final"
         assert len(match.game.repo.answers(conn, attempt["id"])) == 3
 
@@ -208,13 +207,13 @@ def test_server_deadline_is_exclusive_and_before_start_is_rejected(match):
     with match.db.transaction() as conn:
         with pytest.raises(DomainError):
             match.game.answer(conn, match.game_id, attempt["id"], match.host,
-                              {"song_option": None, "who_player_ids": []}, attempt["starts_at_ms"] - 1)
+                              {"song_guess": None, "who_player_ids": []}, attempt["starts_at_ms"] - 1)
     match.advance(attempt["starts_at_ms"])
     match.submit(match.host, None, (), attempt["deadline_at_ms"] - 1)
     with match.db.transaction() as conn:
         with pytest.raises(DomainError) as error:
             match.game.answer(conn, match.game_id, attempt["id"], match.ids[1],
-                              {"song_option": None, "who_player_ids": []}, attempt["deadline_at_ms"])
+                              {"song_guess": None, "who_player_ids": []}, attempt["deadline_at_ms"])
         assert error.value.code == "answer_window_closed"
     match.advance(attempt["deadline_at_ms"])
     with match.db.read() as conn:
@@ -230,11 +229,11 @@ def test_answers_reject_duplicates_outside_roster_and_cannot_spoof_members(match
         for who in ([match.host, match.host], ["outsider"]):
             with pytest.raises(DomainError) as error:
                 match.game.answer(conn, match.game_id, attempt["id"], match.host,
-                                  {"song_option": None, "who_player_ids": who}, match.now)
+                                  {"song_guess": None, "who_player_ids": who}, match.now)
             assert error.value.code == "invalid_listeners"
         with pytest.raises(DomainError) as error:
             match.game.answer(conn, match.game_id, attempt["id"], "outsider",
-                              {"song_option": None, "who_player_ids": []}, match.now)
+                              {"song_guess": None, "who_player_ids": []}, match.now)
         assert error.value.code == "game_not_found"
         assert match.game.repo.answers(conn, attempt["id"]) == []
 
@@ -450,7 +449,7 @@ def test_live_metadata_edits_do_not_mutate_frozen_game_roster_or_plan(match):
         frozen_roster = match.game.repo.roster(conn, match.game_id)
         conn.execute("UPDATE songs SET title='Changed', artwork_url=NULL, artists_json=? WHERE room_id=?",
                      (json.dumps([{"artist_key": "demo:changed", "name": "Changed"}]), match.room_id))
-        conn.execute("UPDATE players SET nickname='Changed', character_id='ghost' WHERE id=?", (match.host,))
+        conn.execute("UPDATE players SET nickname='Changed', character_id='lilac' WHERE id=?", (match.host,))
         after = match.game.repo.game(conn, match.game_id)
         assert after["songs_snapshot_json"] == before["songs_snapshot_json"]
         assert after["round_plan_json"] == before["round_plan_json"]
@@ -460,22 +459,32 @@ def test_live_metadata_edits_do_not_mutate_frozen_game_roster_or_plan(match):
 def test_public_phase_views_hide_correct_markers_listeners_and_other_guesses(match):
     match.preload()
     match.answering()
-    match.submit(match.host, 0, [match.ids[1]])
+    match.submit(match.host, match.correct()[0], [match.ids[1]])
     with match.db.read() as conn:
         game = match.game.repo.game(conn, match.game_id)
         public = game_view(match.game.repo, conn, game, match.ids[1])
         assert public["round"]["submitted_player_ids"] == [match.host]
         assert public["round"]["my_answer"] is None and public["round"]["reveal"] is None
         assert "correct_option" not in json.dumps(public)
+        assert "song_match" not in json.dumps(public)
         assert "listener_ids" not in json.dumps(public)
         assert "audio_candidate_id" not in public["round"]
         manifest = audio_manifest(game)
         assert all(set(candidate) == {"candidate_id", "preview_url"} for candidate in manifest["candidates"])
     match.close()
     with match.db.read() as conn:
-        revealed = game_view(match.game.repo, conn, match.game.repo.game(conn, match.game_id), match.ids[1])
-        assert len(revealed["round"]["reveal"]["answers"]) == 3
-        assert "artwork_url" in revealed["round"]["reveal"]["song"]
+        game = match.game.repo.game(conn, match.game_id)
+        for player_id in match.ids:
+            reveal = game_view(match.game.repo, conn, game, player_id)["round"]["reveal"]
+            assert set(reveal) == {"song", "listener_ids", "my_answer"}
+            assert reveal["my_answer"]["player_id"] == player_id
+            assert "artwork_url" in reveal["song"]
+            if player_id == match.host:
+                assert reveal["my_answer"]["status"] == "submitted"
+                assert reveal["my_answer"]["who_player_ids"] == [match.ids[1]]
+            else:
+                assert reveal["my_answer"]["status"] == "missing"
+                assert reveal["my_answer"]["who_player_ids"] is None
 
 
 def test_round_finishes_but_next_round_waits_when_host_temporarily_disconnected(match):
@@ -545,7 +554,7 @@ def test_coordinator_retention_deletes_cross_domain_history_without_deleting_sha
     coordinator = Coordinator(Config(tmp_path), clock=clock)
     monkeypatch.setattr("backend.rooms.demo.CATALOG_PATH", match.catalog_path)
     coordinator.initialize()
-    other = coordinator.admission(lambda conn, now: coordinator.rooms.create(conn, "Other", "sun", "demo", now))
+    other = coordinator.admission(lambda conn, now: coordinator.rooms.create(conn, "Other", "lemon", "demo", now))
     clock.now = 1000 + RETENTION_MS
     coordinator.cleanup()
     with coordinator.db.read() as conn:
@@ -577,7 +586,7 @@ def test_concurrent_last_answers_close_once_through_real_coordinator(match, monk
         barrier.wait(timeout=5)
         return coordinator.execute(match.room_id, token, lambda conn, player, now:
                                    match.game.answer(conn, match.game_id, attempt["id"], player["id"],
-                                                     {"song_option": None, "who_player_ids": []}, now))
+                                                     {"song_guess": None, "who_player_ids": []}, now))
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         receipts = list(executor.map(submit, guests))
@@ -604,3 +613,48 @@ def test_exact_host_expiry_is_committed_before_returning_heartbeat(match):
         assert match.rooms.room(conn, match.room_id, clock.now)["state"] == "lobby"
         assert match.rooms.host_presence(conn, match.room_id, clock.now)["expires_at_ms"] == 121_000
         assert all(player["final_score"] == 0 for player in match.game.repo.roster(conn, match.game_id))
+
+
+@pytest.mark.parametrize("kind", ["correct", "artist", "wrong", "unanswered", "missing"])
+def test_reveal_song_result_uses_frozen_guess_not_total_points(match, kind):
+    match.preload()
+    match.answering()
+    song, listeners = match.correct()
+    chosen = {key: song.get(key) for key in ('song_key', 'title', 'artist', 'artists', 'artwork_url')}
+    if kind in {'artist', 'wrong'}:
+        chosen = chosen | {'song_key': 'other-track', 'title': 'Another Song'}
+    if kind == 'wrong':
+        chosen['artists'] = [{'artist_key': 'demo:unrelated', 'name': 'Other Artist'}]
+    if kind == 'unanswered':
+        chosen = None
+    if kind != 'missing':
+        match.submit(match.host, chosen, listeners)
+    with match.db.read() as conn:
+        public = game_view(match.game.repo, conn, match.game.repo.game(conn, match.game_id), match.host)
+        assert 'song_match' not in json.dumps(public)
+    with match.db.transaction() as conn:
+        conn.execute("UPDATE songs SET title='Changed live title', artists_json=? WHERE room_id=?",
+                     (json.dumps([{'artist_key': 'demo:changed', 'name': 'Changed'}]), match.room_id))
+    match.close()
+    with match.db.read() as conn:
+        game = match.game.repo.game(conn, match.game_id)
+        revealed = game_view(match.game.repo, conn, game, match.host)['round']['reveal']
+        answer = revealed['my_answer']
+        assert 'answers' not in revealed
+        assert answer['player_id'] == match.host
+        assert answer['song_match'] == ('unanswered' if kind == 'missing' else kind)
+        assert answer['status'] == ('missing' if kind == 'missing' else 'submitted')
+        if kind == 'missing':
+            assert answer['points'] == 0
+        else:
+            assert answer['points'] > 0
+        # Another player who never submitted is independently unanswered.
+        guest_reveal = game_view(match.game.repo, conn, game, match.ids[1])['round']['reveal']
+        guest_answer = guest_reveal['my_answer']
+        assert 'answers' not in guest_reveal
+        assert guest_answer['player_id'] == match.ids[1]
+        assert guest_answer['status'] == 'missing'
+        assert guest_answer['song_match'] == 'unanswered'
+        assert guest_answer['song_guess'] is None
+        assert guest_answer['who_player_ids'] is None
+        assert guest_answer['points'] == 0

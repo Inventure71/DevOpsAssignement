@@ -88,6 +88,8 @@ class GameService:
         if old is not None and old != payload['ok']:
             raise DomainError('check_final', 'A preparation outcome is already recorded.', 409)
         slot['checks'][payload['candidate_id']] = payload['ok']
+        if payload['ok'] and payload.get('waveform') is not None:
+            slot.setdefault('waveforms', {})[payload['candidate_id']] = payload['waveform']
         self.repo.update_game(conn, game_id, round_plan_json=encode(plan))
         result = {'accepted': True}
         self.repo.remember(conn, game_id, actor, 'preload_check', payload, result, now)
@@ -151,17 +153,19 @@ class GameService:
         old = next((a for a in self.repo.answers(conn, round_id) if a['player_id'] == actor), None)
         who = sorted(payload['who_player_ids'])
         if old:
-            if old['status'] == 'submitted' and old['song_option'] == payload['song_option'] and json.loads(old['who_player_ids_json']) == who:
+            if old['status'] == 'submitted' and json.loads(old['song_guess_json']) == payload['song_guess'] and json.loads(old['who_player_ids_json']) == who:
                 return {'accepted': True, 'received_at_ms': old['received_at_ms']}
             raise DomainError('answer_final', 'Your answer is already final.', 409)
         attempt = self.require_round(conn, game_id, round_id)
         if game['phase'] != 'answering' or not attempt['starts_at_ms'] <= now < attempt['deadline_at_ms']:
             raise DomainError('answer_window_closed', 'The answer window is closed.', 409)
+        if payload.get('_token_expires_ms', now + 1) <= now:
+            raise DomainError('song_selection_expired', 'Search for the song again before submitting.')
         roster_ids = {p['player_id'] for p in self.repo.roster(conn, game_id)}
         if len(who) != len(set(who)) or not set(who).issubset(roster_ids):
             raise DomainError('invalid_listeners', 'Select each starting player at most once.')
         self.repo.insert(conn, 'answers', {'game_id': game_id, 'round_id': round_id, 'player_id': actor,
-            'status': 'submitted', 'song_option': payload['song_option'], 'who_mode': 'players' if who else 'nobody',
+            'status': 'submitted', 'song_guess_json': encode(payload['song_guess']), 'who_mode': 'players' if who else 'nobody',
             'who_player_ids_json': encode(who), 'received_at_ms': now})
         self.repo.update_game(conn, game_id, phase='answering')
         if len(self.repo.answers(conn, round_id)) == len(roster_ids):
@@ -171,16 +175,15 @@ class GameService:
     def _close(self, conn, game, attempt, now):
         songs = {s['song_key']: s for s in json.loads(game['songs_snapshot_json'])}
         song = songs[attempt['song_key']]
-        options = [songs[k] for k in json.loads(attempt['options_json'])]
         answers = {a['player_id']: a for a in self.repo.answers(conn, attempt['id'])}
         for player in self.repo.roster(conn, game['id']):
             answer = answers.get(player['player_id'])
             if answer is None:
                 self.repo.insert(conn, 'answers', {'game_id': game['id'], 'round_id': attempt['id'],
-                    'player_id': player['player_id'], 'status': 'missing', 'song_option': None,
+                    'player_id': player['player_id'], 'status': 'missing', 'song_guess_json': 'null',
                     'who_mode': 'blank', 'who_player_ids_json': '[]', 'points': 0})
             else:
-                points = score_answer(song, options, answer['song_option'], json.loads(answer['who_player_ids_json']),
+                points = score_answer(song, json.loads(answer['song_guess_json']), json.loads(answer['who_player_ids_json']),
                     answer['received_at_ms'] - attempt['starts_at_ms'], attempt['deadline_at_ms'] - attempt['starts_at_ms'], attempt['difficulty'])
                 conn.execute('UPDATE answers SET points=? WHERE round_id=? AND player_id=?', (points, attempt['id'], player['player_id']))
         self.repo.update_round(conn, attempt['id'], status='revealed', revealed_at_ms=now)
@@ -190,7 +193,7 @@ class GameService:
         candidate = slot['candidates'][candidate_index]
         self.repo.insert(conn, 'rounds', {'id': uuid.uuid4().hex, 'game_id': game_id,
             'round_number': slot['round_number'], 'attempt': candidate_index + 1, 'status': 'ready',
-            'song_key': candidate['song_key'], 'options_json': encode(candidate['options']),
+            'song_key': candidate['song_key'],
             'difficulty': candidate['difficulty'], 'picked_player_id': candidate['picked_player_id'],
             'readiness_deadline_at_ms': now + 10_000})
         self.repo.update_game(conn, game_id, phase='ready', phase_ends_at_ms=None)

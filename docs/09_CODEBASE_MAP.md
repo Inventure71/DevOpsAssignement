@@ -2,9 +2,9 @@
 
 The backend is one Python process with two business domains. Directory
 boundaries describe responsibilities; they do not imply separate deployed
-services. This checkpoint contains the API and catalog assets, with no game
-frontend. The four-song fixture catalog supports lobby/data-flow checks only.
-Real-song population and frontend implementation are separate follow-up work.
+services. `feature/frontend` adds the native browser client and a separate public
+metadata-search adapter. The four-song runtime catalog still supports lobby/data-flow
+checks only; real-song population and physical-device acceptance remain follow-up work.
 
 ## Repository layout
 
@@ -18,6 +18,33 @@ backend/
   storage/                    SQLite connections and versioned SQL migrations
   rooms/                      Admission, identity, songs, familiarity, snapshots
   game/                       Planning, scoring, readiness, phases and rankings
+  catalog/                    Public metadata search/cache and signed song tokens
+frontend/
+  app.mjs                     Browser dependency composition and startup
+  application/
+    state.mjs                 Local drafts and accepted receipts
+    actions.mjs               User commands and frozen retry payloads
+    runtime.mjs               Non-overlapping polling and independent heartbeats
+    screen-host.mjs           Screen selection, mounting and lifecycle
+  transport/client.mjs        JSON requests, cancellation and clock estimates
+  audio/
+    host.mjs                  Host lease, preload, decoded buffers and scheduling
+    levels.mjs                Measured waveform extraction
+    lab.mjs                   Isolated preview audio and cancellation
+  game/
+    timing.mjs                Elapsed/remaining deadline arithmetic
+    results.mjs               Owner-only result projections and frozen rankings
+    lobby-readiness.mjs       Pure lobby start eligibility
+  screens/                    Entry, lobby, round, results, help and history
+  components/                 Reusable character, controls, header and standings
+  styles/                     Tokens, responsive composition and supporting pages
+  assets/                     Local Nunito font/license and favicon
+  dom.mjs                     Stable keyed reconciliation and safe text updates
+  lab.mjs, lab.html            Isolated fixture entry point
+  lab/
+    fixtures.mjs              Pure snapshots without other players' answers
+    characters.mjs            Standalone character studio
+    controller.mjs            Fixture navigation, events, audio and clock lifecycle
 catalog/
   demo_catalog.json           Runtime song metadata with stable browser URLs
   assets/
@@ -28,6 +55,7 @@ tests/
   unit/                       Pure scoring and selection tests
   integration/                Rooms/Game/HTTP paths through temporary SQLite
   support/                    Larger isolated metadata fixtures for verification
+  frontend/                   Native module behavior checks through Node’s test runner
 tools/
   load_demo.py                Optional ASGI capacity probe
 ```
@@ -35,7 +63,7 @@ tools/
 Root documents contain the setup guide, design decisions and AI usage record.
 `docs/01` through `docs/07` cover planning, requirements, rules, PoC, architecture,
 data and the API/runtime contract. `docs/08` distinguishes implementation evidence
-from remaining acceptance work. `requirements.txt` contains runtime dependencies;
+from remaining acceptance work. `docs/10` records the current frontend design. `requirements.txt` contains runtime dependencies;
 `requirements-dev.txt` adds testing and measurement dependencies. `pyproject.toml`
 configures project tooling. Runtime SQLite files belong in the ignored `data/`
 directory, or the directory selected by `DATA_DIR`.
@@ -65,22 +93,66 @@ atomic lifecycle changes while repositories retain table ownership.
 `backend/core/paths.py` resolves checked-in catalog, asset and migration locations
 relative to the source tree, rather than the shell's working directory. Browser
 URLs such as `/static/demo/clips/song-001.mp3` remain independent of those
-filesystem paths. `backend/app.py` mounts only the catalog's bundled assets at
-`/static/demo`; `/docs` and `/openapi.json` expose the API reference, while `/`
-returns 404. Importing a domain does not start the HTTP server.
+filesystem paths. `backend/app.py` mounts catalog assets at `/static/demo` and
+frontend assets separately at `/ui`; `/` serves the game entry, `/ui-lab` isolated
+fixtures, and `/docs`/`/openapi.json` the API reference. Importing a domain does not
+start the HTTP server.
 
-## Future frontend boundary
+## Frontend and catalog-search boundaries
 
-The future frontend owns phase rendering, presentation state, non-overlapping
-polling, independent heartbeats, automatic ACKs, clock estimates and scheduled
-host playback. The backend remains authoritative for identity, phase, timing
-and scoring. Browser code consumes the JSON API and the private host audio
-manifest; it does not own catalog assets or domain persistence.
+`app.mjs` wires browser dependencies and starts the application. Modules in
+`application/` coordinate local state, commands and polling. `screen-host.mjs`
+selects and mounts screens, owns their animation clock and destroys the outgoing
+screen. `transport/client.mjs` owns HTTP requests and server-clock estimates;
+`audio/host.mjs` owns host leases, bounded preload/decode and scheduled playback.
+Local drafts and accepted receipts never grant authority or change server points.
+Pure `game/` modules project timing, results and lobby readiness; screens render
+those values and emit user intent. `components/site-header.mjs` owns navigation
+and the profile menu independently of game orchestration.
 
-The earlier `feature/demo-core` checkpoint retains its temporary browser UI.
-It is excluded from this backend checkpoint so a new frontend can be reviewed
-and integrated separately. Browser behavior and physical audio checks must run
-against that future implementation; Python tests do not establish UI acceptance.
+Screens retain structural DOM and keyed player cards. Standalone Web Components
+own layered character animation, selection controls, asynchronous song typeahead
+and waveform/progress display. `blob-palette.mjs` owns colors, `blob-rig.mjs` owns
+pure contour/motion/springs, and `blob-motion.mjs` owns the shared visible-frame
+loop. `character.mjs` renders persistent SVG joints; `color-picker.mjs` owns reusable
+swatches and preview controls. `game/results.mjs` maps revealed server song matching
+to outcome badges, projects the current player's listener correctness and preserves
+frozen ranks; it never recomputes scoring. A reveal contains the correct song,
+actual listener IDs and only the requesting player's `my_answer`. No screen or
+component receives other players' submitted guesses. Flanking listener cards
+compare the current player's selection with the revealed listener set; shared
+leaderboards display scores and ranks without exposing answers. Updates preserve
+focus and stable SVG nodes. The backend owns deadlines and scoring. `/ui-lab` is explicitly
+fixture-only; its sessions and guesses do not reach game persistence. Its bootstrap
+uses `lab/controller.mjs` for navigation, cancellation and clock lifecycle,
+`lab/fixtures.mjs` for pure reproducible state and `lab/characters.mjs` for the
+standalone studio. Fixtures follow the same owner-only reveal contract.
+
+`round-countdown.mjs` draws an open upper arc. `waveform-drawing.mjs` owns pure
+geometry and drawing customization; `music-waveform.mjs` retains SVG layers and
+clips elapsed progress. Both receive the screen clock through `game/timing.mjs`.
+Neither component loads audio. `audio/levels.mjs` measures all channels within the
+actual answer window; `audio/lab.mjs` loads, decodes and schedules the isolated
+preview source, with cancellation on navigation or document hiding.
+
+`screens/results.mjs` composes the cover-centered `screens/reveal.mjs` and the
+podium/list view in `components/standings.mjs`. `listener-result.mjs` owns one
+player's local listener-guess feedback. `styles/results.css` keeps their responsive
+presentation separate from listening/lobby styles. All displays retain keyed
+characters across polling; submitted answers do not stop the waveform or audio.
+
+`backend/catalog/search.py` searches shared fixture metadata or Apple public metadata
+with bounded cache/budget and single-flight requests. `tokens.py` authenticates
+room-scoped selected facts. Search never consults hidden listener mappings and
+runs outside room command locks. Answer acceptance verifies the token, freezes
+song facts and calls pure scoring without provider I/O. Migration
+`002_song_selections.sql` converts historical choice slots into frozen selected-song
+facts while retaining points/ranks. This adapter does not authorize personal music
+accounts or acquire playback audio.
+
+The earlier `feature/demo-core` checkpoint preserves its temporary UI. Backend
+PR #1 is merged into `integration`; the current frontend and answer-contract changes
+remain uncommitted on `feature/frontend`.
 
 ## Where to make a change
 
@@ -91,17 +163,28 @@ against that future implementation; Python tests do not establish UI acceptance.
 | Points or artist partial credit | `backend/game/scoring.py` | Scoring unit tests and persisted-score integration tests |
 | Song/difficulty/replacement selection | `backend/game/selection.py` | Selection unit tests and game replacement tests |
 | Readiness, deadline or automatic phase behavior | `backend/game/phases.py`, `backend/game/service.py` | Game integration tests with injected clocks |
-| Host audio control and takeover | `backend/application/audio_leases.py` and coordinator | Lease/API integration tests; playback checks when frontend exists |
+| Host audio control and takeover | `backend/application/audio_leases.py` and coordinator | Lease/API integration tests; browser playback checks |
 | New HTTP field or command | `backend/api/schemas.py`, `backend/api/routes.py`, relevant service | API and affected service integration tests |
 | Catalog asset delivery | `backend/core/paths.py`, `backend/app.py` | HTTP resource and outside-working-directory startup tests |
-| Layout, visual style or browser interaction | Future frontend implementation | Browser interaction and physical device checks |
+| Layout, visual style or browser interaction | `frontend/screens/`, `components/`, `styles/` | Browser interaction, standalone components and physical device checks |
+| Selected-song search and verification | `backend/catalog/`, `frontend/components/song-search.mjs` | Signature/cache/provider tests and browser typeahead checks |
+| Browser requests, receipts or clocks | `frontend/transport/`, `frontend/application/` | Native module tests and actual session/reconnect checks |
 | Schema or startup behavior | `backend/storage/`, `backend/app.py` | Temporary SQLite migration/restart integration tests |
 
 Future personal-history and preview providers need bounded adapters at the
 Rooms/import and application/preparation boundaries. They should return
 normalized values rather than spread provider-specific code through scoring,
-SQL repositories or presentation. No real-provider adapter is implemented yet.
+SQL repositories or presentation. Personal-history and preview-import adapters are not implemented; public metadata
+search is implemented independently.
 
-Run instructions and current verification commands are in [README](../README.md).
+Frontend files use explicit `.mjs` extensions in imports and HTML entry scripts.
+The browser serves them directly; there is no npm manifest, install or build step.
+Run module tests with Node 24 or newer:
+
+```bash
+node --test tests/frontend/*.test.mjs
+```
+
+Run instructions and Python verification commands are in [README](../README.md).
 Structural organization does not establish physical audio, phone compatibility,
 network synchronization or deployment acceptance; those remain separate checks.

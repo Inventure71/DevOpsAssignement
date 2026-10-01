@@ -1,8 +1,9 @@
 # 07 — API and Runtime Contract
 
 Date: 2026-10-01. Accepted gameplay decisions and API/runtime contracts.
-Demo endpoints exist in this backend checkpoint; game frontend implementation
-is separate and real provider admission is explicitly unavailable.
+Demo endpoints and public catalog metadata search are implemented; real
+provider admission/import remains explicitly unavailable. Frontend work uses
+this contract and has separate browser acceptance gates.
 See [implementation status](08_IMPLEMENTATION_STATUS.md) for test evidence. Read alongside [03_GAME_RULES.md](03_GAME_RULES.md),
 [05_ARCHITECTURE.md](05_ARCHITECTURE.md) and
 [06_DATA_MODEL.md](06_DATA_MODEL.md).
@@ -58,18 +59,18 @@ configure permissive credentialed CORS.
 
 ## 3. API surface
 
-`/api` is the v1 API prefix; incompatible future changes receive a separate
-version rather than changing this contract silently. Bodies use opaque IDs and
+`/api` is the current active-development API prefix. The selected-song contract
+replaces the earlier option-slot draft; no legacy option-answer compatibility
+path is retained. Released APIs will need explicit versioning for incompatible changes. Bodies use opaque IDs and
 UTC milliseconds. State responses include `server_now_ms`, monotonically
 increasing `state_version`, phase and applicable deadlines. Clients ignore older
 poll responses. Domain internals and provider credentials are not API models.
 
-This backend checkpoint exposes `/docs` and `/openapi.json` for API discovery.
-It serves bundled catalog assets at `/static/demo` and returns 404 at `/`; no
-game HTML, JavaScript or stylesheet is included. Its four-song seed allows lobby
-checks but Start returns `insufficient_songs` until the catalog satisfies the
-existing minimum and planning rules. Browser presentation and playback described
-below are the contract for the future frontend, rather than an included client.
+The service exposes `/docs` and `/openapi.json` for API discovery, serves catalog
+assets at `/static/demo`, and serves the new frontend at `/` with its assets at
+`/ui`. The four-song seed permits lobby checks; Start still returns
+`insufficient_songs` until at least ten songs per player and candidate planning
+rules are satisfied. Public catalog search does not add songs to that game pool.
 
 | Method and path | Access | Effect |
 |---|---|---|
@@ -77,6 +78,7 @@ below are the contract for the future frontend, rather than an included client.
 | `GET /api/room-codes/{code}` | Code holder | Resolve room ID/mode/join availability; no hidden pool or host privileges |
 | `POST /api/rooms/{room_id}/join` | Valid code and admission proof | Join lobby, issue room cookie; no new identities during preparing/play |
 | `GET /api/rooms/{room_id}/state` | Member | Current public phase plus caller-specific submission/admin state |
+| `GET /api/rooms/{room_id}/song-search?q=...` | Member | Search shared demo/public Apple metadata; return signed selections without room-pool/listener data |
 | `POST /api/rooms/{room_id}/heartbeat` | Member | Update presence after enforcing expiry |
 | `PATCH /api/rooms/{room_id}/player` | Member, lobby only | Update own nickname/character |
 | `PATCH /api/rooms/{room_id}/settings` | Host, lobby only | Validate settings and advance room revision |
@@ -102,21 +104,37 @@ Do not implement a placeholder accepting arbitrary authorization claims.
 
 ## 4. Phase-specific state
 
+`character_id` selects a color for the shared blob rig: `coral`, `periwinkle`,
+`lavender`, `lemon`, `lilac`, `sage`, `sky` or `rose`. Admission defaults to coral;
+lobby edits persist the caller's own color. Starting roster colors are frozen.
+
+The caller's revealed answer includes `song_match`: `correct`, `artist`, `wrong` or
+`unanswered`, computed from frozen song facts with the scoring classifier.
+Missing and submitted listener-only answers both have unanswered song matching,
+while their answer status remains distinct. The field is withheld before reveal.
+The frontend celebrates correct songs, responds happily to artist partial credit,
+uses sadness for wrong songs and stays neutral for unanswered songs. Listener
+points do not decide the emotion.
+
 | Phase | Public information |
 |---|---|
 | Lobby | Mode, nickname/character, connectivity, import readiness, counts/settings, Start eligibility |
 | Setup | Frozen roster, requested round count, preparation progress/errors, minimum setup countdown |
-| Ready/countdown | Current four title/credited-artist options, frozen roster, automatic check-in progress, readiness generation, common start time when scheduled |
-| Answering | Same options/roster, deadline, named Listening/Submitted statuses and caller's own receipt |
-| Reveal | Correct song/credited artists/cover, real listeners, every player's guesses or No answer, per-player points |
+| Ready/countdown | Current waveform (if supplied), frozen roster, automatic check-in progress, readiness generation, common start time when scheduled |
+| Answering | Same waveform/roster, deadline, named Listening/Submitted statuses and caller's own receipt |
+| Reveal | Correct song/credited artists/cover, real listeners, caller's own guesses or No answer, caller's own correctness and points |
 | Leaderboard | Revealed-attempt totals and ranks, next phase timing |
 | Finished | Persisted final or labelled partial rankings and end cause |
 
-Do not expose correct-option markers, listener membership, per-song familiarity
-or other guesses before reveal. Nicknames and characters come from the frozen
+Do not expose correct-song flags, listener membership or per-song familiarity
+before reveal. Never expose another player's submitted song guess or listener
+selection in any phase, results or history; the host has no exception. Keep all
+answers internally for scoring, retries and diagnosis, including answers on void
+attempts. Shared submission status and ranking totals do not disclose their
+underlying answer rows. Nicknames and characters come from the frozen
 roster during games. Listening/Submitted describes answer state, not proof of
 audible listening; show connectivity separately. Missing submissions become
-No answer at closure. The future frontend must use a bundled placeholder for
+No answer at closure. The frontend must use a bundled placeholder for
 missing or failed covers.
 
 Only the active host audio tab receives full planned/reserve audio references
@@ -130,7 +148,7 @@ public response or audio preload manifest.
 
 Start freezes membership/settings and creates a `preparing` game. Normal imports
 are already complete. Game selects the complete requested sequence and reserves,
-checks preview candidates and four-option feasibility, then freezes song facts
+checks distinct preview candidates and replacement availability, then freezes song facts
 and `round_plan_json`. The host loads/decodes planned and reserve clips as far as
 the supported browser permits. Explicitly enable host audio through a user tap;
 loading a URL alone does not prove audible playback.
@@ -192,10 +210,14 @@ all-device synchronized audio from this shared-host-audio design.
 ## 7. Answers, time and scoring
 
 Accept one immutable final answer per starting player per attempt. Payload:
-`song_option` (0–3 or null) and `who_player_ids` (unique frozen-roster IDs).
+`song_guess_token` (a signed search-result token or null) and `who_player_ids`
+(unique frozen-roster IDs).
 A submitted empty list means Nobody; an omitted song earns zero song points.
 No Submit by closure means `missing`, `blank` and zero total points. Reject
-out-of-roster IDs, malformed options and requests outside the answering phase.
+out-of-roster IDs, malformed/tampered/other-room selections and requests outside
+the answering phase. New selections must not be expired at acceptance. Store
+the authenticated selected-song facts in `song_guess_json`; never make a provider
+request during submission or closure.
 
 An identical repeat returns the original receipt, including after closure; it
 cannot rescore. A different second payload conflicts. Attempts have separate
@@ -210,14 +232,72 @@ keep command work short and measure it. Enforce due transitions before mutation.
 At all-roster submission or deadline, close and score once in one transaction.
 Stop audio, show reveal for five seconds, then leaderboard for five seconds.
 
+Full song credit requires the same nonempty stable song/track key, or normalized
+title and at least one common structured artist identity. Normalize titles with
+Unicode NFKC, case folding and collapsed whitespace; do not use fuzzy matching.
 Correct song earns 100 plus the existing server-timed speed bonus. A wrong song
 sharing at least one structured credited-artist identity with the correct song
 earns 50, no speed bonus and no perfect-round bonus. Other wrong songs earn zero.
 Listener/difficulty/exact half-up rules remain in [03_GAME_RULES.md](03_GAME_RULES.md).
 Artist identities are provider-qualified IDs (or stable demo IDs), not substring
 matches against display names; validate real cross-provider reconciliation before
-using it. Frozen options include the matching facts needed by Game, but browser
-responses never mark shared correctness.
+using it. Apple public Search provides one `artistId` per song result, represented
+as `apple:artist:<id>`; featured credits are not inferred from display strings.
+Real imports must retain matching structured IDs. Browser search responses do
+not mark correctness. Game state exposes only the caller’s own `song_guess`
+display facts and listener selection; reveal adds their own correctness and points.
+
+### Public song search
+
+`GET /api/rooms/{room_id}/song-search?q=...` authenticates the room member before
+searching. A normalized query contains 2–100 characters. Browser input is
+debounced rather than issuing one request per keystroke. A successful response
+has this shape:
+
+```json
+{
+  "songs": [{"token": "signed-selection", "title": "Billie Jean", "artist": "Michael Jackson", "artwork_url": null}],
+  "source": "apple",
+  "cached": false
+}
+```
+
+Matching shared demo fixtures return `source: "catalog"` and work offline; other
+queries call Apple's public Search API with `media=music`, `entity=song`, US
+storefront and at most 20 results. Results are independent of room membership,
+listeners and the selected game sequence. The adapter reads metadata only and
+never downloads or returns provider preview URLs. This implements the official
+[Apple Search API](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/Searching.html).
+
+The process shares a five-minute, 128-query cache and coalesces identical
+in-flight lookups. It limits external requests to 18 per rolling minute, below
+Apple's documented approximate 20/minute budget; deployment changes still need
+provider-capacity validation. External I/O has a four-second timeout and bounded
+response size. Provider failures are cached for ten seconds, returned explicitly
+as `song_search_unavailable` (503); exhausted budget returns `song_search_busy`
+(429). Successful empty results remain a distinct 200 response. Search runs
+outside the room command lock and outside write transactions.
+
+Each token authenticates normalized song facts, room ID and a twenty-minute
+expiry using the process's in-memory signing secret. The browser cannot replace
+metadata or reuse a token in another room. The API verifies the signature; Game
+checks expiry for a new answer after checking for an identical stored receipt.
+Thus an accepted identical retry remains idempotent after closure or token expiry.
+Search tokens are not music-provider credentials and are not persisted in SQLite.
+Restart rotates the secret while aborting interrupted matches; do not depend on
+old selections to start or continue a game after restart.
+
+`round.my_answer` is null until submission; afterwards it contains
+`{song_guess: {title, artist, artwork_url} | null, who_player_ids: [...]}`.
+The reveal object is `{song, listener_ids, my_answer}`. `song` contains the
+correct song's display facts; `listener_ids` contains its actual frozen listeners.
+`reveal.my_answer` belongs only to the authenticated caller and contains
+`{player_id, status, points, song_guess, song_match, who_player_ids}`. A missing
+answer has `status: "missing"`, `points: 0`, `song_guess: null`,
+`song_match: "unanswered"` and `who_player_ids: null`. A submitted Nobody answer
+has `status: "submitted"` and `who_player_ids: []`. No `answers` list, other
+players' selections, round options or correct-option index are sent, including
+to the host. All underlying answer rows remain stored privately.
 
 ## 8. Failure, presence and command retries
 
@@ -268,7 +348,9 @@ Enable foreign keys and a busy timeout per connection. Database connections/
 transactions execute outside the async event loop. Serialize room mutations;
 never hold SQLite transactions or room locks during provider calls.
 
-FastAPI lifespan initializes bounded versioned migrations, demo fixture seed and
+FastAPI lifespan applies schema migrations 1 through 3, preserving old option-answer
+history as frozen song facts and translating character IDs into blob colors,
+then initializes the demo fixture seed and
 startup recovery before readiness succeeds. A one-second presence/deadline task
 advances phases without browser requests; a periodic task enforces whole-room
 retention. Requests also reject expired rooms/deadlines. Cancel/await tasks and
@@ -287,7 +369,7 @@ in one transaction. Completed games alone renew the retention anchor.
 Liveness tests process response; readiness checks schema/database accessibility
 and required runtime initialization, not optional provider uptime. Log bounded
 IDs, phases, latency, cause codes and provider availability without credentials,
-unrevealed guesses, song/listener pools or private playback URLs. Collect round
+private guesses, song/listener pools or private playback URLs. Collect round
 preparation/ACK/start, audio failure and SQLite contention timings. Back up through
 a SQLite-consistent method including active WAL contents; verify a restore.
 Operational thresholds/configuration and provider adapters still need deployment
@@ -301,6 +383,7 @@ validation. No new hosted service is required for demo.
 | Setup | Full sequence/reserves frozen; three replacements shared across setup/recovery; strict 30% boundary and original denominator |
 | Readiness | Automatic ACKs, stale/duplicate generations, initial named timeout, later Retry/Continue, host cannot be excluded |
 | Scoring | Worked examples, artist overlap/none, correct title/full points, empty submitted Nobody versus no submission |
+| Answer privacy | Caller-only reveal for every identity including host; others' guesses absent from all phases/results/history; submitted status and ranking totals remain shared; retained void/missing/Nobody records stay distinct |
 | Races/retries | Deadline boundary, answer/close/failure race, identical receipts, changed-answer conflict, lost Start response/restart |
 | Recovery | Host grace/lease takeover, missing players retaining eligibility, refresh/void, revealed finality, restart and partial rankings |
 | Browser game | Three real browsers complete ten demo rounds with characters, named statuses, automatic phases, host audio and cover fallback |
@@ -323,18 +406,21 @@ persistence, room identity, phase/readiness services and their tests can be buil
 against this contract. All-device audio and detailed history screens remain
 outside the first milestone.
 
-## 12. Implemented Demo transport details
+## 11. Implemented Demo transport details
 
 Start includes `request_id`, `room_revision` and the active host `lease_id`.
-Preload reports include `request_id`, `candidate_id`, `ok` and `lease_id`; the
-manifest uses the `X-Audio-Lease` header. Ready includes `readiness_generation`
-and, for the host, `lease_id`. Answer includes nullable `song_option` (0–3) and
+Preload reports include `request_id`, `candidate_id`, `ok` and `lease_id`, plus
+optional `waveform` (8–64 normalized levels between 0 and 1). The host computes
+these from the decoded clip; the current public round exposes them without its
+playback URL. Missing waveform data is null and must not become invented audio
+bars. The manifest uses the `X-Audio-Lease` header. Ready includes `readiness_generation`
+and, for the host, `lease_id`. Answer includes nullable `song_guess_token` and
 `who_player_ids`; an empty list is submitted Nobody. Host recovery commands
 include `request_id` and `readiness_generation`. Continue names all currently
 unready non-host IDs in `exclude_player_ids`; Retry opens a fresh window.
 Audio failure additionally includes `lease_id` and a bounded diagnostic `reason`.
 
-The future browser audio adapter must load and decode every issued candidate
+The browser audio adapter must load and decode every issued candidate
 and schedule the active buffer at the common start time. The backend already
 accepts the scoped preload reports and provides private manifest references.
 The setup preload window defaults to 60 seconds (`SETUP_TIMEOUT_MS` tunes it within 10–120 seconds). Missing reports abort with
@@ -345,7 +431,8 @@ Controller renewal uses its tab ID every five seconds. An unchanged tab may
 renew an unclaimed lease after a delay; a different tab receives a new lease and
 voids any unclosed current attempt. Late lease holders cannot use the new lease.
 
-See `backend/api/schemas.py` for strict request models,
+See `backend/catalog/` for metadata search/cache and signed selections,
+`backend/api/schemas.py` for strict request models,
 `backend/api/routes.py` for HTTP handlers, and `backend/game/views.py` for public
 projections. Origin checks, room cookies and rate limits live in separate
 `backend/api/` modules; cross-domain commands enter `backend/application/coordinator.py`.

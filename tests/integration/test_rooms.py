@@ -30,13 +30,13 @@ def service():
 
 def create(database, service, nickname="Host", now=1000):
     with database.transaction() as conn:
-        return service.create(conn, nickname, "vinyl", "demo", now)
+        return service.create(conn, nickname, "coral", "demo", now)
 
 
 def test_schema_initialization_is_versioned_and_idempotent(database):
     database.initialize()
     with database.read() as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
         assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert conn.execute("SELECT COUNT(*) FROM demo_catalog").fetchone()[0] == 120
@@ -46,7 +46,7 @@ def test_schema_initialization_is_versioned_and_idempotent(database):
 def test_transaction_rolls_back_all_room_admission_data(database, service):
     with pytest.raises(RuntimeError):
         with database.transaction() as conn:
-            service.create(conn, "Host", "vinyl", "demo", 1000)
+            service.create(conn, "Host", "coral", "demo", 1000)
             raise RuntimeError("simulated subsequent operation failure")
     with database.read() as conn:
         assert conn.execute("SELECT COUNT(*) FROM rooms").fetchone()[0] == 0
@@ -70,7 +70,7 @@ def test_credential_survives_restart_is_only_a_digest_and_is_room_scoped(databas
 def test_normal_mode_cannot_fake_authorization_or_assign_demo(database, service):
     with pytest.raises(DomainError) as error:
         with database.transaction() as conn:
-            service.create(conn, "Host", "vinyl", "normal", 1000)
+            service.create(conn, "Host", "coral", "normal", 1000)
     assert error.value.code == "provider_unavailable"
     assert error.value.status == 503
     with database.read() as conn:
@@ -81,7 +81,7 @@ def test_hidden_assignment_counts_shared_dedup_and_independent_rooms(database, s
     first, second = create(database, service), create(database, service)
     room_id = first["room"]["id"]
     with database.transaction() as conn:
-        join = service.join(conn, room_id, "Guest", "moon", 1100)
+        join = service.join(conn, room_id, "Guest", "lavender", 1100)
         assert not join["player"]["is_host"]
         lobby = service.lobby(conn, room_id, 1200)
         assert len(lobby["players"]) == 2
@@ -105,7 +105,7 @@ def test_snapshot_copies_artwork_credits_characters_and_decoys(database, service
         conn.execute("UPDATE songs SET artwork_url='/static/demo/covers/test.svg' WHERE room_id=?", (room_id,))
         snapshot = service.snapshot(conn, room_id)
         assert snapshot["host_id"] == joined["player"]["id"]
-        assert snapshot["players"][0]["character_id"] == "vinyl"
+        assert snapshot["players"][0]["character_id"] == "coral"
         assert len([s for s in snapshot["songs"] if not s["listeners"]]) == 24
         assert len([s for s in snapshot["songs"] if s["listeners"]]) == 36
         for song in snapshot["songs"]:
@@ -114,7 +114,7 @@ def test_snapshot_copies_artwork_credits_characters_and_decoys(database, service
                 assert song["artwork_url"] == "/static/demo/covers/test.svg"
                 assert song["listeners"][0]["player_id"] == joined["player"]["id"]
         conn.execute("UPDATE songs SET title='Changed' WHERE room_id=?", (room_id,))
-        service.update_player(conn, room_id, joined["player"]["id"], "Changed", "moon", 1100)
+        service.update_player(conn, room_id, joined["player"]["id"], "Changed", "lavender", 1100)
         assert snapshot["players"][0]["nickname"] == "Host"
         assert all(song["title"] != "Changed" for song in snapshot["songs"])
 
@@ -124,7 +124,7 @@ def test_casefold_uniqueness_and_invalid_character(database, service):
     room_id = joined["room"]["id"]
     with database.transaction() as conn:
         with pytest.raises(DomainError) as error:
-            service.join(conn, room_id, " STRASSE ", "moon", 1100)
+            service.join(conn, room_id, " STRASSE ", "lavender", 1100)
         assert error.value.code == "nickname_taken"
         with pytest.raises(DomainError) as error:
             service.join(conn, room_id, "Guest", "arbitrary", 1100)
@@ -137,16 +137,16 @@ def test_roster_limit_and_lobby_lock_allow_existing_identity(database, service):
     room_id = joined["room"]["id"]
     with database.transaction() as conn:
         for i in range(9):
-            service.join(conn, room_id, f"Guest {i}", "moon", 1100)
+            service.join(conn, room_id, f"Guest {i}", "lavender", 1100)
         with pytest.raises(DomainError) as error:
-            service.join(conn, room_id, "Eleventh", "moon", 1100)
+            service.join(conn, room_id, "Eleventh", "lavender", 1100)
         assert error.value.code == "room_full"
         service.set_state(conn, room_id, "playing")
         with pytest.raises(DomainError) as error:
-            service.join(conn, room_id, "New browser", "moon", 1100)
+            service.join(conn, room_id, "New browser", "lavender", 1100)
         assert error.value.code == "room_locked"
         with pytest.raises(DomainError):
-            service.update_player(conn, room_id, joined["player"]["id"], "New Host", "sun", 1200)
+            service.update_player(conn, room_id, joined["player"]["id"], "New Host", "lemon", 1200)
         assert service.authenticate(conn, room_id, joined["token"], 1200)["id"] == joined["player"]["id"]
 
 
@@ -219,7 +219,7 @@ def test_member_leave_removes_only_own_links_and_unreferenced_songs(database, se
     joined = create(database, service)
     room_id = joined["room"]["id"]
     with database.transaction() as conn:
-        guest = service.join(conn, room_id, "Guest", "moon", 1100)
+        guest = service.join(conn, room_id, "Guest", "lavender", 1100)
         service.remove_player(conn, room_id, guest["player"]["id"], 1200)
         assert len(service.lobby(conn, room_id, 1200)["players"]) == 1
         assert conn.execute("SELECT COUNT(*) FROM songs WHERE room_id=?", (room_id,)).fetchone()[0] == 36

@@ -1,5 +1,6 @@
 """Map validated HTTP commands to application and domain services."""
 from fastapi import APIRouter, Request, Response
+from backend.catalog.search import SongSearch
 
 from backend.api.cookies import cookie_name, issue_cookie
 from backend.api.schemas import (
@@ -9,9 +10,10 @@ from backend.api.schemas import (
 from backend.core.errors import DomainError
 
 
-def create_router(coordinator, limits):
+def create_router(coordinator, limits, song_search=None):
     router = APIRouter(prefix='/api')
     c = coordinator
+    search = song_search or SongSearch()
 
     def run(request, room_id, operation, write=True):
         return c.execute(room_id, request.cookies.get(cookie_name(room_id)), operation, write)
@@ -64,6 +66,13 @@ def create_router(coordinator, limits):
             max_age=max(0, (result['room']['expires_at_ms'] - c.clock()) // 1000),
             path='/api/rooms/' + room_id, httponly=True, secure=c.config.cookie_secure, samesite='lax')
         return result
+
+    @router.get('/rooms/{room_id}/song-search')
+    def song_search_results(room_id: str, q: str, request: Request):
+        run(request, room_id, lambda conn, player, now: None, False)
+        # Authenticate before searching. Provider I/O never holds the room lock.
+        with c.db.read() as conn:
+            return search.search(conn, room_id, q, c.clock())
 
     @router.post('/rooms/{room_id}/heartbeat')
     def heartbeat(room_id: str, request: Request):
@@ -123,7 +132,10 @@ def create_router(coordinator, limits):
     def answer(room_id: str, game_id: str, round_id: str, payload: Answer, request: Request):
         def operation(conn, player, now):
             c.validate_game_room(conn, room_id, game_id)
-            return c.game.answer(conn, game_id, round_id, player['id'], payload.model_dump(), now)
+            values = {'song_guess': None, 'who_player_ids': payload.who_player_ids}
+            if payload.song_guess_token is not None:
+                values['song_guess'], values['_token_expires_ms'] = search.tokens.decode(payload.song_guess_token, room_id)
+            return c.game.answer(conn, game_id, round_id, player['id'], values, now)
         return run(request, room_id, operation)
 
     def recover(room_id, game_id, round_id, payload, request, kind):

@@ -27,7 +27,7 @@ music-provider authorization; the host explicitly chooses Demo to bypass it.
 | Apple Music import | Conditional | Personal history was blocked by the tester's missing subscription; requires a subscribed tester |
 | Manual song picks | **Out** | Players must not select or inspect their song pool before play |
 | Demo mode | **In** | Host explicitly selects it; assign hidden songs from a seeded SQLite catalog and bundled clips without provider sign-in or API keys |
-| Player characters | **In** | Show nickname and character in the lobby, round roster and results |
+| Player characters | **In** | One fluid blob with selectable colors, friendly eyes and gameplay emotions in lobby, round and results |
 | Automatic round loop | **In** | Synchronized countdown, guessing, reveal and leaderboard; host controls recovery rather than every next round |
 | Leaderboard (per room) | **In** | Simple, and part of the game |
 | Room history (30 days) | **In** | Keep rankings, rounds, guesses and scores; the deadline is 30 days after the last completed game, or room creation |
@@ -91,7 +91,22 @@ At 500 ms polling it implies about 400 state requests per second at full occupan
 | G4 | **Real music (conditional integration target):** 3 players automatically import at least 10 real songs each and complete a game; ≥80% of their unique candidate songs have a playable preview | Retained import/coverage report plus a browser playback check; requires a validated provider available to the three testers | Oct 3 |
 | G5 | **Ready to hand in:** a fresh clone runs by following the README; ≥12 commits on ≥6 days; 5 ADRs over ≥3 dates | Fresh-clone test + `git log` | Oct 4 |
 
-These are targets, not completed checks. The combined Demo checkpoint is committed and pushed on `feature/demo-core` (`bcdcd3d`). A backend-only candidate is prepared for a PR into `integration`; creating those branches and publishing the PR still require approval. The temporary UI stays on the checkpoint, while the replacement frontend will be developed separately after backend integration. Four fake songs are the current runtime seed, so G2 is not accepted for the current catalog: complete-match automated tests use larger temporary fixtures, and the earlier browser game used the retired bulk catalog. Current verification is recorded separately in `08_IMPLEMENTATION_STATUS.md`. The schedule remains tight: complete acceptance checks and cut conditional features before tests or documentation. G4 now requires automatic import because manual picks were removed on Sep 30; its provider prerequisites remain unverified for three testers. The brief says Oct 4; the introductory slides say Oct 12, so use Oct 4 until the official deadline is clarified.
+These are targets, not completed checks. The original combined Demo checkpoint
+is preserved on `feature/demo-core` (`bcdcd3d`). Backend PR #1 is merged into
+`integration`; the redesigned UI and catalog song-answer contract are current
+uncommitted work on `feature/frontend`. Four fake songs remain the runtime seed,
+so G2 is not accepted for the current catalog. Full-match automated tests use
+larger isolated fixtures; the earlier browser game used the retired bulk catalog.
+Current browser acceptance and final test evidence are tracked separately in
+`08_IMPLEMENTATION_STATUS.md`.
+
+The song field now searches a broad metadata catalog and accepts a selected
+song, rather than presenting four choices. This search requires no personal
+music account and does not populate the playback pool. G4 still needs automatic
+personal-history import, validated authorization and enough playable candidates
+for three testers. The brief says Oct 4; introductory slides say Oct 12, so use
+Oct 4 until the official deadline is clarified. Cut conditional features before
+cutting verification or documentation.
 
 ## SDLC model
 **Agile / iterative.** Work fast in short loops: document one phase, commit, move on. Build the core first (assigned demo data), then add automatic provider imports or all-device audio only when their prerequisites and acceptance checks are met. After each loop, adjust the plan based on what was learned (e.g. the PoC results).

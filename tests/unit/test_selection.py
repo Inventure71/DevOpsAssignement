@@ -27,9 +27,7 @@ def test_full_plan_is_frozen_deterministic_bounded_and_has_unique_candidates():
     assert all(len(slot["candidates"]) == 4 for slot in plan)
     candidates = [candidate for slot in plan for candidate in slot["candidates"]]
     assert len({candidate["song_key"] for candidate in candidates}) == 60
-    for candidate in candidates:
-        assert len(set(candidate["options"])) == 4
-        assert candidate["song_key"] in candidate["options"]
+    assert all("options" not in candidate for candidate in candidates)
 
 
 @pytest.mark.parametrize("rounds,expected_decoys", [(5, 1), (10, 2), (15, 3)])
@@ -38,10 +36,6 @@ def test_exact_original_decoy_count_and_no_first_decoy(rounds, expected_decoys):
     originals = [slot["candidates"][0] for slot in plan]
     assert originals[0]["difficulty"] != "decoy"
     assert sum(item["difficulty"] == "decoy" for item in originals) == expected_decoys
-    for item in originals:
-        wrong = set(item["options"]) - {item["song_key"]}
-        assert sum(key.startswith("personal") for key in wrong) == 2
-        assert sum(key.startswith("decoy") for key in wrong) == 1
 
 
 def test_player_rotation_is_balanced_and_reserves_preserve_honest_familiarity():
@@ -61,11 +55,10 @@ def test_player_rotation_is_balanced_and_reserves_preserve_honest_familiarity():
                 assert {"player_id": candidate["picked_player_id"], "familiarity": candidate["difficulty"]} in listeners
 
 
-def test_decoy_pool_unavailable_falls_back_without_blocking_options():
+def test_decoy_pool_unavailable_falls_back_to_personal_song():
     plan = prepare_plan(pools(decoys=0), ROSTER, 10, Random(17))
     assert all(slot["candidates"] for slot in plan)
     assert all(candidate["difficulty"] != "decoy" for slot in plan for candidate in slot["candidates"])
-    assert all(key.startswith("personal") for slot in plan for candidate in slot["candidates"] for key in candidate["options"])
 
 
 def test_difficulty_falls_back_and_skips_player_with_no_remaining_songs():
@@ -91,5 +84,6 @@ def test_strict_thirty_percent_skip_boundary(requested, allowed, exceeded):
     assert skip_limit_exceeded(exceeded, requested)
 
 
-def test_no_four_distinct_options_means_empty_slot():
-    assert all(not slot["candidates"] for slot in prepare_plan(pools(personal=2, decoys=0), ROSTER, 5, Random(1)))
+def test_small_pool_can_play_without_requiring_distractors():
+    plan = prepare_plan(pools(personal=2, decoys=0), ROSTER, 5, Random(1))
+    assert sum(len(slot["candidates"]) for slot in plan) == 2

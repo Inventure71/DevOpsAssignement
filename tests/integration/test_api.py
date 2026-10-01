@@ -25,10 +25,10 @@ def session(tmp_path, monkeypatch):
     app = create_app(Config(tmp_path), clock=clock, background=False)
     with TestClient(app) as host:
         guests = [TestClient(app), TestClient(app)]
-        room = host.post('/api/rooms', json={'nickname': 'Host', 'character_id': 'vinyl', 'mode': 'demo'}).json()
+        room = host.post('/api/rooms', json={'nickname': 'Host', 'character_id': 'coral', 'mode': 'demo'}).json()
         prefix = '/api/rooms/' + room['room_id']
         for name, client in zip(('Ada', 'Grace'), guests):
-            assert client.post(prefix + '/join', json={'nickname': name, 'character_id': 'moon'}).status_code == 201
+            assert client.post(prefix + '/join', json={'nickname': name, 'character_id': 'lavender'}).status_code == 201
         lease = host.post(prefix + '/audio-controller', json={'tab_id': 'host'}).json()['lease_id']
         yield app.state.coordinator, clock, host, guests, room, prefix, lease
         for guest in guests:
@@ -93,18 +93,19 @@ def test_answer_race_closes_once_and_keeps_guesses_hidden(session):
         clock.value = c.game.repo.current(conn, gid)['starts_at_ms']
     c.tick()
     path = prefix + f'/games/{gid}/rounds/{attempt["id"]}/answers'
-    assert host.post(path, json={'song_option':0,'who_player_ids':[]}).status_code == 200
+    assert host.post(path, json={'song_guess_token':None,'who_player_ids':[]}).status_code == 200
     seen = guests[0].get(prefix + '/state').json()['game']['round']
     assert len(seen['submitted_player_ids']) == 1
     assert seen['my_answer'] is None and seen['reveal'] is None
     with ThreadPoolExecutor(max_workers=2) as pool:
-        responses = list(pool.map(lambda client: client.post(path,json={'song_option':1,'who_player_ids':[]}), guests))
+        responses = list(pool.map(lambda client: client.post(path,json={'song_guess_token':None,'who_player_ids':[]}), guests))
     assert all(r.status_code == 200 for r in responses)
     state = host.get(prefix + '/state').json()
     assert state['game']['phase'] == 'reveal'
-    assert len(state['game']['round']['reveal']['answers']) == 3
-    assert host.post(path,json={'song_option':0,'who_player_ids':[]}).status_code == 200
-    assert host.post(path,json={'song_option':2,'who_player_ids':[]}).status_code == 409
+    assert 'answers' not in state['game']['round']['reveal']
+    assert state['game']['round']['reveal']['my_answer']['player_id'] == room['player_id']
+    assert host.post(path,json={'song_guess_token':None,'who_player_ids':[]}).status_code == 200
+    assert host.post(path,json={'song_guess_token':None,'who_player_ids':[room['player_id']]}).status_code == 409
     assert host.post(prefix + f'/games/{gid}/rounds/{attempt["id"]}/audio-failure',json={
         'request_id':str(uuid4()),'readiness_generation':1,'lease_id':lease}).status_code == 409
     with c.db.read() as conn:
@@ -118,7 +119,7 @@ def test_exact_deadline_commits_closure_even_when_answer_rejected(session):
     with c.db.read() as conn:
         deadline = c.game.repo.current(conn,gid)['deadline_at_ms']
     clock.value = deadline
-    response = guests[0].post(prefix + f'/games/{gid}/rounds/{attempt["id"]}/answers',json={'song_option':0,'who_player_ids':[]})
+    response = guests[0].post(prefix + f'/games/{gid}/rounds/{attempt["id"]}/answers',json={'song_guess_token':None,'who_player_ids':[]})
     assert response.status_code == 409
     with c.db.read() as conn:
         assert c.game.repo.current(conn,gid)['status'] == 'revealed'

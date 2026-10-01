@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Character lab — Who's On Repeat</title>
+    <link rel="stylesheet" href="/ui/styles/tokens.css" />
+    <link rel="stylesheet" href="/ui/styles/app.css" />
+    <link rel="stylesheet" href="/ui/styles/components.css" />
+    <link rel="stylesheet" href="/ui/styles/results.css" />
+    <script type="module" src="/ui/lab.mjs"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="site-brand" href="/">who’s<br />on repeat<span>?</span></a>
+      <nav class="lab-nav" aria-label="UI lab scenes">
+        <button data-scene="characters" aria-pressed="true">Characters</button
+        ><button data-scene="lobby" aria-pressed="false">Lobby</button
+        ><button data-scene="listening" aria-pressed="false">Listening</button
+        ><button data-scene="submitted" aria-pressed="false">Submitted</button>
+        <button data-scene="reveal" aria-pressed="false">Reveal</button>
+        <button data-scene="leaderboard" aria-pressed="false">
+          Leaderboard
+        </button>
+      </nav>
+      <a href="/">Back to game</a>
+    </header>
+    <main id="main" class="main-view"></main>
+  </body>
+</html>

@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from backend.app import create_app
 from backend.core.config import Config
-from backend.core.paths import DEMO_ASSETS_DIR
+from backend.core.paths import DEMO_ASSETS_DIR, FRONTEND_DIR
 from backend.storage.database import Database
 from backend.rooms.demo import CATALOG_PATH, seed_demo
 from backend.rooms.service import RoomsService
@@ -52,7 +52,7 @@ def test_reseed_removes_retired_catalog_but_preserves_room_copies_and_snapshot(t
     rooms = RoomsService()
     with db.transaction() as conn:
         seed_demo(conn, write_large_catalog(tmp_path / 'large.json'))
-        old = rooms.create(conn, 'Old Host', 'vinyl', 'demo', 1000)
+        old = rooms.create(conn, 'Old Host', 'coral', 'demo', 1000)
         frozen = rooms.snapshot(conn, old['room']['id'])
         old_ids = {s['song_key'] for s in frozen['songs'] if s['listeners']}
         seed_demo(conn, CATALOG_PATH)
@@ -61,7 +61,7 @@ def test_reseed_removes_retired_catalog_but_preserves_room_copies_and_snapshot(t
         assert {row[0] for row in conn.execute('SELECT id FROM songs WHERE room_id=?',
                                             (old['room']['id'],))} == old_ids
         assert len(frozen['songs']) == 60  # 36 room songs + 24 frozen decoys.
-        new = rooms.create(conn, 'New Host', 'vinyl', 'demo', 1000)
+        new = rooms.create(conn, 'New Host', 'coral', 'demo', 1000)
         assert rooms.lobby(conn, new['room']['id'], 1000)['players'][0]['song_count'] == 4
         assert len(rooms.snapshot(conn, new['room']['id'])['songs']) == 4
         assert conn.execute('PRAGMA foreign_key_check').fetchall() == []
@@ -96,16 +96,25 @@ def test_app_resources_work_when_started_outside_checkout(tmp_path, monkeypatch)
     app = create_app(Config(data_dir), clock=lambda: 1000, background=False)
     with TestClient(app) as client:
         assert client.get('/health/ready').status_code == 200
-        assert client.get('/').status_code == 404
+        assert client.get('/').status_code == 200
         assert client.get('/docs').status_code == 200
         schema = client.get('/openapi.json')
         assert schema.status_code == 200
         assert '/api/rooms' in schema.json()['paths']
         assert client.get('/static/js/app.js').status_code == 404
         assert client.get('/static/demo/%2e%2e/demo_catalog.json').status_code == 404
+        # Native module URLs must work on the API origin without a bundler,
+        # regardless of cwd, with a MIME type browsers permit for module imports.
+        for module in FRONTEND_DIR.rglob('*.mjs'):
+            response = client.get('/ui/' + module.relative_to(FRONTEND_DIR).as_posix())
+            assert response.status_code == 200
+            assert response.headers['content-type'].split(';')[0] in {
+                'text/javascript', 'application/javascript',
+            }
+            assert response.content == module.read_bytes()
         with app.state.coordinator.db.read() as conn:
             # Startup must find and apply the real migration and catalog files.
-            assert conn.execute('PRAGMA user_version').fetchone()[0] == 1
+            assert conn.execute('PRAGMA user_version').fetchone()[0] == 3
             songs = list(conn.execute('SELECT preview_url, artwork_url FROM demo_catalog'))
             assert len(songs) == 4
         for song in songs:

@@ -29,8 +29,8 @@ def prepare_plan(
 ) -> list[dict[str, Any]]:
     """Build originals first, then reserves; all candidate song keys are unique.
 
-    Distractors may reappear in other option sets; selected or failed candidate
-    clips cannot. A slot with insufficient valid candidates remains empty so
+    Selected or failed candidate clips cannot repeat.
+    A slot with insufficient valid candidates remains empty so
     the application can apply the cumulative skip policy after preload checks.
     """
     if not 1 <= round_count <= 15 or difficulty not in {"easy", "mixed", "hard"}:
@@ -61,21 +61,6 @@ def prepare_plan(
         rotation_index += 1
         return player
 
-    def option_keys(correct: str) -> list[str] | None:
-        room = [key for key in personal if key != correct]
-        pool = [key for key in decoy_pool if key != correct]
-        if decoys and pool:
-            if len(room) < 2:
-                return None
-            wrong = rng.sample(room, 2) + rng.sample(pool, 1)
-        else:
-            if len(room) < 3:
-                return None
-            wrong = rng.sample(room, 3)
-        options = [correct, *wrong]
-        rng.shuffle(options)
-        return options
-
     def preferred_levels(prefer: str | None) -> list[str]:
         if prefer is None:
             prefer = (rng.choices(["easy", "medium", "hard"], [50, 35, 15])[0]
@@ -93,22 +78,16 @@ def prepare_plan(
                               and familiarities[key].get(player) == level]
                 rng.shuffle(candidates)
                 for key in candidates:
-                    options = option_keys(key)
-                    if options is not None:
-                        available.remove(key)
-                        return {"song_key": key, "options": options,
-                                "difficulty": level, "picked_player_id": player}
+                    available.remove(key)
+                    return {"song_key": key, "difficulty": level, "picked_player_id": player}
         return None
 
     def draw_decoy() -> dict[str, Any] | None:
         candidates = [key for key in decoy_pool if key in available]
         rng.shuffle(candidates)
         for key in candidates:
-            options = option_keys(key)
-            if options is not None:
-                available.remove(key)
-                return {"song_key": key, "options": options,
-                        "difficulty": "decoy", "picked_player_id": None}
+            available.remove(key)
+            return {"song_key": key, "difficulty": "decoy", "picked_player_id": None}
         return None
 
     slots: list[dict[str, Any]] = []

@@ -1,5 +1,6 @@
 """Exact, server-timed scoring over frozen song facts."""
 
+import unicodedata
 from fractions import Fraction
 from typing import Any, Mapping, Sequence
 
@@ -19,6 +20,10 @@ def _artist_keys(song: Mapping[str, Any]) -> set[str]:
     return {str(artist["artist_key"]) for artist in song.get("artists", [])}
 
 
+def _title(song: Mapping[str, Any]) -> str:
+    return " ".join(unicodedata.normalize("NFKC", str(song.get("title", ""))).casefold().split())
+
+
 def _listeners(song: Mapping[str, Any]) -> set[str]:
     return {
         str(listener["player_id"] if isinstance(listener, dict) else listener)
@@ -26,10 +31,22 @@ def _listeners(song: Mapping[str, Any]) -> set[str]:
     }
 
 
+def classify_song_guess(song: Mapping[str, Any], chosen: Mapping[str, Any] | None) -> str:
+    """Classify frozen song facts independently of listener points or timing."""
+    if chosen is None:
+        return "unanswered"
+    if not isinstance(chosen, Mapping):
+        raise ValueError("Invalid song selection")
+    same_artist = bool(_artist_keys(song) & _artist_keys(chosen))
+    if ((bool(_key(song)) and _key(chosen) == _key(song)) or
+            (same_artist and bool(_title(song)) and _title(chosen) == _title(song))):
+        return "correct"
+    return "artist" if same_artist else "wrong"
+
+
 def score_answer(
     song: Mapping[str, Any],
-    options: Sequence[Mapping[str, Any]],
-    song_option: int | None,
+    chosen: Mapping[str, Any] | None,
     who_player_ids: Sequence[str],
     elapsed_ms: int,
     answer_ms: int,
@@ -46,17 +63,12 @@ def score_answer(
                    "hard": Fraction(2), "decoy": Fraction(1)}
     if difficulty not in multipliers:
         raise ValueError("Unknown difficulty")
-    if song_option is not None and (
-        isinstance(song_option, bool) or not isinstance(song_option, int)
-        or not 0 <= song_option < len(options)
-    ):
-        raise ValueError("Invalid song option")
-    chosen = options[song_option] if song_option is not None else None
-    correct_song = chosen is not None and _key(chosen) == _key(song)
+    song_match = classify_song_guess(song, chosen)
+    correct_song = song_match == "correct"
     if correct_song:
         elapsed = min(max(elapsed_ms, 0), answer_ms)
         song_points = 100 + half_up(Fraction(50 * (answer_ms - elapsed), answer_ms))
-    elif chosen is not None and _artist_keys(song) & _artist_keys(chosen):
+    elif song_match == "artist":
         song_points = 50
     else:
         song_points = 0

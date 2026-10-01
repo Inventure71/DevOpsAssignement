@@ -1,75 +1,170 @@
-# 08 — Demo Backend Implementation Status
+# 08 — Implementation Status
 
-Evidence recorded 2026-10-01. The combined Demo checkpoint is committed and
-pushed on `feature/demo-core` at `bcdcd3d`. This backend-only candidate was
-prepared separately from that clean checkout; its branch, commit and PR are
-pending explicit Git/GitHub approval. No integration branch or frontend branch
-has been created for this split yet.
+Recorded 2026-10-01. Backend [PR #1](https://github.com/Inventure71/DevOpsAssignement/pull/1)
+is merged into `integration`. The redesigned UI and selected-song search contract
+are uncommitted work on `feature/frontend`. The original combined Demo checkpoint
+remains preserved on `feature/demo-core` (`bcdcd3d`).
 
-## Implemented in this candidate
+## Current implementation
 
-The single-process FastAPI app exposes the Rooms/Game API and stores both
-domains in `DATA_DIR/whos_on_repeat.sqlite3`. Migration 1 matches the ten-table
-documented DDL. Startup initializes and seeds storage, aborts interrupted games
-with partial rankings, and cleans expired rooms. HTTP routes, application
-coordination, domain rules and persistence retain separate ownership.
+The FastAPI/SQLite Rooms and Game domains retain the integrated backend’s identity,
+fixed-roster, phase, scoring, void-attempt, recovery and history behavior. A native
+ES module frontend is served at `/`; browser assets are at `/ui/` and catalog
+media at `/static/demo/`. No frontend bundler or npm dependencies are needed.
 
-Demo supports 3–10 player identities, room-specific HttpOnly credentials,
-nicknames/characters, hidden seeded assignments, host settings, frozen rosters
-and song plans, final submissions, artist partial credit, submitted Nobody
-versus missing answers, readiness and timed phases, host audio leases, checked
-reserves, void attempts, strict skip limits, and durable rankings/history.
-The API retains the private host manifest and automatic check-in contracts
-needed by the future frontend. Actual browser scheduling and sound playback
-require a frontend and are not implemented in this candidate.
+The new UI implements create/join, lobby settings and character selection,
+setup/check-in/countdown, listening and submitted rounds, direct player-icon
+selection, reveal with artwork fallback, leaderboard and room-history navigation.
+One deformable blob rig has eight selectable colors, friendly open eyes and
+listening/submitted/celebrating/sad moods. It retains its SVG nodes across updates.
+Pure contour clips and damped face/headphone joints share one visible 30 fps loop;
+offscreen and small thumbnail instances do not animate. Mounted screens and keyed player cards preserve focus and drafts.
+Reduced motion and document visibility govern continuous motion. `/ui-lab` uses
+isolated fixtures for visual/component checks; it is not a playable game.
 
-The runtime catalog has exactly four fictional personal-pool songs, four
-original 30-second MP3s and one SVG cover. Metadata lives in
-`catalog/demo_catalog.json`; bundled files live in `catalog/assets/`. The API
-serves them at the unchanged `/static/demo/` URLs. Nullable artwork is retained
-in songs and frozen snapshots; displaying a placeholder belongs to the future
-frontend. No music account or network music API is used.
+Song-name typeahead searches shared fixture metadata and Apple public song metadata,
+not four round options. Server-signed room selections freeze title, artist,
+structured identity and optional artwork into answers. Provider calls occur outside
+room command locks; submission performs no provider lookup. Search is bounded by
+cache, timeout, single-flight calls and a process-wide request budget. The public
+adapter returns the primary artist, so complete collaboration credits remain a
+limitation. It does not authenticate music accounts or import playback songs.
 
-The four-song seed supports startup and lobby/API checks. It fails the unchanged
-ten-songs-per-player start requirement with `insufficient_songs`; it cannot
-supply a complete match. Larger metadata fixtures are generated only in
-temporary test/load data. Startup refreshes shared catalog entries while keeping
-existing room songs and frozen snapshots; use a new room or fresh `DATA_DIR`
-when checking the current seed, because old rooms may reference retired assets.
+Migration 3 translates live/frozen character IDs to color IDs without changing
+credentials, membership, guesses or scores. Revealed answers now include
+`song_match`, sharing the frozen-song classifier with scoring. Song verdicts
+do not depend on total points; artist partial credit and unanswered guesses have
+separate feedback. The field stays hidden before reveal.
 
-There is no custom player UI or frontend test suite in this candidate. `/`
-returns 404, `/docs` exposes FastAPI's API explorer, and `/openapi.json` exposes
-the schema. These endpoints are developer tools, not the game's player screens.
-The temporary UI remains preserved on the pushed Demo checkpoint.
+Migration 2 replaces choice-index answers with nullable selected-song JSON and
+converts historical answers without changing stored scores. Host preload reports
+can include normalized waveform levels measured from decoded audio; public round
+state exposes levels without its private playback URL.
 
-## Current automated evidence
+The runtime catalog still contains exactly **four fictional personal songs**, four
+original 30-second MP3s and one SVG cover. It supports admission/lobby/media checks
+and correctly rejects Start with `insufficient_songs`. A complete match requires
+at least ten songs per player plus sufficient distinct candidates and reserves.
+Larger test metadata remains isolated. Real catalog population and Normal-mode
+personal import are pending; Normal still returns `provider_unavailable`.
+
+The results contract is now owner-only: `reveal.my_answer` contains the requesting
+player's answer; the API never includes other players' song/listener guesses,
+including for the host. All answer records remain in SQLite for internal
+diagnosis. Correct song/listener facts, submission status and score/rank totals
+remain public. The shared guesses table and its unused styles were removed.
+
+Frontend `.mjs` modules now separate application state/commands/runtime, transport,
+audio, pure display logic, screen lifecycle, header controls and isolated lab
+fixtures. Room SQL lives in its repository; room services retain rules. Runtime
+generations stop old in-flight poll/heartbeat work from restarting duplicate loops
+or applying stale state after stop/start. See [cleanup record](11_CODE_CLEANUP.md).
+
+## Current verification
+
+The current tree passes **132 Python tests** with **94% Rooms/Game coverage** and
+**66 frontend Node tests**. All 38 frontend modules also pass syntax, relative-import and live HTTP/MIME
+checks. Native preview open timed out; no live visual/audio completion is claimed.
+Reproduce the automated checks with:
 
 ```bash
-python -m pip install -r requirements-dev.txt
 python -m pytest -q --cov=backend.rooms --cov=backend.game --cov-report=term-missing
+node --test tests/frontend/*.test.mjs
 ```
 
-The isolated backend-only candidate passed **93 Python tests**, with **93%
-combined Rooms/Game coverage** (Python 3.12.2). After independent review tightened
-the encoded traversal assertion, all **six bundled-catalog tests** passed again.
-The review found no blocking backend dependency or routing regression.
+The backend tests exercise real temporary SQLite/HTTP search-to-answer paths,
+signatures, room scope, expiry, historical migration, scoring, provider failure,
+concurrency and unchanged game lifecycle constraints. Frontend tests exercise
+accepted receipts, stale polls, round changes, submission races, request cancellation,
+clock estimates, audio scheduling/deduplication and measured waveform levels.
+The new tests also sample grounded contour geometry, squash/stretch area,
+anticipation/landing, sad posture, reduced-motion poses, spring stability and frame
+loop cleanup; populated schema-v2 upgrades preserve every non-color field. Reveal
+classification checks include wrong-song answers that earned listener points.
+The round refinement removes the lab caption, uses an open 200-degree timer arc
+and shares remaining/elapsed arithmetic with the waveform. Drawing supports bars,
+a smooth envelope or a custom path callback. Measured levels cover all channels
+and only the actual playback window. Thirteen additional Node tests cover timing
+boundaries, geometry/customization, silence, stereo/window extraction, scheduled
+preview playback, cancellation during decode and denied/unavailable playback.
+The lab clock advances and its scene controller schedules the bundled fake-song
+clip after a three-second countdown; it never changes persistent game state. Modules and
+served assets pass checks. A static render of the actual arc and waveform extracted
+from the bundled MP3 was inspected. Native preview open still times out, so rendered layout
+and audible playback of this revision remain unverified.
 
-A separate CLI smoke run started `python -m backend` from outside the candidate
-with temporary storage. Liveness, readiness, API docs and OpenAPI returned 200;
-root and removed UI routes returned 404. All four clips and the cover returned
-200, a 128-byte audio range returned 206, encoded traversal was rejected, and
-room admission assigned four songs. The process was stopped after the check;
-existing checkout data and its running server were left untouched.
+The newer reveal/standings revision removes all waveform playback controls and
+the icon column; audio and measured progress continue after submission until
+closure. Decorative notes are nonselectable SVGs. Reveal has a central cover,
+personal song/artist/listener feedback and authoritative points, with listener
+characters on either side. The podium displays 2–1–3, then compact rank rows;
+server ranks, ties and final/partial states are preserved. New projection tests
+cover all four listener-selection cases, Nobody versus missing submissions,
+artist partial credit, frozen/departed identities, ties and phase deadlines.
+A controller regression confirms submission does not stop/restart audio and
+reveal stops it once. This layout/audio revision still needs live native-preview
+inspection because preview open times out.
 
-Tests use real temporary SQLite databases and injected clocks. They cover
-concurrent final submissions, exact deadlines, durable retries, setup and later
-readiness recovery, replacement budgets and strict 30% boundaries, immutable
-snapshots, void-score exclusion, ten-round completion with larger temporary
-fixtures, restart recovery, retention, room cookie isolation and host authority.
-Actual bundled-catalog tests exercise fresh FastAPI startup, three-player
-admission, rejected Start, reseeding and invalid-input rollback. Resource tests
-check migrations, API availability and actual media delivery outside the shell's
-checkout directory without a frontend dependency.
+Before the fluid-blob revision, the native T3 browser verified real create/join across three origins, host-only
+settings and character changes, shared audio activation/preload, automatic readiness,
+countdowns, catalog selection and listener-only submission, reveal, rankings and
+history. An isolated server used larger temporary metadata fixtures with the existing
+four clips; its ten-round game completed. All three sessions returned identical
+final rankings. SQLite confirms ten revealed attempts, 26 submitted answers and
+four missing answers, with missing answers worth zero. A real Apple song selection
+was stored; no JavaScript errors were captured on the three sessions. Some
+background-browser timers missed submissions, correctly recorded as No answer.
+Refresh restored the host identity and final ranking, and history/back-to-lobby
+navigation worked. That full-match run predates the fluid-blob revision and is integration evidence with test data, not a claim
+that the runtime four-song seed can start a full match.
+
+Earlier standalone/browser checks verified retained SVG nodes, running character animations,
+headphone removal, direct player selection, ArrowUp/Enter song selection, blocked
+unselected title submission and keyboard handling during a pending search reload.
+Real public metadata search returned 20 suggestions beyond the game pool. Null and
+broken artwork references displayed the placeholder. Inspected 320- and 375-pixel
+layouts had no horizontal overflow; phone layout keeps Submit within reach while
+player cards scroll. Desktop screenshots/recording were captured through T3 preview.
+The latest contour revision shares idle/submitted eye size and glints and adds
+travelling surface waves along precomputed normals, with extra lobe movement and
+anchored ground contact. Two additional tests hold the body pose fixed to verify
+local deformation, then sample repeated cycles for continuity, bounds and limited
+area drift. All 37 frontend tests pass. Native preview still times out; live
+visual inspection of these changes remains pending.
+
+The later silhouette revision adds 23 asymmetric contour anchors, larger idle
+eye ovals/glints and a separate 850ms headphone departure clip. Four additional
+frontend tests check lobe geometry, continuity, timing and reduced/restored final
+gear state. A static render of the actual SVG contour/face was inspected; native
+preview open/snapshot repeatedly timed out, so live inspection of this latest
+revision remains pending. Earlier browser evidence below predates these changes.
+
+The fluid-blob revision was separately inspected in native preview recordings:
+body contours change, SVG nodes survive color updates, offscreen instances
+unsubscribe and return when visible. A real lobby color edit persisted to the API,
+player portrait and profile, then survived refresh; native ArrowRight changed and
+persisted the selected color while retaining focus. The standalone scene previews
+all colors/moods and squish/greeting reactions. The wrong-answer reveal shows sad
+feedback with positive listener points. Integrated submission removes headphones
+without rebuilding SVG. A controlled media-query fixture stopped/restarted the
+real component loop when reduced motion changed (0 frames → 13 frames → stopped);
+this is separate from changing an actual OS preference. Desktop views remain
+within their viewport. A 375px standalone check found gallery minimum-width
+overflow; the gallery now uses shrinking grid columns. Native preview disconnected
+before that layout could be rechecked, so the small-screen blob lab needs a repeat
+inspection. Earlier product-screen phone-layout evidence is recorded above.
+
+Physical speaker audibility, iOS/Android behavior, reduced-motion preference changes,
+and network start-drift/performance acceptance still need separate validation.
+
+## Integrated backend evidence
+
+Before the redesign, the backend-only candidate passed 93 Python tests with 93%
+Rooms/Game coverage. Its separate CLI smoke run verified API health/docs, all four
+clips and the cover, byte ranges, traversal rejection and four-song admission.
+The root and removed UI routes returned 404 in that backend-only tree; the current
+frontend intentionally replaces root with the game entry. This evidence describes
+the merged backend checkpoint, not verification of the current UI.
 
 ## Preserved combined checkpoint
 
@@ -79,7 +174,7 @@ this split; current candidate evidence above is separate. Its latest browser
 checks covered host/guest admission, refresh identity restoration, three-player
 rosters, four-song assignments and the insufficient-catalog notice. The full
 match and capacity observations below are older runs and do not establish
-playability of the current four-song catalog or this API-only candidate.
+playability of the current four-song catalog or the current frontend.
 
 ## Historical frontend evidence
 
@@ -134,21 +229,17 @@ and supported-device synchronization target still need dedicated measurement.
 
 ## Remaining gates
 
-- Populate the runtime Demo catalog with recognizable real songs, including
-  the requested Kanye selections, enough personal/decoy candidates and checked
-  replacements for supported match lengths. Build the frontend on the integrated backend, using the draft only as a reference.
-- Select and validate a real provider, authorization protocol, import source/count
-  policy, familiarity mapping and complete artist credits. Normal admission
-  explicitly returns `provider_unavailable`; no fake authorization is accepted.
-- Verify audible shared playback, autoplay/refresh/background behavior and timing
-  on actual supported phones/browsers, with three people through a full game.
-- Measure readiness delivery under the defined network/device/load conditions.
-  Optional all-device playback stays disabled until its separate drift/audio gate.
-- Validate persistent SQLite WAL storage and backups for the eventual Azure setup.
-- Complete the course report, user-owned comprehension explanations, and genuine
-  commit/push cadence. No commit dates or remote publication are invented here.
+- Populate the runtime catalog with recognizable songs, including requested Kanye
+  selections, enough personal/decoy candidates and checked replacements.
+- Test audible playback, autoplay, refresh and background behavior on real phones;
+  the current three-session browser game used isolated fixtures.
+- Measure the defined readiness/start-delivery target and deployment load; optional
+  all-device audio remains disabled until separate drift/audibility evidence.
+- Validate personal-provider authorization/import, familiarity, candidate quantity
+  and complete artist credits before enabling Normal mode.
+- Validate persistent SQLite WAL storage and consistent backup/restore for deployment.
+- Finish course reporting, user-owned comprehension explanations and genuine Git
+  publication cadence. No current frontend commit, push or deployment is claimed.
 
-No Dockerfile, CI workflow, infrastructure definition or public deployment was
-added. Lobby settings are process-local before Start; restarting restores the
-last frozen game settings, or defaults. Only completed games renew retention.
-See [README](../README.md) for setup, configuration and module boundaries.
+No Dockerfile, CI workflow or public deployment has been added. Lobby settings stay
+process-local until Start; only completed games renew room retention.

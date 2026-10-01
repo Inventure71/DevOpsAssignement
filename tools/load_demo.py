@@ -32,9 +32,9 @@ def main():
             identities = []
             for number in range(20):
                 with c.db.transaction() as conn:
-                    host = c.rooms.create(conn, f'Host {number}', 'vinyl', 'demo', current[0])
+                    host = c.rooms.create(conn, f'Host {number}', 'coral', 'demo', current[0])
                     room_id = host['room']['id']
-                    players = [host] + [c.rooms.join(conn, room_id, f'Player {n}', 'moon', current[0]) for n in range(9)]
+                    players = [host] + [c.rooms.join(conn, room_id, f'Player {n}', 'lavender', current[0]) for n in range(9)]
                     snapshot = c.rooms.snapshot(conn, room_id)
                     gid = c.game.start(conn, snapshot, {'round_count':10,'answer_seconds':20}, host['player']['id'],
                         {'request_id':str(number),'room_revision':snapshot['revision']}, current[0])['game_id']

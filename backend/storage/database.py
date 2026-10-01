@@ -7,6 +7,8 @@ from typing import Iterator
 
 from backend.core.paths import MIGRATIONS_DIR
 
+MIGRATIONS = ("001_initial.sql", "002_song_selections.sql", "003_blob_colors.sql")
+
 
 class Database:
     def __init__(self, path: str | Path):
@@ -27,20 +29,25 @@ class Database:
             if conn.execute("PRAGMA journal_mode = WAL").fetchone()[0] != "wal":
                 raise RuntimeError("Database storage must support SQLite WAL mode")
             version = conn.execute("PRAGMA user_version").fetchone()[0]
-            if version > 1:
+            if version > len(MIGRATIONS):
                 raise RuntimeError(f"Unsupported schema version: {version}")
-            if version == 0:
-                sql = (MIGRATIONS_DIR / "001_initial.sql").read_text()
-                try:
-                    # executescript commits any earlier transaction, so BEGIN belongs in it.
-                    conn.executescript("BEGIN IMMEDIATE;\n" + sql + "\nPRAGMA user_version = 1;\nCOMMIT;")
-                except BaseException:
-                    if conn.in_transaction:
-                        conn.rollback()
-                    raise
+            for target, filename in enumerate(MIGRATIONS, start=1):
+                if version < target:
+                    self._migrate(conn, target, filename)
             violations = conn.execute("PRAGMA foreign_key_check").fetchall()
             if violations:
                 raise RuntimeError("Existing database contains foreign-key violations")
+
+    def _migrate(self, conn: sqlite3.Connection, target: int, filename: str) -> None:
+        sql = (MIGRATIONS_DIR / filename).read_text()
+        try:
+            # executescript commits earlier transactions; BEGIN belongs in the script.
+            conn.executescript("BEGIN IMMEDIATE;\n" + sql +
+                               f"\nPRAGMA user_version = {target};\nCOMMIT;")
+        except BaseException:
+            if conn.in_transaction:
+                conn.rollback()
+            raise
 
     @contextmanager
     def read(self) -> Iterator[sqlite3.Connection]:

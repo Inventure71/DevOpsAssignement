@@ -25,10 +25,10 @@ HTTP handling and validation; `backend/application/` coordinates domain
 commands and audio leases. `backend/rooms/` and `backend/game/` retain their
 existing responsibilities, with connections/migrations in `backend/storage/`
 and configuration/shared errors in `backend/core/`. `catalog/` owns runtime
-fixture metadata and bundled clips/cover; `tests/` owns verification. The backend
-checkpoint serves these assets independently of a game frontend. The earlier
-`feature/demo-core` checkpoint preserves its temporary UI, while the replacement
-frontend is developed and integrated separately. This is the concrete placement
+fixture metadata and bundled clips/cover; `tests/` owns verification. The backend serves catalog media independently of presentation assets. The
+earlier `feature/demo-core` checkpoint preserves its temporary UI. Backend PR #1
+is merged into `integration`; the replacement native ES module/Web Component
+frontend is current uncommitted work on `feature/frontend`. This is the concrete placement
 of the existing single-process/domain decision, not a new deployment split.
 See `docs/09_CODEBASE_MAP.md`.
 
@@ -42,13 +42,38 @@ Consequences: Games and history remain stable when players disconnect or later c
 
 Reveal/failure clarification (2026-09-30): songs and frozen game snapshots keep an optional `artwork_url`, resolved from catalog metadata or a bundled demo asset. A missing/broken image shows a bundled placeholder without affecting scoring; SQLite stores references rather than image bytes. Failed clips retain their answers under a `void` attempt, and only `revealed` attempts contribute to live or final rankings. A replacement has its own attempt and answers.
 
+Selected-answer clarification (2026-10-01; ADR-2/3): the user replaced four issued
+song options with a broad catalog typeahead. A selected result carries verified
+recording/title/artist facts in a room-scoped expiring token; submission freezes
+those facts and performs no provider lookup. Pure scoring retains full-song and
+structured artist partial credit. Migration 2 converts prior choice slots into
+historical song facts without changing points. The public Apple metadata adapter
+is separate from deferred personal-history authorization and preview imports.
+See `docs/03_GAME_RULES.md`, `docs/06_DATA_MODEL.md` and `docs/07_API_AND_RUNTIME.md`.
+
+Presentation clarification (2026-10-01; ADR-3): one fluid blob rig replaces
+separate shapes. The existing `character_id` field now holds one of eight color
+IDs; migration 3 translates live players and frozen rosters while preserving
+scores and history. Reveal song classification shares the scoring rule and drives
+correct/artist/wrong/unanswered reactions without inferring correctness from
+listener-inclusive total points.
+
+Answer privacy clarification (2026-10-01; ADR-3): each player sees only their
+own submitted song/listener selections and personal round feedback. Other
+players' answers are never disclosed through game state, results or history;
+the host has no exception. Correct-song/listener facts, named submission status
+and ranking totals remain shared. SQLite retains every answer for scoring,
+retries and diagnosis, including answers on void attempts whose points do not
+count. Private storage does not imply a public answer feed.
+
 ## 4. Test core behavior through service, database and browser boundaries
 Date: 2026-09-30
 Status: Decided
 Context: A working PoC, executable schema or coverage percentage does not prove the multiplayer game, shared audio or failure recovery works.
 Decision: Test exact scoring/preparation with controlled randomness and clocks; test both domains through actual SQLite/service transactions; exercise retries, deadline/failure races, readiness exclusions, startup recovery and expiry. Require at least 70% Rooms/Game logic coverage and three real browsers completing a ten-round Demo game. Measure round-data preparation, required ACKs and common start delivery under two seconds in stated conditions, plus the approximately 400-state-polls/second capacity target. Browser checks cover audio, characters/statuses, automatic phases, reconnect and artwork fallback.
 Alternatives considered: Mocked provider tests alone bypass service/persistence boundaries; coverage-only acceptance can miss races and physical audio. Enabling real imports or all-device audio from a functional PoC would skip capability/measurement gates.
-Consequences: Keep scoring tests deterministic and use real temporary SQLite transactions for domain/lifecycle tests; thin HTTP integration tests verify cookies, authority and projections. Provider adapters remain untested because they are not implemented, and browser physics/network acceptance cannot be inferred from coverage. Current evidence is in `docs/08_IMPLEMENTATION_STATUS.md`, separate from deployment readiness.
+Consequences: Keep scoring tests deterministic and use real temporary SQLite transactions for domain/lifecycle tests; thin HTTP integration tests verify cookies, authority and projections. Personal-history and playback-import adapters remain unimplemented; the separate
+public metadata-search adapter has bounded-provider and signed-selection tests, and browser physics/network acceptance cannot be inferred from coverage. Current evidence is in `docs/08_IMPLEMENTATION_STATUS.md`, separate from deployment readiness.
 
 ## 5. Keep the first milestone to Demo and shared host audio
 Date: 2026-10-01
@@ -56,4 +81,4 @@ Status: Decided
 Context: Personal music authorization, import sources and artist-credit completeness still need validation, while optional all-device audio needs measured physical playback and drift evidence. Building those paths from unverified PoC assumptions would make the first playable milestone harder to explain and test.
 Decision: Implement explicit Demo with bundled original clips and shared host-device sound first. Defer real-provider admission, all-device playback, mashup rounds, game accounts and device/identity recovery; Normal returns a clear unavailable result until its real integration is validated.
 Alternatives considered: A fake authorization flag or silent Normal-to-Demo downgrade would misrepresent whose listening data is being used. Adding account recovery and synchronized audio everywhere now would introduce identity and browser timing work before the core game is accepted.
-Consequences: The backend runs locally without music credentials and both feature domains can be tested fully with isolated fixtures. The current four-song runtime seed supports lobby checks; catalog population and frontend integration are required for a complete playable match. Demo familiarity is fictional, and Normal/personal-history and physical device acceptance remain visible follow-up gates; this is a milestone boundary rather than a claim that the full product is complete.
+Consequences: The backend runs locally without music credentials and both feature domains can be tested fully with isolated fixtures. The current four-song runtime seed supports lobby checks; catalog population and browser acceptance are required for a complete playable match. Demo familiarity is fictional, and Normal/personal-history and physical device acceptance remain visible follow-up gates; this is a milestone boundary rather than a claim that the full product is complete.

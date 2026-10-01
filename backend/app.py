@@ -6,16 +6,17 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.api.rate_limits import AdmissionLimits
 from backend.api.routes import create_router
 from backend.api.security import check_origin
 from backend.application.coordinator import Coordinator
+from backend.catalog.search import SongSearch
 from backend.core.config import Config
 from backend.core.errors import DomainError
-from backend.core.paths import DEMO_ASSETS_DIR
+from backend.core.paths import DEMO_ASSETS_DIR, FRONTEND_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -32,12 +33,13 @@ def error_response(exc):
     )
 
 
-def create_app(config=None, clock=None, game=None, background=True):
+def create_app(config=None, clock=None, game=None, background=True, song_search=None):
     config = config or Config.from_env()
     kwargs = {'game': game}
     if clock:
         kwargs['clock'] = clock
     coordinator = Coordinator(config, **kwargs)
+    song_search = song_search or SongSearch()
 
     @asynccontextmanager
     async def lifespan(application):
@@ -73,6 +75,7 @@ def create_app(config=None, clock=None, game=None, background=True):
 
     application = FastAPI(title="Who's On Repeat", lifespan=lifespan)
     application.state.coordinator = coordinator
+    application.state.song_search = song_search
     application.state.ready = False
 
     @application.middleware('http')
@@ -112,12 +115,21 @@ def create_app(config=None, clock=None, game=None, background=True):
             conn.execute('SELECT id FROM rooms LIMIT 1').fetchone()
         return {'status': 'ready'}
 
+    @application.get('/', include_in_schema=False)
+    def frontend():
+        return FileResponse(FRONTEND_DIR / 'index.html')
+
+    @application.get('/ui-lab', include_in_schema=False)
+    def ui_lab():
+        return FileResponse(FRONTEND_DIR / 'lab.html')
+
     limits = AdmissionLimits(
         int(os.environ.get('ROOM_CREATE_LIMIT', '10')),
         int(os.environ.get('ROOM_JOIN_LIMIT', '30')),
     )
-    application.include_router(create_router(coordinator, limits))
+    application.include_router(create_router(coordinator, limits, song_search))
     application.mount('/static/demo', StaticFiles(directory=DEMO_ASSETS_DIR), name='demo-assets')
+    application.mount('/ui', StaticFiles(directory=FRONTEND_DIR), name='frontend')
     return application
 
 

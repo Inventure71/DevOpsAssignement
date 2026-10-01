@@ -5,8 +5,7 @@
 synthesizer compositions retained from an earlier development fixture set.
 They contain no borrowed recordings, samples, lyrics or provider data. Each
 mono MP3 contains 30 seconds of audio at 32 kbit/s. One temporary SVG cover is
-retained; the other artwork references are null. The future frontend must render
-a placeholder for missing or broken artwork.
+retained; the other artwork references are null. The reveal UI renders a music-icon fallback for missing or broken artwork.
 
 The bulk catalog, extra assets and generator were removed from the Demo
 checkpoint. App startup uses these four fixtures without ffmpeg or music
@@ -17,8 +16,8 @@ and the local load probe construct larger temporary metadata fixtures without
 adding them to the runtime catalog.
 
 The next catalog milestone replaces these temporary tracks with recognizable
-real songs, including the requested Kanye selections. The frontend is developed
-separately; neither milestone is claimed complete here.
+real songs, including the requested Kanye selections. The redesigned frontend is uncommitted work on `feature/frontend`; real catalog
+population remains a separate milestone.
 
 Catalog entries use browser URLs under `/static/demo/`; their files live in
 `catalog/assets/clips/` and `catalog/assets/covers/`. `backend/app.py` serves
@@ -27,3 +26,10 @@ Catalog entries use browser URLs under `/static/demo/`; their files live in
 stable regardless of source-tree layout. To populate the next catalog, update
 metadata and its referenced assets together; keep temporary test-only pools
 under `tests/support/`.
+
+The song-name typeahead can separately query Apple’s public metadata search. Those
+results are answer choices selected by the player, not four issued round options.
+They neither add songs to `demo_catalog.json` nor download audio or import personal
+history. The runtime playback pool remains these four tracks until explicitly
+populated. Public catalog search lives in `backend/catalog/`, outside Rooms’
+hidden per-player familiarity and the checked playback plan.

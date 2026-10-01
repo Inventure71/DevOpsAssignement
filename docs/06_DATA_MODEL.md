@@ -1,6 +1,9 @@
 # 06 — Data Model
 
-Date: 2026-09-30. SQLite migration 1 implements the ten-table schema below.
+Initial schema date: 2026-09-30. Current SQLite schema version: **3**.
+Migration 1 creates the original ten tables; migration 2 replaces option-slot
+answers with frozen selected-song facts while preserving existing history.
+Migration 3 translates previous character IDs into color IDs for the shared blob.
 See [implementation status](08_IMPLEMENTATION_STATUS.md) for Demo test evidence.
 This follows [the ADRs](../ADR.md), the
 [domain boundary](05_ARCHITECTURE.md#4-the-boundary-at-start) and
@@ -22,6 +25,10 @@ This follows [the ADRs](../ADR.md), the
   to join as a new identity. A valid existing identity can reconnect.
 - Save final rankings, rounds, guesses and scores. The initial history screen
   shows final rankings only, not all the underlying song/listener data.
+- Keep answer storage separate from public projections. A reveal exposes only
+  the authenticated caller's answer and feedback; another player's answers
+  never reach game state, results or history, including for the host. Correct
+  song/listener facts, submission status and ranking totals remain shared.
 - Keep optional artwork references in songs and frozen game data, with a
   bundled placeholder when absent or unavailable. Retain failed-attempt answers,
   mark the attempt `void`, and exclude its points from live and final rankings.
@@ -129,7 +136,6 @@ erDiagram
         INTEGER attempt
         TEXT status
         TEXT song_key
-        TEXT options_json
         TEXT difficulty
         TEXT picked_player_id FK
         INTEGER starts_at_ms
@@ -146,7 +152,7 @@ erDiagram
         TEXT round_id PK, FK
         TEXT player_id PK, FK
         TEXT status
-        INTEGER song_option
+        TEXT song_guess_json
         TEXT who_mode
         TEXT who_player_ids_json
         INTEGER received_at_ms
@@ -173,8 +179,8 @@ erDiagram
     }
 ```
 
-The diagram shows the ten tables and their columns. Multi-column uniqueness,
-checks and deletion rules are specified by the DDL below. The `game_players`
+The diagram shows the current ten tables and their columns. Multi-column uniqueness,
+checks and deletion rules are specified by the migrations below. The `game_players`
 identity is copied from Rooms; it deliberately has no foreign key to `players`.
 Deleting/changing live membership later must not change old rankings.
 
@@ -209,17 +215,21 @@ as `[{"artist_key":"demo:artist-a","name":"Artist A"}]`. Use provider-qualified
 canonical IDs for real credits, reconciling candidates from different adapters.
 Do not infer guest identities by substring/splitting a display string. Validate
 credit completeness with the chosen real provider before enabling its artist
-partial-credit path; fixtures provide known identities from the start.
+partial-credit path; fixtures provide known identities from the start. Apple
+public Search returns one `artistId` per song result, stored as
+`apple:artist:<id>`; extra featured credits are not inferred from display strings.
+Imports must retain these identities to score against real search results.
 
 `round_plan_json` contains one object per original requested slot: slot number,
 source player/difficulty, original candidate, ordered checked candidates and
-four-option sets, setup candidate-check outcomes, substitutions already used,
+setup candidate-check outcomes, optional per-candidate waveform levels,
+substitutions already used,
 chosen playable song or skipped status, and remaining checked reserves. Keep
 candidate song facts in the frozen song snapshot. Preserve requested slot
 numbers and the original denominator for strict 30% cancellation. Runtime
 attempt rows refer to these prepared candidates; runtime failure/retry progress
 does not rewrite the immutable plan. Count setup and runtime skips once per
-original slot. Enough distinct songs/options/reserves are a service check.
+original slot. Enough distinct songs/reserves are a service check.
 
 `demo_catalog` is seeded automatically from `catalog/demo_catalog.json`, with
 `personal` and `decoy` entries, explicit artist keys and root-relative media.
@@ -248,7 +258,7 @@ its bundled demo cover from `catalog/assets/covers/` at `/static/demo/covers/`;
 the reveal UI, placeholder rendering and real provider enrichment remain pending.
 
 The service validates the snapshot against the roster before creating a game.
-SQLite validates JSON shape; Game validates song keys, option uniqueness and
+SQLite validates JSON shape; Game validates candidate song-key uniqueness and
 listener IDs inside the JSON. These are bounded immutable values passed through
 the existing snapshot interface, not a substitute for relational membership.
 History queries do not need to join against the current Rooms song pool.
@@ -274,7 +284,7 @@ have a finished phase, end time/cause and saved full-roster rankings.
 Create an actual round attempt only when activating a prepared slot. `ready`
 includes waiting for check-ins and a scheduled countdown; `playing` begins at
 `starts_at_ms`. One ready/playing attempt per game prevents duplicate activation.
-Round rows hold fixed option order, difficulty/source player, server audio start
+Round rows hold the selected candidate key, difficulty/source player, server audio start
 and deadline, readiness generation/deadline, ACK IDs, barrier exclusions and
 reveal/void cause. Retry increments generation and clears ACKs/exclusions for the
 same unstarted attempt. Continue can exclude only currently unready non-host IDs
@@ -282,10 +292,15 @@ from the current barrier; it never changes the roster or creates an answer.
 Initial timeout aborts setup; later timeouts wait for the host's recovery choice.
 The host cannot be excluded. Exclusions expire at the next generation/round.
 
-An answer stores the selected option slot, not a client claim of correctness.
+An answer stores `song_guess_json`: JSON null or a frozen metadata object with
+`song_key`, `title`, `artist`, structured `artists` and optional `artwork_url`.
+The object comes from a server-signed room-scoped catalog selection, not client
+claims of correctness or freely supplied metadata. The token itself is transient
+and is not stored in SQLite; selection facts remain useful for retries and
+failed-attempt diagnosis.
 A submitted empty listener list becomes `who_mode = 'nobody'`; a nonempty list
 becomes `players`. `blank` is reserved for a missing submission. A null song
-option can coexist with a submitted who guess. No Submit by deadline inserts a
+selection can coexist with a submitted who guess. No Submit by deadline inserts a
 `missing` answer with zero total points for that roster member. A disconnected
 or barrier-excluded player can reconnect and submit before the deadline; absence
 alone is not an early blank answer. Validate all selected IDs against the frozen
@@ -293,7 +308,18 @@ roster. Identical accepted-answer retries return the stored receipt even after
 closure; changed second answers conflict. Enforce `[start, deadline)` and atomic
 closure/scoring as specified in `07_API_AND_RUNTIME.md`.
 
-Artist-only credit uses frozen structured identities: a wrong option sharing any
+Answer rows remain internal persisted records. At reveal, project only the
+authenticated player's row into `reveal.my_answer`, alongside the shared correct
+song and actual listener IDs. A missing answer projects `status = 'missing'`,
+`song_guess = null`, `who_player_ids = null` and zero points. A submitted Nobody
+answer projects `status = 'submitted'` and `who_player_ids = []`; these cases
+must not be conflated. The host receives the same privacy projection as every
+other player. No public list of all answer rows exists.
+
+Full credit matches a nonempty stable song/track key, or a normalized title with
+a common structured artist identity. Title normalization is NFKC, case folding
+and collapsed whitespace; no fuzzy matching is performed.
+Artist-only credit uses frozen structured identities: a wrong selected song sharing any
 credited artist earns 50 once, no speed/perfect bonus. Correct song and ordinary
 listener/difficulty/exact arithmetic rules remain in `03_GAME_RULES.md`.
 
@@ -340,12 +366,19 @@ Cleanup calls Game to delete its games, then Rooms to delete the room, within
 one transaction. This deletes membership, songs, snapshots, rounds and answers.
 The cross-domain foreign key uses RESTRICT so a room cannot leave orphaned games.
 
-## 5. Planned SQLite DDL
+## 5. Versioned SQLite DDL
 
 Enable foreign keys on every connection. The two domains write through their
 own repositories. The local `games.room_id` foreign key does not permit Game
 to query Rooms internals; a later service split will replace this database
 constraint with an explicit cross-service lifecycle contract.
+
+### Historical migration 1
+
+The following is the original [001_initial.sql](../backend/storage/migrations/001_initial.sql).
+Its `options_json` and `song_option` columns are migration inputs, not the current
+API or schema. Fresh databases apply all three migrations before becoming ready;
+existing version-1 databases upgrade without discarding rooms or results.
 
 ```sql
 PRAGMA foreign_keys = ON;
@@ -514,6 +547,55 @@ CREATE TABLE game_commands (
 );
 ```
 
+### Selected-song migration 2
+
+[002_song_selections.sql](../backend/storage/migrations/002_song_selections.sql)
+rebuilds `rounds` without `options_json` and `answers` without `song_option`.
+The answer column is now:
+
+```sql
+song_guess_json TEXT NOT NULL DEFAULT 'null'
+    CHECK (json_valid(song_guess_json)
+           AND json_type(song_guess_json) IN ('object', 'null'))
+```
+
+Missing answers must contain JSON null, blank listener mode and zero points.
+For each old submitted choice, the migration resolves its option slot through
+the old round's option array into the game's frozen song snapshot and copies
+those song facts. Null choices stay null. Existing answer timestamps, status,
+listener IDs, points, game history and final ranks are retained. The table
+rebuild, indexes and schema-version update run transactionally with foreign keys
+enabled; startup checks foreign-key integrity. Unsupported newer versions fail
+instead of being overwritten.
+
+### Color migration 3
+
+[003_blob_colors.sql](../backend/storage/migrations/003_blob_colors.sql) changes
+only `players.character_id` and `game_players.character_id`. The IDs now select
+one of eight colors for the same blob rig: coral, periwinkle, lavender, lemon,
+lilac, sage, sky or rose. The old identities map respectively from vinyl, bolt,
+moon, sun, ghost, flower, wave and star. Credentials, memberships, answers, points
+and historical rankings are preserved. Frozen roster colors remain independent
+of later lobby edits. New commands accept only color IDs.
+
+`song_match` is a computed caller-only reveal projection (`correct`, `artist`, `wrong`,
+`unanswered`), not another stored field. It uses the same pure frozen-song
+classifier as scoring and is withheld before reveal. Total points cannot indicate
+song correctness because listener guesses also earn points.
+
+Search results and cache entries are not another SQLite table. The catalog
+adapter reads shared demo metadata and keeps a bounded process-local cache of
+public Apple search metadata. Signed selection tokens are room-scoped, expire
+after twenty minutes and use an in-memory process secret; startup reconciliation
+aborts interrupted games, so old tokens are not relied on after a restart.
+The [Apple Search API](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/Searching.html)
+is metadata discovery, independent of personal authorization/import.
+
+Host preload checks can add 8–64 normalized waveform levels in `[0,1]` to the
+candidate's slot in `round_plan_json`. The current round projection exposes
+these levels without exposing its source URL. They describe browser-decoded
+media; absent data remains null rather than a fabricated waveform.
+
 The planned ranking query includes the whole frozen roster and sums points
 only from revealed attempts. A retained answer on a void attempt cannot add
 points, even if it had already been scored before the clip failure was recorded:
@@ -594,3 +676,10 @@ load results or a coverage claim. Those implementation gates remain pending.
 The current Demo service/database tests are recorded in
 [08_IMPLEMENTATION_STATUS.md](08_IMPLEMENTATION_STATUS.md); the checks above are
 historical evidence and do not substitute for that implementation report.
+
+Current selected-song tests exercise real HTTP search-to-answer persistence,
+room-scope/signature/expiry checks, full-song and artist-only scoring, and slow
+provider I/O without blocking room commands. A populated version-1 database is
+upgraded and reopened with preserved historical points/rankings and no foreign-key
+violations; old choice slots become frozen song facts. These are backend checks,
+separate from browser audio and synchronization acceptance.
