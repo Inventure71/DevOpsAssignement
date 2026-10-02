@@ -1,8 +1,8 @@
 """Exact, server-timed scoring over frozen song facts."""
 
-import unicodedata
 from fractions import Fraction
 from typing import Any, Mapping, Sequence
+from backend.catalog.identity import recording_title
 
 
 def half_up(value: Fraction) -> int:
@@ -17,11 +17,12 @@ def _key(song: Mapping[str, Any]) -> str:
 
 
 def _artist_keys(song: Mapping[str, Any]) -> set[str]:
-    return {str(artist["artist_key"]) for artist in song.get("artists", [])}
+    return {str(key) for artist in song.get('artists', [])
+            for key in [artist['artist_key'], *artist.get('aliases', [])]}
 
 
 def _title(song: Mapping[str, Any]) -> str:
-    return " ".join(unicodedata.normalize("NFKC", str(song.get("title", ""))).casefold().split())
+    return recording_title(song.get('title', ''))
 
 
 def _listeners(song: Mapping[str, Any]) -> set[str]:

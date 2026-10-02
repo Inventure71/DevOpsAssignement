@@ -1,9 +1,9 @@
 # 07 — API and Runtime Contract
 
-Date: 2026-10-01. Accepted gameplay decisions and API/runtime contracts.
-Demo endpoints and public catalog metadata search are implemented; real
-provider admission/import remains explicitly unavailable. Frontend work uses
-this contract and has separate browser acceptance gates.
+Updated 2026-10-02. Accepted gameplay decisions and API/runtime contracts.
+Demo endpoints and Normal Spotify PKCE/import admission are implemented, with
+Apple developer catalog search/previews. Five-account Spotify and physical-device
+acceptance remain separate from automated API verification.
 See [implementation status](08_IMPLEMENTATION_STATUS.md) for test evidence. Read alongside [03_GAME_RULES.md](03_GAME_RULES.md),
 [05_ARCHITECTURE.md](05_ARCHITECTURE.md) and
 [06_DATA_MODEL.md](06_DATA_MODEL.md).
@@ -24,10 +24,15 @@ for a different mode.
 
 The backend imports each player's songs once per lobby pool build, using that
 player's authorization. Imports/checks complete before Start is enabled. The
-host's account alone cannot supply other players' history. Provider selection,
-source-list policy, familiarity mapping and candidate quantities remain pending;
-provider-specific authorization routes follow that validation. Do not make
-external import calls part of a promised five-second countdown.
+host's account alone cannot supply other players' history. Normal uses one
+Spotify development app with at most five approved accounts including the host;
+this account allowance applies across rooms. Demo permits ten players. Spotify
+supplies short/medium/long top lists and recently played tracks, balanced into
+at most 60 distinct candidates; admission needs at least ten playable songs.
+Short-term top 20 are easy, other short/medium/recent tracks medium, and
+long-term-only tracks hard, with the easiest overlap winning. These are bounded
+affinity-based estimates. Apple supplies preview matches and independent chart
+candidates. Do not make external imports part of a promised five-second countdown.
 
 ## 2. Browser identity and authorization
 
@@ -74,11 +79,16 @@ rules are satisfied. Public catalog search does not add songs to that game pool.
 
 | Method and path | Access | Effect |
 |---|---|---|
-| `POST /api/rooms` | Admission checks, including normal host authorization | Create room with mode, host nickname/character; issue host cookie |
-| `GET /api/room-codes/{code}` | Code holder | Resolve room ID/mode/join availability; no hidden pool or host privileges |
-| `POST /api/rooms/{room_id}/join` | Valid code and admission proof | Join lobby, issue room cookie; no new identities during preparing/play |
+| `POST /api/rooms` | Demo admission | Create Demo room with host nickname/character; issue host cookie. Normal requires the Spotify admission flow below |
+| `GET /api/room-codes/{code}` | Code holder | Resolve room ID/mode/capacity/join availability; no hidden pool or host privileges |
+| `GET /api/music/spotify/config` | Entry browser | Configuration availability, maximum players, canonical application URL and search provider; no secrets |
+| `POST /api/music/spotify/admissions` | Same-origin JSON, admission checks | Begin cookie-bound PKCE for nickname/character and optional target room; return Spotify authorization URL |
+| `GET /api/music/spotify/callback` | Matching admission cookie and one-use OAuth state | Queue verified import, redirect to processing UI; invalid callback goes to a generic verification error |
+| `GET /api/music/spotify/status` | Matching admission cookie | Pending/processing/failed/complete receipt; complete issues room cookie and returns room/code/player IDs |
+| `POST /api/music/spotify/cancel` | Same-origin JSON | Cancel unfinished receipt and clear temporary cookie; cancelled import cannot create a room |
+| `POST /api/rooms/{room_id}/join` | Demo admission or an existing member's room cookie | Join Demo lobby or restore existing identity; new Normal identities receive `music_sign_in_required` |
 | `GET /api/rooms/{room_id}/state` | Member | Current public phase plus caller-specific submission/admin state |
-| `GET /api/rooms/{room_id}/song-search?q=...` | Member | Search shared demo/public Apple metadata; return signed selections without room-pool/listener data |
+| `GET /api/rooms/{room_id}/song-search?q=...` | Member | Search shared Demo/configured Apple catalog metadata; return signed selections without room-pool/listener data |
 | `POST /api/rooms/{room_id}/heartbeat` | Member | Update presence after enforcing expiry |
 | `PATCH /api/rooms/{room_id}/player` | Member, lobby only | Update own nickname/character |
 | `PATCH /api/rooms/{room_id}/settings` | Host, lobby only | Validate settings and advance room revision |
@@ -233,17 +243,24 @@ At all-roster submission or deadline, close and score once in one transaction.
 Stop audio, show reveal for five seconds, then leaderboard for five seconds.
 
 Full song credit requires the same nonempty stable song/track key, or normalized
-title and at least one common structured artist identity. Normalize titles with
-Unicode NFKC, case folding and collapsed whitespace; do not use fuzzy matching.
+title and at least one common frozen structured artist key/alias. Shared title
+normalization uses Unicode decomposition, case folding, diacritic removal and
+word-based punctuation/whitespace handling; it removes only trailing bracketed
+or parenthesized featured credits. Live/remix/instrumental/remaster labels remain
+distinct. Do not use fuzzy matching or accept ISRC equality alone.
 Correct song earns 100 plus the existing server-timed speed bonus. A wrong song
 sharing at least one structured credited-artist identity with the correct song
 earns 50, no speed bonus and no perfect-round bonus. Other wrong songs earn zero.
 Listener/difficulty/exact half-up rules remain in [03_GAME_RULES.md](03_GAME_RULES.md).
 Artist identities are provider-qualified IDs (or stable demo IDs), not substring
 matches against display names; validate real cross-provider reconciliation before
-using it. Apple public Search provides one `artistId` per song result, represented
-as `apple:artist:<id>`; featured credits are not inferred from display strings.
-Real imports must retain matching structured IDs. Browser search responses do
+using it. Apple developer relationships provide structured credits; preview
+matching can attach verified Apple ID aliases to canonical Spotify credits when
+credited names agree. Full recording credit requires a matching frozen key or
+compatible normalized title with a shared structured key/alias; ISRC alone is
+insufficient because catalog identifiers can be mislabeled.
+Public iTunes fallback provides only its primary artist ID; featured credits are
+not inferred from display strings. Imports retain frozen keys and aliases. Browser search responses do
 not mark correctness. Game state exposes only the caller’s own `song_guess`
 display facts and listener selection; reveal adds their own correctness and points.
 
@@ -262,19 +279,23 @@ has this shape:
 }
 ```
 
-Matching shared demo fixtures return `source: "catalog"` and work offline; other
-queries call Apple's public Search API with `media=music`, `entity=song`, US
-storefront and at most 20 results. Results are independent of room membership,
-listeners and the selected game sequence. The adapter reads metadata only and
-never downloads or returns provider preview URLs. This implements the official
-[Apple Search API](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/Searching.html).
+Matching shared Demo fixtures return `source: "catalog"` and work offline.
+Normal never substitutes fictional fixture suggestions. Other queries use the
+configured Apple developer catalog, requesting up to 20 songs with structured
+artist relationships. Without Apple configuration, Demo retains public iTunes
+Search with `media=music`, `entity=song` and at most 20 results. Results are
+independent of hidden room membership/listeners and the selected game sequence.
+Responses contain signed metadata, never provider preview URLs; the search path
+does not download audio. See [Apple catalog search](https://developer.apple.com/documentation/applemusicapi/search-for-catalog-resources)
+and the [public Search API](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/Searching.html).
 
 The process shares a five-minute, 128-query cache and coalesces identical
-in-flight lookups. It limits external requests to 18 per rolling minute, below
-Apple's documented approximate 20/minute budget; deployment changes still need
-provider-capacity validation. External I/O has a four-second timeout and bounded
-response size. Provider failures are cached for ten seconds, returned explicitly
-as `song_search_unavailable` (503); exhausted budget returns `song_search_busy`
+in-flight lookups. Configured Apple catalog search has a local 60-request/minute
+protective budget; this is not a published provider quota. Public iTunes fallback
+has 18/minute, below its documented approximate 20/minute rate. External I/O has
+a four-second timeout and bounded response size. Provider failures are cached
+for ten seconds; auth/unavailability errors remain explicit and Apple HTTP 429
+returns `apple_rate_limited`. Local exhausted budget returns `song_search_busy`
 (429). Successful empty results remain a distinct 200 response. Search runs
 outside the room command lock and outside write transactions.
 
@@ -400,11 +421,10 @@ limit. Publishing a timestamp alone is not proof every client received it.
 Client traces record received start times for validation; scoring remains server
 owned. Timing/coverage targets are planned acceptance gates, not passed results.
 
-Real music admission/import must wait for provider capability/authorization,
-familiarity and candidate-quantity decisions. Demo foundation, pure scoring,
-persistence, room identity, phase/readiness services and their tests can be built
-against this contract. All-device audio and detailed history screens remain
-outside the first milestone.
+Provider adapter, admission and browser integration are implemented against
+this contract. Live five-account authorization, preview coverage and browser
+decoding/audibility still need independent verification. All-device audio and
+detailed history screens remain outside the current checkpoint.
 
 ## 11. Implemented Demo transport details
 
@@ -436,6 +456,42 @@ See `backend/catalog/` for metadata search/cache and signed selections,
 `backend/api/routes.py` for HTTP handlers, and `backend/game/views.py` for public
 projections. Origin checks, room cookies and rate limits live in separate
 `backend/api/` modules; cross-domain commands enter `backend/application/coordinator.py`.
-Normal requests return `provider_unavailable`; they accept no fabricated
-authorization proof. Physical audio and readiness/load targets remain separate
-acceptance gates.
+Normal accepts only an imported account verified by the server's Spotify
+adapter. A browser cannot submit fabricated song ownership or authorization
+proof. Physical audio and readiness/load targets remain separate acceptance gates.
+
+## 12. Normal music-admission runtime
+
+The host selects Spotify at entry; joining resolves the room mode. A valid room
+cookie restores an existing identity without a fresh provider login. A new Normal
+identity starts `POST /api/music/spotify/admissions` with `{nickname,
+character_id, room_id?}`. The server sets `repeat_music_admission`, an HttpOnly,
+SameSite=Lax cookie scoped to `/api/music/spotify`, with Secure under HTTPS and a
+15-minute expiry. No player or room is created yet.
+
+The callback validates its cookie and state once, then exchanges the PKCE code
+and imports in the background. Receipts are bounded to 64 and queued/processing
+imports to eight, with two workers. Each import resolves previews with bounded
+outbound work outside SQLite transactions. Admission finally revalidates room
+lobby/capacity/nickname/account constraints atomically. At most one verified
+Spotify account identity is admitted per room.
+
+Status returns `pending`, `processing`, `failed` with a sanitized error, or
+`complete` with `admission: {room_id, code, player_id}`. A complete status retry
+can reissue its room cookie after a lost response. The browser polls at 750 ms,
+retries connection failures finitely and offers manual connection retry without
+restarting import. Explicit new authorization cancels the prior unfinished
+receipt first. A generic callback verification error does not consume another
+browser's valid receipt. Restart loses unfinished receipts; it does not recover
+OAuth identity through a nickname.
+
+The application callback defaults to
+`http://127.0.0.1:8000/api/music/spotify/callback` and must be registered exactly;
+the PoC's `http://127.0.0.1:8765/callback` is a different URL. Browser entry and
+callback must share their canonical origin so the temporary cookie returns.
+Five physical devices need a reachable HTTPS origin with a registered callback;
+loopback only works on the server computer. Spotify PKCE needs the client ID,
+not a client secret. Apple developer catalog search/previews use the server's
+signing key; guessing players need no Apple login. Apple request limits and
+HTTP 429 are handled explicitly, with cached/single-flight search and a local
+protective request budget rather than an unlimited-access claim.

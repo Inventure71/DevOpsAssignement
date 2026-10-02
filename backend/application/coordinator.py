@@ -137,9 +137,9 @@ class Coordinator:
             counts = {p['id']: p['song_count'] for p in players}
             players = [{'id': p['player_id'], 'nickname': p['nickname'], 'character_id': p['character_id'],
                 'is_host': bool(p['is_host']), 'connected': connected.get(p['player_id'], False),
-                'music_status': 'demo', 'song_count': counts.get(p['player_id'], 0)} for p in self.game.repo.roster(conn, latest['id'])]
+                'music_status': 'ready' if lobby['mode'] == 'normal' else 'demo', 'song_count': counts.get(p['player_id'], 0)} for p in self.game.repo.roster(conn, latest['id'])]
         return {'server_now_ms': now,
-            'room': {'id': room_id, **{k: lobby[k] for k in ('code', 'mode', 'state', 'revision')}, 'expires_at_ms': lobby['expires_at_ms']},
+            'room': {'id': room_id, **{k: lobby[k] for k in ('code', 'mode', 'state', 'revision', 'maximum_players')}, 'expires_at_ms': lobby['expires_at_ms']},
             'me': {k: player[k] for k in ('id', 'nickname', 'character_id', 'is_host')}, 'players': players,
             'settings': self.settings(conn, room_id), 'game': game_view(self.game.repo, conn, latest, player['id'], bool(player['is_host']))}
 

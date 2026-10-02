@@ -47,16 +47,23 @@ def nickname_taken(
     ).fetchone() is not None
 
 
+def music_account_taken(conn, room_id, account_hash):
+    return conn.execute('SELECT 1 FROM players WHERE room_id=? AND music_account_hash=?',
+                        (room_id, account_hash)).fetchone() is not None
+
+
 def add_player(
     conn: sqlite3.Connection, *, room_id: str, player_id: str, nickname: str,
     nickname_key: str, character_id: str, music_status: str, token_hash: str,
     is_host: bool, now_ms: int,
+    music_provider: str | None = None, music_account_hash: str | None = None,
 ) -> None:
     conn.execute(
         """INSERT INTO players (id, room_id, nickname, nickname_key, character_id, music_status,
-           session_token_hash, is_host, joined_at_ms, last_seen_at_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           session_token_hash, is_host, joined_at_ms, last_seen_at_ms, music_provider, music_account_hash)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (player_id, room_id, nickname, nickname_key, character_id, music_status,
-         token_hash, int(is_host), now_ms, now_ms),
+         token_hash, int(is_host), now_ms, now_ms, music_provider, music_account_hash),
     )
 
 
@@ -82,7 +89,7 @@ def remove_player(conn: sqlite3.Connection, room_id: str, player_id: str) -> Non
 
 def prune_unreferenced_songs(conn: sqlite3.Connection, room_id: str) -> None:
     conn.execute(
-        "DELETE FROM songs WHERE room_id=? AND NOT EXISTS (SELECT 1 FROM player_songs WHERE song_id=songs.id)",
+        "DELETE FROM songs WHERE room_id=? AND pool_kind='personal' AND NOT EXISTS (SELECT 1 FROM player_songs WHERE song_id=songs.id)",
         (room_id,),
     )
 
@@ -93,7 +100,8 @@ def bump_revision(conn: sqlite3.Connection, room_id: str) -> None:
 
 def song_counts(conn: sqlite3.Connection, room_id: str) -> dict[str, int]:
     return {row["player_id"]: row["count"] for row in conn.execute(
-        "SELECT player_id, COUNT(*) AS count FROM player_songs WHERE room_id = ? GROUP BY player_id", (room_id,)
+        """SELECT ps.player_id, COUNT(*) AS count FROM player_songs ps JOIN songs s ON s.id=ps.song_id
+           WHERE ps.room_id=? AND s.preview_url IS NOT NULL GROUP BY ps.player_id""", (room_id,)
     )}
 
 

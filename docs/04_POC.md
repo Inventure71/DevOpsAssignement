@@ -5,6 +5,12 @@ This file is also the **brief for the agent that implements the PoC**. The resul
 The original brief and dated handoff remain historical evidence. Later product
 decisions below supersede its manual fallback; current contracts are in phases 02–07.
 
+For the 2026-10-02 access-limit and alternative-provider research, see
+[music provider options](12_MUSIC_PROVIDER_OPTIONS.md). It includes the July 2026
+Spotify multi-app change, intermediary/file-import tradeoffs and fresh public
+preview-delivery samples. The historical results below do not validate those new
+personal-data routes.
+
 ## Questions the PoC must answer
 | # | Question | Why it matters |
 |---|---|---|

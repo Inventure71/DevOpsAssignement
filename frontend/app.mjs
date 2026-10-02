@@ -3,9 +3,11 @@ import { createTransport, requestId } from "./transport/client.mjs";
 import { createAudioController } from "./audio/host.mjs";
 import { createRuntime } from "./application/runtime.mjs";
 import { createActions } from "./application/actions.mjs";
+import { createMusicAdmission } from "./application/music-admission.mjs";
 import { createLobbyScreen } from "./screens/lobby.mjs";
 import { createRoundScreen } from "./screens/round.mjs";
 import { createEntryScreen } from "./screens/entry.mjs";
+import { createMusicImportScreen } from "./screens/music-import.mjs";
 import { createResultsScreen } from "./screens/results.mjs";
 import { createInfoScreen } from "./screens/info.mjs";
 import { createHistoryScreen } from "./screens/history.mjs";
@@ -31,6 +33,7 @@ if (params.has("join")) {
   ui.draftCode = params.get("join").toUpperCase();
   ui.roomId = null;
 }
+if (params.has("spotify")) ui.roomId = null;
 const root = document.querySelector("#main");
 const toast = document.querySelector("#notice");
 const transport = createTransport(
@@ -40,6 +43,7 @@ const transport = createTransport(
 let toastTimer,
   action,
   audio,
+  musicAdmission,
   runtime,
   frame,
   lastTick = 0;
@@ -76,6 +80,7 @@ function viewModel() {
 const screens = createScreenHost(root, {
   info: (vm) => createInfoScreen(vm.ui.page, navigate),
   entry: () => createEntryScreen(emit),
+  "music-import": () => createMusicImportScreen(() => emit("retry-import")),
   restoring: () => ({
     element: element(
       '<section class="entry-loading"><repeat-character color="coral" mood="idle"></repeat-character><h1>Back to your room…</h1></section>',
@@ -123,6 +128,23 @@ audio = createAudioController(
   notice,
 );
 runtime = createRuntime(model, transport, audio, render, notice, forgetRoom);
+async function admitted(receipt) {
+  audio.reset();
+  model.rememberRoom(receipt);
+  await transport.api(transport.path("/heartbeat"), { method: "POST", body: {} });
+  await runtime.refresh({ fresh: true });
+  const url = new URL(location.href);
+  url.searchParams.delete("join");
+  url.searchParams.delete("page");
+  url.searchParams.set("room", ui.roomId);
+  history.replaceState({}, "", url);
+}
+musicAdmission = createMusicAdmission({
+  ui,
+  api: transport.api,
+  render,
+  admitted,
+});
 action = createActions({
   model,
   transport,
@@ -131,6 +153,8 @@ action = createActions({
   render,
   notice,
   forgetRoom,
+  musicAdmission,
+  admitted,
 });
 root.addEventListener("player-select", (event) => {
   const { id } = event.detail;
@@ -175,6 +199,7 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 window.addEventListener("pagehide", () => {
+  musicAdmission.stop();
   runtime.stop();
   audio.suspend();
   cancelAnimationFrame(frame);
@@ -183,8 +208,10 @@ window.addEventListener("pagehide", () => {
 window.addEventListener("pageshow", (event) => {
   if (event.persisted) {
     runtime.start();
+    if (ui.musicImport) void musicAdmission.resume();
     syncFrame();
   }
 });
 render();
 runtime.start();
+if (params.has("spotify")) void musicAdmission.resume(params.get("spotify"));

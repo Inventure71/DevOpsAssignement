@@ -28,7 +28,7 @@ and configuration/shared errors in `backend/core/`. `catalog/` owns runtime
 fixture metadata and bundled clips/cover; `tests/` owns verification. The backend serves catalog media independently of presentation assets. The
 earlier `feature/demo-core` checkpoint preserves its temporary UI. Backend PR #1
 is merged into `integration`; the replacement native ES module/Web Component
-frontend is current uncommitted work on `feature/frontend`. This is the concrete placement
+frontend checkpoint is on `feature/frontend`. This is the concrete placement
 of the existing single-process/domain decision, not a new deployment split.
 See `docs/09_CODEBASE_MAP.md`.
 
@@ -48,7 +48,8 @@ recording/title/artist facts in a room-scoped expiring token; submission freezes
 those facts and performs no provider lookup. Pure scoring retains full-song and
 structured artist partial credit. Migration 2 converts prior choice slots into
 historical song facts without changing points. The public Apple metadata adapter
-is separate from deferred personal-history authorization and preview imports.
+is separate from personal-history authorization and preview imports; the
+2026-10-02 clarification below records their implemented provider boundary.
 See `docs/03_GAME_RULES.md`, `docs/06_DATA_MODEL.md` and `docs/07_API_AND_RUNTIME.md`.
 
 Presentation clarification (2026-10-01; ADR-3): one fluid blob rig replaces
@@ -72,8 +73,7 @@ Status: Decided
 Context: A working PoC, executable schema or coverage percentage does not prove the multiplayer game, shared audio or failure recovery works.
 Decision: Test exact scoring/preparation with controlled randomness and clocks; test both domains through actual SQLite/service transactions; exercise retries, deadline/failure races, readiness exclusions, startup recovery and expiry. Require at least 70% Rooms/Game logic coverage and three real browsers completing a ten-round Demo game. Measure round-data preparation, required ACKs and common start delivery under two seconds in stated conditions, plus the approximately 400-state-polls/second capacity target. Browser checks cover audio, characters/statuses, automatic phases, reconnect and artwork fallback.
 Alternatives considered: Mocked provider tests alone bypass service/persistence boundaries; coverage-only acceptance can miss races and physical audio. Enabling real imports or all-device audio from a functional PoC would skip capability/measurement gates.
-Consequences: Keep scoring tests deterministic and use real temporary SQLite transactions for domain/lifecycle tests; thin HTTP integration tests verify cookies, authority and projections. Personal-history and playback-import adapters remain unimplemented; the separate
-public metadata-search adapter has bounded-provider and signed-selection tests, and browser physics/network acceptance cannot be inferred from coverage. Current evidence is in `docs/08_IMPLEMENTATION_STATUS.md`, separate from deployment readiness.
+Consequences: Keep scoring tests deterministic and use real temporary SQLite transactions for domain/lifecycle tests; thin HTTP integration tests verify cookies, authority and projections. Provider adapters now have isolated transport/import and admission tests in addition to the signed-search checks; real-account and browser physics/network acceptance cannot be inferred from coverage. Current evidence is in `docs/08_IMPLEMENTATION_STATUS.md`, separate from deployment readiness.
 
 ## 5. Keep the first milestone to Demo and shared host audio
 Date: 2026-10-01
@@ -82,3 +82,38 @@ Context: Personal music authorization, import sources and artist-credit complete
 Decision: Implement explicit Demo with bundled original clips and shared host-device sound first. Defer real-provider admission, all-device playback, mashup rounds, game accounts and device/identity recovery; Normal returns a clear unavailable result until its real integration is validated.
 Alternatives considered: A fake authorization flag or silent Normal-to-Demo downgrade would misrepresent whose listening data is being used. Adding account recovery and synchronized audio everywhere now would introduce identity and browser timing work before the core game is accepted.
 Consequences: The backend runs locally without music credentials and both feature domains can be tested fully with isolated fixtures. The current four-song runtime seed supports lobby checks; catalog population and browser acceptance are required for a complete playable match. Demo familiarity is fictional, and Normal/personal-history and physical device acceptance remain visible follow-up gates; this is a milestone boundary rather than a claim that the full product is complete.
+
+
+Provider checkpoint clarification (2026-10-02; ADR-2/3/5): the user chose one
+Spotify development app with at most five approved accounts, including the host,
+for Normal mode. Demo retains its ten-player capacity and separate fictional
+assignments. Spotify PKCE imports each player's top/recent tracks without a
+client secret; Apple developer credentials provide catalog search, charts and
+preview resolution without requiring Apple login from each player. Search remains
+rate-limited with cache/budgets and explicit HTTP 429 handling. Multi-app Spotify
+and history-file imports are future options, not the current implementation.
+
+`backend/music/` owns normalized provider transport, preview resolution, bounded
+imports and expiring cookie-bound admission receipts. Provider I/O runs outside
+SQLite transactions; Rooms atomically revalidates membership/capacity and admits
+only after a usable verified import. Normal requires ten playable personal songs
+and permits one room identity per Spotify account. Migration 4 stores room-scoped
+account digests and song pool kinds, never OAuth tokens. Observed unplayable songs
+retain listener ownership if a later import supplies media. Incompatible title/
+version or credited artists sharing a mislabeled ISRC receive distinct variant
+identities. Frozen recording keys and verified credited-artist aliases support
+cross-provider scoring; ISRC alone cannot award full song credit. Shared title
+normalization handles Unicode/punctuation and trailing featured-credit labels
+while preserving live/remix/instrumental/remaster distinctions.
+Existing private-answer, roster, void-attempt and replacement rules remain.
+
+The earlier Demo-only decision described the first milestone; this checkpoint
+adds the explicit Normal provider path. The redesigned UI checkpoint is committed
+at `a05e19e`; this provider checkpoint follows it on the same branch.
+Live Apple catalog/reference checks passed, and native browser Web Audio decoded
+a real Apple preview; physical audibility was not inferred from decoding.
+Five Spotify account authorization, exact application callback registration/
+allowlisting, complete-match browser decoding and
+physical audio acceptance remain separate; the user deferred real-account setup
+and QA until returning. See `docs/13_SPOTIFY_IMPLEMENTATION.md` and
+`docs/08_IMPLEMENTATION_STATUS.md`.

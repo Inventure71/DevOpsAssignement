@@ -1,10 +1,11 @@
 # 06 — Data Model
 
-Initial schema date: 2026-09-30. Current SQLite schema version: **3**.
+Initial schema date: 2026-09-30. Current SQLite schema version: **4**.
 Migration 1 creates the original ten tables; migration 2 replaces option-slot
 answers with frozen selected-song facts while preserving existing history.
 Migration 3 translates previous character IDs into color IDs for the shared blob.
-See [implementation status](08_IMPLEMENTATION_STATUS.md) for Demo test evidence.
+Migration 4 adds room-scoped verified music-account digests and explicit song pool kinds.
+See [implementation status](08_IMPLEMENTATION_STATUS.md) for current evidence.
 This follows [the ADRs](../ADR.md), the
 [domain boundary](05_ARCHITECTURE.md#4-the-boundary-at-start) and
 [API/runtime contract](07_API_AND_RUNTIME.md).
@@ -80,6 +81,7 @@ erDiagram
         TEXT nickname_key
         TEXT character_id
         TEXT music_status
+        TEXT music_account_hash
         TEXT music_provider
         TEXT session_token_hash UK
         INTEGER is_host
@@ -90,6 +92,7 @@ erDiagram
         TEXT id PK
         TEXT room_id FK
         TEXT identity_key
+        TEXT pool_kind
         TEXT isrc
         TEXT title
         TEXT artist
@@ -187,11 +190,14 @@ Deleting/changing live membership later must not change old rankings.
 ## 3. Shared songs and frozen game data
 
 `songs.identity_key` is unique per room: prefer the normalized ISRC, otherwise
-normalized title and artist as specified in the game rules. Preserve Unicode
-letters when normalizing. The import service must reconcile an existing
+the provider-qualified Spotify track identity for Normal imports, or normalized
+title/artist where the existing fixture rules apply. Preserve Unicode letters
+when normalizing. The import service must reconcile an existing
 title/artist record when an ISRC becomes available; a unique index alone does
 not implement song matching. Two distinct ISRCs must not be merged just because
-their titles match.
+their titles match. Conversely, a reused/mislabeled ISRC with incompatible
+normalized title/version or credited artist receives a separate variant key
+rather than merging its media and listener ownership.
 
 `player_songs` is the many-to-many link. Its composite foreign keys prevent
 linking a player in one room to a song in another. The same song can be easy
@@ -203,8 +209,15 @@ song snapshot is a JSON array of song objects containing `song_key`, title,
 display artist plus structured credited-artist keys/names, ISRC, preview source/URL,
 optional `artwork_url`, and listeners with their
 per-player familiarity.
-Decoy song facts are added during preparation with an empty listener list.
-The snapshot does not contain provider user tokens or browser session tokens.
+Normal imports persist `pool_kind = personal|decoy` alongside room-local songs.
+Observed personal songs retain their player memberships even when their preview
+is unavailable; only rows with playable references enter the game snapshot.
+If another import supplies media for that same identity, all previously observed
+memberships are recovered. An independent chart candidate becomes personal when
+an imported player dataset contains it. A decoy means absent from the imported
+datasets, not proof that nobody has ever heard it. Demo decoy facts are added
+from shared fixtures with an empty listener list.
+The snapshot does not contain provider user tokens, account digests or browser session tokens.
 Game settings are another frozen JSON object, including mode and original
 requested round count. The roster/characters freeze at Start; final song facts
 and `round_plan_json` freeze when setup completes (`prepared_at_ms`), before
@@ -215,10 +228,14 @@ as `[{"artist_key":"demo:artist-a","name":"Artist A"}]`. Use provider-qualified
 canonical IDs for real credits, reconciling candidates from different adapters.
 Do not infer guest identities by substring/splitting a display string. Validate
 credit completeness with the chosen real provider before enabling its artist
-partial-credit path; fixtures provide known identities from the start. Apple
-public Search returns one `artistId` per song result, stored as
-`apple:artist:<id>`; extra featured credits are not inferred from display strings.
-Imports must retain these identities to score against real search results.
+partial-credit path; fixtures provide known identities from the start. The
+Apple developer adapter requests structured artist relationships. On a verified
+recording match, a Spotify credit can retain its canonical `artist_key` and add
+an `aliases` array of Apple artist IDs only when the credited names match.
+ISRC matches must also pass title/version and lead-artist validation before
+preview enrichment. Pure scoring uses frozen keys/aliases, never substring
+matching. Public iTunes fallback has only its primary artist ID; extra featured
+credits are not inferred from display strings.
 
 `round_plan_json` contains one object per original requested slot: slot number,
 source player/difficulty, original candidate, ordered checked candidates and
@@ -250,12 +267,13 @@ it from the catalog match already used for preview resolution; Game freezes
 that optional enrichment without changing Rooms records. Demo fixtures use
 bundled cover URLs. Store only the reference, not image bytes in SQLite.
 The reveal reads it from the frozen snapshot instead of fetching the current
-Rooms record or calling a provider. The future frontend must display a bundled
+Rooms record or calling a provider. The frontend displays a music-icon
 placeholder when the reference is missing or the image fails to load. Its
 placeholder asset path is a presentation choice, not a persisted song value. A
 missing cover never invalidates an audio round. This backend checkpoint serves
 its bundled demo cover from `catalog/assets/covers/` at `/static/demo/covers/`;
-the reveal UI, placeholder rendering and real provider enrichment remain pending.
+the reveal uses frozen references and its fallback; Normal imports now enrich
+recordings through Apple catalog metadata before admission.
 
 The service validates the snapshot against the roster before creating a game.
 SQLite validates JSON shape; Game validates candidate song-key uniqueness and
@@ -316,9 +334,13 @@ answer projects `status = 'submitted'` and `who_player_ids = []`; these cases
 must not be conflated. The host receives the same privacy projection as every
 other player. No public list of all answer rows exists.
 
-Full credit matches a nonempty stable song/track key, or a normalized title with
-a common structured artist identity. Title normalization is NFKC, case folding
-and collapsed whitespace; no fuzzy matching is performed.
+Full credit matches a nonempty stable frozen song/track key, or a compatible
+normalized title with a common frozen structured artist key/alias. ISRC alone
+never awards full credit. The shared normalizer applies Unicode decomposition,
+case folding, diacritic removal and word-based punctuation/whitespace handling,
+and removes trailing parenthesized/bracketed featured-artist credit only.
+Live/remix/instrumental/remaster version labels remain distinct; no fuzzy
+matching is performed.
 Artist-only credit uses frozen structured identities: a wrong selected song sharing any
 credited artist earns 50 once, no speed/perfect bonus. Correct song and ordinary
 listener/difficulty/exact arithmetic rules remain in `03_GAME_RULES.md`.
@@ -373,11 +395,26 @@ own repositories. The local `games.room_id` foreign key does not permit Game
 to query Rooms internals; a later service split will replace this database
 constraint with an explicit cross-service lifecycle contract.
 
+### Migration 4: verified accounts and pool kinds
+
+[`004_music_admission.sql`](../backend/storage/migrations/004_music_admission.sql)
+adds nullable `players.music_account_hash`, with a unique index on
+`(room_id, music_provider, music_account_hash)` for non-null values. It is a
+room-scoped digest, not the Spotify account ID or an OAuth token. Normal admitted
+players have `music_provider = spotify` and `music_status = ready`; Demo keeps its
+existing nullable provider/account fields. An account cannot enter the same room
+as several players, including after loss of its browser credential.
+
+The migration also adds `songs.pool_kind`, constrained to `personal|decoy`, with
+`personal` as the default for existing rows. No existing answers or snapshots are
+rewritten. OAuth state/verifiers and access tokens stay in expiring process
+memory; they are not a new SQLite table.
+
 ### Historical migration 1
 
 The following is the original [001_initial.sql](../backend/storage/migrations/001_initial.sql).
 Its `options_json` and `song_option` columns are migration inputs, not the current
-API or schema. Fresh databases apply all three migrations before becoming ready;
+API or schema. Fresh databases apply all four migrations before becoming ready;
 existing version-1 databases upgrade without discarding rooms or results.
 
 ```sql
@@ -618,17 +655,17 @@ results cannot be voided by a late report; see `07_API_AND_RUNTIME.md`.
 
 ## 6. What the database cannot decide
 
-Services must enforce the 3–10 player start limit, at least ten songs per player,
+Services must enforce 3–5 Normal or 3–10 Demo players, at least ten songs per player,
 exactly one host at creation, room/game state transitions, snapshot revision,
 JSON contents and candidate/listener/artist identity, mode-specific admission,
 character allowlists, readiness barriers/exclusions, replacement budget/strict
 30% skips, phase clocks, host authorization, half-up scoring and retention. Database constraints back those checks; they
 do not replace the service behavior or its tests.
 
-The API/session design is now in `07_API_AND_RUNTIME.md`. Implement the Demo
-core against this contract. Real-provider work still needs provider/authorization,
-source lists/candidate counts, credit metadata and familiarity validation. No
-manual-pick/manual-tagging or silent Normal-to-Demo path exists.
+The API/session design is in `07_API_AND_RUNTIME.md`. Demo and Normal admission
+implement this contract through separate verified sources. Spotify/Apple account,
+credit metadata, preview coverage and physical-browser checks remain live gates.
+No manual-pick/manual-tagging or silent Normal-to-Demo path exists.
 
 
 ## 7. Verification history and current acceptance

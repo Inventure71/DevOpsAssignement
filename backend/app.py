@@ -11,17 +11,26 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.api.rate_limits import AdmissionLimits
 from backend.api.routes import create_router
+from backend.api.music import create_music_router
 from backend.api.security import check_origin
 from backend.application.coordinator import Coordinator
+from backend.application.music_admission import MusicAdmissionHandler
 from backend.catalog.search import SongSearch
 from backend.core.config import Config
 from backend.core.errors import DomainError
 from backend.core.paths import DEMO_ASSETS_DIR, FRONTEND_DIR
+from backend.music.admissions import MusicAdmissions
+from backend.music.apple import AppleCatalog
+from backend.music.importer import MusicImporter
+from backend.music.previews import PreviewResolver
+from backend.music.spotify import SpotifyClient
 
 logger = logging.getLogger(__name__)
 
 
 def error_response(exc):
+    retry = exc.details.get('retry_after_seconds')
+    headers = {'Retry-After': str(retry)} if exc.status == 429 and isinstance(retry, int) and retry > 0 else None
     return JSONResponse(
         {'error': {
             'code': exc.code,
@@ -30,16 +39,26 @@ def error_response(exc):
             'retryable': exc.status in (429, 503),
         }},
         status_code=exc.status,
+        headers=headers,
     )
 
 
-def create_app(config=None, clock=None, game=None, background=True, song_search=None):
+def create_app(config=None, clock=None, game=None, background=True, song_search=None,
+               spotify_client=None, apple_catalog=None, music_importer=None):
     config = config or Config.from_env()
     kwargs = {'game': game}
     if clock:
         kwargs['clock'] = clock
     coordinator = Coordinator(config, **kwargs)
-    song_search = song_search or SongSearch()
+    spotify = spotify_client or SpotifyClient(config.spotify_client_id, config.spotify_client_secret,
+                                             config.spotify_redirect_uri)
+    apple = apple_catalog or AppleCatalog(config.apple_team_id, config.apple_key_id,
+                                         config.apple_private_key_path, config.apple_storefront)
+    song_search = song_search or (SongSearch(apple.search, calls_per_minute=60) if apple.configured else SongSearch())
+    importer = music_importer or MusicImporter(spotify, PreviewResolver(apple=apple), decoy_provider=apple.decoys)
+
+    admissions = MusicAdmissions(spotify, importer, MusicAdmissionHandler(coordinator),
+                                 enabled=bool(spotify.configured and apple.configured))
 
     @asynccontextmanager
     async def lifespan(application):
@@ -65,6 +84,7 @@ def create_app(config=None, clock=None, game=None, background=True, song_search=
             yield
         finally:
             application.state.ready = False
+            admissions.close()
             if task:
                 task.cancel()
                 try:
@@ -76,6 +96,7 @@ def create_app(config=None, clock=None, game=None, background=True, song_search=
     application = FastAPI(title="Who's On Repeat", lifespan=lifespan)
     application.state.coordinator = coordinator
     application.state.song_search = song_search
+    application.state.music_admissions = admissions
     application.state.ready = False
 
     @application.middleware('http')
@@ -128,6 +149,7 @@ def create_app(config=None, clock=None, game=None, background=True, song_search=
         int(os.environ.get('ROOM_JOIN_LIMIT', '30')),
     )
     application.include_router(create_router(coordinator, limits, song_search))
+    application.include_router(create_music_router(coordinator, admissions, limits, search_provider=song_search.provider_name))
     application.mount('/static/demo', StaticFiles(directory=DEMO_ASSETS_DIR), name='demo-assets')
     application.mount('/ui', StaticFiles(directory=FRONTEND_DIR), name='frontend')
     return application

@@ -17,6 +17,10 @@ class Create(Identity):
     mode: Literal['demo', 'normal'] = 'demo'
 
 
+class MusicAdmission(Identity):
+    room_id: Annotated[str, Field(min_length=1, max_length=64)] | None = None
+
+
 class Settings(Body):
     round_count: Literal[5, 10, 15] = 10
     answer_seconds: Literal[10, 20, 30] = 20

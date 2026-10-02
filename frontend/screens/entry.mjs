@@ -10,8 +10,11 @@ export function createEntryScreen(emit) {
     <form class="entry-form"><div class="field-group"><label for="player-nickname">Your nickname</label><input id="player-nickname" name="nickname" type="text" placeholder="Your friends know you as…" autocomplete="nickname" maxlength="24" required></div>
       <div class="field-group entry-code-field"><label for="join-room-code">Room code</label><input id="join-room-code" name="code" type="text" placeholder="ABC123" inputmode="text" autocomplete="off" spellcheck="false" autocapitalize="characters" maxlength="6" minlength="6" pattern="[A-Za-z0-9]{6}"></div>
       <div class="field-group"><span class="entry-color-label" id="entry-color-label">Your color</span><blob-color-picker aria-labelledby="entry-color-label"></blob-color-picker></div>
-      <p class="mode-label">Demo mode · no music account needed</p><button class="button button-primary entry-submit" type="submit">Create room →</button>
-      <p class="form-error" role="status"></p>
+      <fieldset class="entry-mode-field"><legend>Music source</legend><div class="entry-mode-options">
+        <label><input type="radio" name="mode" value="normal" checked>Spotify</label><label><input type="radio" name="mode" value="demo">Demo</label>
+      </div></fieldset>
+      <p class="mode-label" id="entry-mode-help"></p><button class="button button-primary entry-submit" type="submit" aria-describedby="entry-mode-help">Connect Spotify →</button>
+      <p class="form-error" role="status" aria-live="polite"></p><a class="canonical-address" hidden>Open configured game address →</a>
     </form></div>`;
   const nickname = element.querySelector("[name=nickname]");
   const code = element.querySelector("[name=code]");
@@ -19,6 +22,10 @@ export function createEntryScreen(emit) {
   const submit = element.querySelector(".entry-submit");
   const picker = element.querySelector("blob-color-picker");
   const tabs = element.querySelector(".entry-tabs");
+  const modes = element.querySelector(".entry-mode-field");
+  modes.addEventListener("change", (event) => {
+    if (event.target.name === "mode") emit("entry-mode", event.target.value);
+  });
   tabs.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-tab]");
     if (button) emit("entry-tab", button.dataset.tab);
@@ -49,6 +56,16 @@ export function createEntryScreen(emit) {
       nickname.value = ui.draftNickname ?? "";
     if (document.activeElement !== code) code.value = ui.draftCode ?? "";
     code.required = joining;
+    modes.hidden = joining;
+    modes.disabled = Boolean(ui.pending);
+    for (const input of modes.querySelectorAll("input"))
+      input.checked = input.value === (ui.mode || "normal");
+    const modeHelp = element.querySelector(".mode-label");
+    modeHelp.textContent = joining
+      ? "Spotify rooms require sign-in. Demo rooms do not."
+      : ui.mode === "demo"
+        ? "Demo uses the demo catalog. No music account needed."
+        : "Connect an approved Spotify account. Up to 5 accounts, including the host.";
     element.querySelector(".entry-code-field").hidden = !joining;
     for (const button of tabs.children) {
       button.setAttribute(
@@ -68,8 +85,14 @@ export function createEntryScreen(emit) {
         : "Creating…"
       : joining
         ? "Join room →"
-        : "Create room →";
+        : ui.mode === "demo"
+          ? "Create demo room →"
+          : "Connect Spotify →";
     element.querySelector(".form-error").textContent = ui.error?.message ?? "";
+    const canonical = element.querySelector(".canonical-address");
+    canonical.hidden = !ui.canonicalUrl;
+    if (ui.canonicalUrl) canonical.href = ui.canonicalUrl;
+    else canonical.removeAttribute("href");
   }
   return { element, update, destroy() {} };
 }

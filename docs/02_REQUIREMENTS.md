@@ -9,8 +9,10 @@ song search, reveal and leaderboard; a central presentation screen is not requir
 
 Bundled demo songs and host-device audio form the first milestone. Normal
 players do not choose or inspect their song pool; manual picks are excluded.
-Apple/Spotify imports remain subject to validation,
-and personal Apple access remains unverified.
+The next checkpoint implements one Spotify development app for Normal imports,
+limited to five approved accounts including the host, and Apple developer catalog
+search/previews. Live five-account acceptance remains required. Personal Apple
+history remains outside this implementation.
 Requirements below describe the core unless explicitly marked conditional.
 The app is built from scratch; PoC implementation and mocked tests do not count
 as finished application features. See `04_POC.md` and `05_ARCHITECTURE.md`.
@@ -31,16 +33,16 @@ as finished application features. See `04_POC.md` and `05_ARCHITECTURE.md`.
 - **FR1** The system shall let a player create a room with an explicit Normal/Demo mode and receive a unique six-character join code using unambiguous uppercase letters/digits; the creator becomes the host, sole admin and a player. Generate codes randomly and retry collisions.
 - **FR2** The system shall let a player join with the code, nickname and character, without a game account/password. In Normal mode successful music-provider authorization is mandatory before admission, including for the creator; Demo skips that authorization. The backend imports each player's own songs during the lobby, not from the host's account on everyone's behalf.
 - **FR3** The system shall reject a nickname already used in the same room.
-- **FR4** The system shall reject new joins when the room has 10 players or a game is in progress. Restoring an existing starting player is a reconnect, not a new join; a different browser cannot enter as a new identity mid-game.
+- **FR4** The system shall reject new joins when a Normal room has five players, a Demo room has ten players, or a game is in progress. Normal permits only one player per verified Spotify account in a room; the Spotify app's five-account allowlist is shared across rooms. Restoring an existing starting player is a reconnect, not a new join; a different browser cannot enter as a new identity mid-game.
 - **FR5** The system shall restore a player through a room-scoped browser cookie while the room exists; rooms do not overwrite each other's identity and same-room tabs share one identity. No nickname-based recovery or device transfer is offered in v1. All starting players remain participants/ranking entries even when disconnected or excluded from a readiness barrier.
-- **FR6** The normal game shall load songs without players selecting them or inspecting their imported song lists before play. Real songs come from validated automatic personal-history imports; Apple/Spotify access and preview checks are still prerequisites. Manual song picking is excluded.
+- **FR6** The normal game shall load songs without players selecting them or inspecting their imported song lists before play. Real songs come from each player's verified Spotify top/recent-song import, with Apple preview checks; provider availability and sufficient playable candidates are prerequisites. Manual song picking is excluded.
 - **FR7** The system shall show nicknames, characters, song counts/import readiness and settings in the lobby, without returning song titles, artists, covers or listener mappings.
   Characters use one reusable fluid blob rig with selectable colors and friendly
   open eyes. Listening, submitted, celebrating and sad poses reflect gameplay.
   Incorrect song reveals use sadness; artist-only credit and missing song answers
   remain distinct from incorrect guesses.
 - **FR8** The system shall let the host choose the number of rounds, the answer time, the available audio playback mode, the game difficulty and whether decoy songs are used.
-- **FR9** The system shall enable Start only with 3–10 players, at least 10 imported/assigned songs each and completed lobby imports. Those counts do not guarantee enough unique playable songs; preparation must also validate the full planned sequence and reserves.
+- **FR9** The system shall enable Start only with 3–5 players in Normal or 3–10 players in Demo, at least 10 imported/assigned songs each and completed lobby imports. Those counts do not guarantee enough unique playable songs; preparation must also validate the full planned sequence and reserves.
 
 ### Game
 - **FR10** After automatic readiness and a three-second countdown on all participating screens, the system shall start shared host-device audio and guessing at a common server time. Playing responses expose timing and submission status; the correct song and listener facts remain hidden. Song suggestions come from shared catalog metadata, never the hidden round pool. All-device audio stays conditional on acceptance.
@@ -68,7 +70,7 @@ as finished application features. See `04_POC.md` and `05_ARCHITECTURE.md`.
 | ID | Category | Requirement |
 |---|---|---|
 | **NFR1** | Performance | Under the defined supported-browser/network load test, round preparation through data delivery, required automatic acknowledgements and distribution of the common start time takes **under 2 seconds**. Preloaded data should shorten this interval; the intentional countdown is excluded. Client-readiness timeout is 10 seconds. Music authorization/lobby import and whole-game setup are separate measurements. |
-| **NFR2** | Capacity | Supports 3–10 players per room and about 20 rooms at the same time. |
+| **NFR2** | Capacity | Supports 3–5 approved accounts per Normal room, 3–10 players per Demo room and about 20 rooms at the same time. The five-account Spotify app allowance is global, not multiplied by room count. |
 | **NFR3** | Usability | Works in a phone browser; joining uses code, nickname and character, plus mandatory provider authorization in Normal mode. Readiness is automatic. |
 | **NFR4** | Reliability | Precheck the complete sequence and checked reserves before play; apply FR25's replacement/skip policy. Runtime audio failures remain recoverable as retained `void` attempts using frozen checked reserves; reveal is final. No crash or silent mode downgrade. |
 | **NFR5** | Privacy | Store nicknames, character IDs, credential digests, import readiness/provenance, timestamps, songs and results for FR17's lifetime. Provider user tokens are transient and discarded after import. Room-scoped cookies are HttpOnly, SameSite=Lax and Secure under HTTPS. Project responses by phase rather than hiding secrets only in the UI; see `07_API_AND_RUNTIME.md`. |
@@ -80,6 +82,7 @@ as finished application features. See `04_POC.md` and `05_ARCHITECTURE.md`.
 ## Decided later
 - Scoring, difficulty and song selection are specified in `03_GAME_RULES.md`; domain boundaries and live updates are in `05_ARCHITECTURE.md`.
 - Browser identity, room codes, five-second heartbeats, phase timing and readiness recovery are specified in `07_API_AND_RUNTIME.md`; the 60-second host grace and retention anchor remain fixed.
-- The first real import provider and its familiarity mapping still need decisions. Manual song picking was removed on Sep 30; real-song play depends on a working automatic import.
-- Provider-specific authorization/callback implementation, source lists/candidate counts and complete credited-artist metadata still need real-provider validation; Demo does not wait for them.
+- Normal uses Spotify short-, medium- and long-term top lists plus recently played tracks, deduplicated into at most 60 candidates per account. Short-term top 20 are easy; other short/medium/recent tracks are medium; long-term-only tracks are hard. The easiest observed level wins. This estimates familiarity from affinity/rank, not exact play frequency.
+- Admission requires at least ten playable songs; the host import also requests independent Apple chart candidates for decoys. Bounded datasets define listener membership: absence is not proof someone has never heard a song. Observed unavailable songs retain ownership if another import later supplies playable media.
+- Callback registration, five allowlisted real accounts, credited-artist coverage, preview coverage and device playback still need live verification; Demo does not wait for them.
 - All-device audio needs retained evidence of ≤300 ms start drift and audible playback on both devices before it is enabled; `04_POC.md` records a functional check with timing still pending.

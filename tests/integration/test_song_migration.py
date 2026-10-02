@@ -26,6 +26,8 @@ def test_v1_choices_migrate_to_frozen_song_facts_and_keep_history(tmp_path):
         for table in tables:
             for record in source.execute('SELECT * FROM ' + table):
                 values = dict(record)
+                columns = {row[1] for row in old.execute('PRAGMA table_info(' + table + ')')}
+                values = {key: value for key, value in values.items() if key in columns}
                 if table in {'players', 'game_players'}:
                     values['character_id'] = {'coral': 'vinyl', 'lavender': 'moon'}[values['character_id']]
                 old.execute('INSERT INTO ' + table + ' VALUES (' + ','.join('?' for _ in values) + ')', tuple(values.values()))
@@ -47,7 +49,7 @@ def test_v1_choices_migrate_to_frozen_song_facts_and_keep_history(tmp_path):
     migrated.initialize()
     migrated.initialize()  # Repeated startup is safe.
     with migrated.read() as conn:
-        assert conn.execute('PRAGMA user_version').fetchone()[0] == 3
+        assert conn.execute('PRAGMA user_version').fetchone()[0] == 4
         assert conn.execute('PRAGMA foreign_key_check').fetchall() == []
         assert 'options_json' not in {row['name'] for row in conn.execute('PRAGMA table_info(rounds)')}
         answers = match.game.repo.answers(conn, rounds[0]['id'])

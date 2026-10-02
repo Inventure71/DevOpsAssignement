@@ -1,9 +1,10 @@
 # 08 — Implementation Status
 
-Recorded 2026-10-01. Backend [PR #1](https://github.com/Inventure71/DevOpsAssignement/pull/1)
-is merged into `integration`. The redesigned UI and selected-song search contract
-are uncommitted work on `feature/frontend`. The original combined Demo checkpoint
-remains preserved on `feature/demo-core` (`bcdcd3d`).
+Updated 2026-10-02. Backend [PR #1](https://github.com/Inventure71/DevOpsAssignement/pull/1)
+is merged into `integration`. The redesigned UI checkpoint is committed on
+`feature/frontend` at `a05e19e`; this checkpoint adds the Spotify/Apple provider
+integration. The original combined Demo checkpoint remains preserved on
+`feature/demo-core` (`bcdcd3d`).
 
 ## Current implementation
 
@@ -22,13 +23,16 @@ offscreen and small thumbnail instances do not animate. Mounted screens and keye
 Reduced motion and document visibility govern continuous motion. `/ui-lab` uses
 isolated fixtures for visual/component checks; it is not a playable game.
 
-Song-name typeahead searches shared fixture metadata and Apple public song metadata,
+Song-name typeahead searches shared Demo fixtures and the configured Apple
+developer catalog, with public iTunes metadata fallback for no-credentials Demo,
 not four round options. Server-signed room selections freeze title, artist,
 structured identity and optional artwork into answers. Provider calls occur outside
 room command locks; submission performs no provider lookup. Search is bounded by
-cache, timeout, single-flight calls and a process-wide request budget. The public
-adapter returns the primary artist, so complete collaboration credits remain a
-limitation. It does not authenticate music accounts or import playback songs.
+cache, timeout, single-flight calls and a process-wide request budget. Apple
+developer searches request structured artist relationships. Preview matching
+preserves Spotify credits and adds verified Apple aliases; missing featured
+credits remain unavailable. Search stays independent of personal authorization
+and playback import.
 
 Migration 3 translates live/frozen character IDs to color IDs without changing
 credentials, membership, guesses or scores. Revealed answers now include
@@ -45,8 +49,26 @@ The runtime catalog still contains exactly **four fictional personal songs**, fo
 original 30-second MP3s and one SVG cover. It supports admission/lobby/media checks
 and correctly rejects Start with `insufficient_songs`. A complete match requires
 at least ten songs per player plus sufficient distinct candidates and reserves.
-Larger test metadata remains isolated. Real catalog population and Normal-mode
-personal import are pending; Normal still returns `provider_unavailable`.
+Larger test metadata remains isolated. Real-song Demo population remains pending.
+Normal Spotify import is now implemented; real five-account acceptance remains
+pending rather than inferred from fixture tests.
+
+Normal admission verifies each player's own Spotify account through cookie-bound
+PKCE, imports at most 60 balanced top/recent candidates, resolves Apple previews
+and requires at least ten playable personal songs. Host import obtains independent
+Apple chart candidates. The host counts toward the five-player/app-account limit.
+Receipt, queue and worker bounds keep provider work outside transactions; atomic
+admission rechecks room state, nickname, capacity and account uniqueness.
+
+Migration 4 adds room-scoped account digests and explicit song pool kinds.
+Unavailable observed songs preserve ownership when another import later supplies
+playable media; their absence from a snapshot does not fabricate decoys. Frozen
+recording keys and verified artist aliases support Spotify-import/Apple-search
+scoring. Incompatible versions that share a mislabeled ISRC stay separate, and
+ISRC equality alone never awards full credit.
+No OAuth access/refresh token enters SQLite, public state or answer snapshots.
+The browser has explicit Spotify/Demo selection, import progress, finite connection
+retry and verification-error recovery. See [the checkpoint](13_SPOTIFY_IMPLEMENTATION.md).
 
 The results contract is now owner-only: `reveal.my_answer` contains the requesting
 player's answer; the API never includes other players' song/listener guesses,
@@ -62,15 +84,48 @@ or applying stale state after stop/start. See [cleanup record](11_CODE_CLEANUP.m
 
 ## Current verification
 
-The current tree passes **132 Python tests** with **94% Rooms/Game coverage** and
-**66 frontend Node tests**. All 38 frontend modules also pass syntax, relative-import and live HTTP/MIME
-checks. Native preview open timed out; no live visual/audio completion is claimed.
+The provider checkpoint passes **228 Python tests**, **94% Rooms/Game coverage**,
+and **76 frontend Node tests**. All 40 frontend modules pass syntax checks.
+Five separate HTTP cookie sessions complete games of 5, 10 and 15 rounds through
+OAuth receipts, imported shared ownership, host preload reports, automatic
+readiness/countdowns, signed catalog answers, private reveals, rankings, history
+and rematch. Provider boundaries are faked; HTTP, SQLite, signing and game services
+are real. Additional tests prove concurrent five-player capacity, cancellation,
+expiry rollback, unavailable-song ownership, conflicting ISRC versions, migration
+preservation and identity restoration through a fresh application startup.
+The frontend admission revision includes
+ten new checks for OAuth navigation, configuration/origin errors, cookie restore,
+callback failure, bounded polling retry and cancellation of stale browser work.
+Native T3 preview verified desktop/mobile entry behavior, no horizontal overflow
+at 390 px, and a visible keyboard focus ring; the isolated UI test server stopped
+cleanly after these checks.
+
+Recovered Apple developer configuration was exercised live: catalog search
+returned 20 songs, charts returned 30 candidates, and a Stronger ISRC lookup
+resolved an Apple preview whose Range probe returned HTTP 206 with CORS support.
+A native browser separately decoded the real Apple Stronger AAC preview:
+29.975 seconds, two channels at 48 kHz. These checks verify sampled catalog,
+delivery and browser decode paths, not five Spotify accounts, complete import
+coverage or physical speaker audibility. Exact application
+callback registration, Spotify allowlisting and real five-account QA are deferred
+until the user returns. Live browser HTTP search returned 20 signed Apple catalog
+selections without listening evidence. The user explicitly authorized this
+checkpoint's commit and push; Git history records its publication.
+
 Reproduce the automated checks with:
 
 ```bash
 python -m pytest -q --cov=backend.rooms --cov=backend.game --cov-report=term-missing
 node --test tests/frontend/*.test.mjs
 ```
+
+### Previous redesigned-UI checkpoint evidence
+
+Before the provider changes, the tree passed **132 Python tests** with **94%
+Rooms/Game coverage** and **66 frontend Node tests**. All 38 frontend modules
+passed syntax, relative-import and live HTTP/MIME checks. Native preview open
+timed out in that revision; this historical limitation does not describe the
+new admission entry checks above.
 
 The backend tests exercise real temporary SQLite/HTTP search-to-answer paths,
 signatures, room scope, expiry, historical migration, scoring, provider failure,

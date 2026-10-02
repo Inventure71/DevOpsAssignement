@@ -1,13 +1,22 @@
 # Who's On Repeat
 
-A local music party game for 3–10 people. The host also plays; everyone guesses
-on their own screen and the host device supplies the shared speaker. This
-branch contains the **Demo backend and redesigned browser UI**, four temporary
-fictional songs and hidden database assignments. The lobby and round design uses
+A music party game for **3–5 approved Spotify accounts in Normal mode**, or
+3–10 people in explicit Demo mode. The host also plays; everyone guesses on
+their own screen and the host device supplies the shared speaker. This branch
+contains the game backend, redesigned browser UI and Spotify/Apple provider
+integration. Demo still has four temporary fictional songs and hidden assignments. The lobby and round design uses
 one animated fluid blob with selectable pastel colors, direct player selection
 and catalog song search. Friendly idle eyes and sad/correct-song reactions use
 server-revealed outcomes.
-Real playback-catalog population and personal music-provider admission remain pending.
+Normal admission uses Spotify authorization and top/recent-song imports, with
+Apple developer catalog search and preview resolution. Real five-account and
+physical-audio acceptance remain pending; implementation is separate from those
+live checks. Real-song Demo catalog population is also pending.
+
+The [provider checkpoint](docs/13_SPOTIFY_IMPLEMENTATION.md) describes setup,
+boundaries and remaining checks. The [music provider comparison](docs/12_MUSIC_PROVIDER_OPTIONS.md)
+preserves alternatives and tradeoffs; the accepted scope is one Spotify app with
+five approved accounts, including the host.
 
 ## Run locally
 
@@ -20,7 +29,9 @@ python -m pip install -r requirements.txt
 python -m backend
 ```
 
-Open **`http://localhost:8000/`** to create or join a Demo room. The browser UI
+Open **`http://127.0.0.1:8000/`**. Choose Spotify for Normal mode or Demo for
+no-credentials lobby checks. Spotify needs the configuration below and the exact
+callback registered in its developer dashboard. The browser UI
 uses native ES modules (`.mjs`) and Web Components; no npm manifest, installation
 or frontend build is required. `/docs` contains the interactive API reference, `/openapi.json` its
 schema, and `/health/live` and `/health/ready` the process/initialization checks.
@@ -46,24 +57,32 @@ rankings. A three-session ten-round browser run passed with isolated larger
 metadata fixtures. Physical-device audio and synchronization acceptance remain
 pending. Only the active host audio controller receives the private playback
 manifest. Demo familiarity is fictional; it does not import anyone's listening
-history. Normal mode returns `provider_unavailable` until a real provider is
-validated and never silently changes to Demo.
+history. Normal mode verifies each player's own Spotify account before adding
+them to a room. Missing configuration or failed imports produce explicit errors
+and never silently change to Demo. Its five-account allowance belongs to the
+Spotify application, not to each room; the room also enforces at most five
+players and one identity per Spotify account.
 
 ## Song guesses
 
 Type a title or artist and select a result from the loading search list. Guesses
 are not limited to four round choices. Shared fictional catalog metadata is
-searched locally; other queries use Apple’s public metadata search. Loading,
-empty, failure and rate-limit states are explicit. Search does not import songs
-or change the four-track playback catalog.
+searched locally in Demo; other queries use the configured Apple developer
+catalog, or the public iTunes metadata fallback when Apple is not configured.
+Loading, empty, failure and rate-limit states are explicit. Search does not import
+songs or change the four-track Demo playback catalog. Apple catalog search uses
+server credentials; guessing players do not need Apple accounts or Spotify
+catalog authorization. It is rate-limited, not unlimited.
 
 The server signs each selected song for the room, then verifies that selection
 on submission and freezes its metadata in the answer. Scoring uses recording
-identity or normalized title/artist, with artist partial credit from structured
-credits. No provider request runs at the answer deadline. Apple search currently
-returns the main artist ID, so complete collaboration credits remain a provider
-integration limitation. See [the matching rules](docs/03_GAME_RULES.md) and
-[Apple’s Search API documentation](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/Searching.html).
+identity or a compatible normalized title with a shared structured artist identity.
+ISRC helps locate recordings but does not alone establish a correct guess.
+Apple preview matching adds artist aliases only when the resolved recording's
+credited names match; artist partial credit uses those frozen identities.
+No provider request runs at the answer deadline. Missing featured credits remain
+unavailable rather than being guessed from a display string. See
+[the matching rules](docs/03_GAME_RULES.md) and [the provider checkpoint](docs/13_SPOTIFY_IMPLEMENTATION.md).
 
 ## Configuration and storage
 
@@ -75,6 +94,30 @@ integration limitation. See [the matching rules](docs/03_GAME_RULES.md) and
 | `SETUP_TIMEOUT_MS` | `60000` | Bounded full-game preload window (10000–120000 ms) |
 | `ROOM_CREATE_LIMIT` | `10` | Room creation attempts per client address per minute |
 | `ROOM_JOIN_LIMIT` | `30` | Join attempts per client address per minute |
+| `SPOTIFY_CLIENT_ID` | empty | Development app for per-player OAuth PKCE imports |
+| `SPOTIFY_REDIRECT_URI` | `http://127.0.0.1:8000/api/music/spotify/callback` | Exact callback registered in the Spotify app; default follows `PORT` |
+| `SPOTIFY_CLIENT_SECRET` | empty | Optional Spotify public-search adapter; not required for the active PKCE/Apple flow |
+| `APPLE_TEAM_ID` | empty | Apple developer token issuer |
+| `APPLE_KEY_ID` | empty | MusicKit signing key identifier |
+| `APPLE_PRIVATE_KEY_PATH` | empty | Absolute path to the private `.p8` key, outside the repository |
+| `APPLE_STOREFRONT` | `es` | Apple catalog storefront |
+
+Configuration is read from the process environment; private files are not
+automatically loaded. Keep keys and secrets outside Git. Normal mode requires
+Spotify client/callback configuration and a readable Apple signing key. The
+PoC's callback `http://127.0.0.1:8765/callback` is different and does not register
+the application's callback. Five real accounts must be approved in the same
+Spotify development app. Five separate devices need a reachable HTTPS game URL
+and its exact callback, rather than the server computer's loopback address.
+
+For Normal mode, fill an ignored `.env` using [.env.example](.env.example), then:
+
+```bash
+set -a
+source .env
+set +a
+python -m backend
+```
 
 SQLite lives at **`DATA_DIR/whos_on_repeat.sqlite3`**. Startup applies versioned
 migrations, seeds the catalog and recovers interrupted games automatically.
@@ -110,6 +153,7 @@ than replaying the song.
 | `backend/storage/` | SQLite connections and versioned migrations |
 | `backend/core/` | Configuration, shared errors and repository-relative resource paths |
 | `backend/catalog/` | Public metadata search/cache and room-scoped signed selections |
+| `backend/music/` | Spotify PKCE/history, Apple catalog/previews and bounded admission jobs |
 | `frontend/` | Browser composition, API transport, audio, screens and reusable components |
 | `catalog/` | Four temporary song records, bundled clips/cover and their provenance |
 | `tests/` | Python unit/integration tests and isolated metadata fixtures |
@@ -153,8 +197,8 @@ deadlines, immutable snapshots, retries, readiness exclusions, replacement
 budgets, host expiry, restart and retention. Catalog integration tests check
 startup and media delivery, frontend serving, signed catalog selections and
 version-1 database upgrades. Frontend module tests exercise receipts, polling,
-clock estimates, submission races, owner-only result fixtures and decoded waveform
-measurements. Current evidence and
+clock estimates, submission races, owner-only result fixtures, decoded waveform
+measurements and OAuth callback/import polling recovery. Current evidence and
 remaining acceptance work are recorded in
 [implementation status](docs/08_IMPLEMENTATION_STATUS.md).
 

@@ -36,7 +36,7 @@ def create(database, service, nickname="Host", now=1000):
 def test_schema_initialization_is_versioned_and_idempotent(database):
     database.initialize()
     with database.read() as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
         assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert conn.execute("SELECT COUNT(*) FROM demo_catalog").fetchone()[0] == 120

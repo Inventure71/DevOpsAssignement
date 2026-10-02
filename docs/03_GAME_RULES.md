@@ -110,16 +110,17 @@ Players who own the song are treated **exactly like everyone else**: they can ea
 - Wrong selected song with no matching artist, or no song selection: `song_points = 0`.
 - Full song credit requires the same nonempty stable song/track key, or the same
   normalized title with at least one common structured artist identity. Title
-  normalization uses Unicode NFKC, case folding and collapsed whitespace; it is
-  not fuzzy matching. Identical titles by different artists do not match.
+  normalization folds Unicode letters, diacritics, punctuation and whitespace,
+  and removes trailing featured-credit suffixes. Live, remix and instrumental
+  version labels remain distinct. Identical titles by different artists do not match.
 - Match sets of structured artist keys in the frozen correct/selected song facts.
   Multiple common artists still award 50, not 50 each. Display-string substring
   matching is not artist identity. Demo fixtures supply explicit identities;
-  real-provider credit completeness/canonicalization is an integration gate.
-  Apple Search supplies one `artistId` per result; the adapter represents that
-  credited artist only. It does not infer additional featured artists from a
-  display string. Real imports must retain matching `apple:artist:<id>` keys;
-  additional credits require separately validated structured metadata.
+  Normal imports retain Spotify credited artists and attach Apple artist-ID
+  aliases only when validated catalog credits match. Apple developer search
+  includes structured artist relationships. Missing featured identities are
+  not invented from display strings. ISRC equality alone cannot award full
+  credit to a mislabeled recording with incompatible title/artist facts.
 
 ### Who part
 `who_score` is a number from 0 to 1:
@@ -251,7 +252,9 @@ The PoC records metadata/preview discovery, not this preparation implementation.
 
 ## 7. Same song, several listeners
 Two songs are the **same song** when:
-- they have the same **ISRC** (a standard recording ID from Apple/Spotify), or
+- they have the same **ISRC** (a standard recording ID from Apple/Spotify) and
+  compatible title/version and credited-artist facts; conflicting provider
+  labels remain separate candidates, or
 - when an ISRC is missing: the same **title + artist**, compared case-insensitively, with spaces trimmed and "(feat. …)" removed; preserve Unicode letters
 
 All players who have the song count as its listeners. A decoy is only valid if it matches **no** player's song.

@@ -9,6 +9,8 @@ export function createActions({
   render,
   notice,
   forgetRoom,
+  musicAdmission,
+  admitted,
   navigator = globalThis.navigator,
   confirm = globalThis.confirm,
 }) {
@@ -57,8 +59,22 @@ export function createActions({
       return;
     }
     if (name === "entry-tab") {
+      if (ui.pending) return;
       ui.screen = payload;
+      ui.error = null;
       render();
+      return;
+    }
+    if (name === "entry-mode") {
+      if (ui.pending || !["demo", "normal"].includes(payload)) return;
+      ui.mode = payload;
+      ui.error = null;
+      ui.canonicalUrl = null;
+      render();
+      return;
+    }
+    if (name === "retry-import") {
+      await musicAdmission.resume();
       return;
     }
     if (name === "character" && !ui.state) {
@@ -96,6 +112,7 @@ export function createActions({
     )
       return;
     ui.pending = name;
+    ui.error = null;
     render();
     try {
       if (name === "admit") {
@@ -108,24 +125,25 @@ export function createActions({
           const resolved = await api(
             `/api/room-codes/${encodeURIComponent(ui.draftCode.trim())}`,
           );
-          result = await api(`/api/rooms/${resolved.room_id}/join`, {
-            method: "POST",
-            body: fields,
-          });
+          try {
+            result = await api(`/api/rooms/${resolved.room_id}/join`, {
+              method: "POST",
+              body: fields,
+            });
+          } catch (error) {
+            if (error.code !== "music_sign_in_required") throw error;
+            await musicAdmission.start({ ...fields, room_id: resolved.room_id });
+            return;
+          }
+        } else if (ui.mode === "normal") {
+          await musicAdmission.start(fields);
+          return;
         } else
           result = await api("/api/rooms", {
             method: "POST",
             body: { ...fields, mode: "demo" },
           });
-        audio.reset();
-        model.rememberRoom(result);
-        await api(path("/heartbeat"), { method: "POST", body: {} });
-        await runtime.refresh({ fresh: true });
-        const url = new URL(location.href);
-        url.searchParams.delete("join");
-        url.searchParams.delete("page");
-        url.searchParams.set("room", ui.roomId);
-        history.replaceState({}, "", url);
+        await admitted(result);
       } else if (name === "character") {
         ui.character = payload;
         await api(path("/player"), {
@@ -220,6 +238,7 @@ export function createActions({
           );
       }
     } catch (error) {
+      if (name === "admit") ui.error = { message: error.message };
       notice(error.message);
       if (ui.roomId) await runtime.refresh({ fresh: true });
     } finally {

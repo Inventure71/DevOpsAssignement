@@ -101,3 +101,15 @@ def test_song_classification_matches_titles_only_with_structured_artist_overlap(
     assert classify_song_guess(song, selected) == "correct"
     selected['artists'] = [{"artist_key": "apple:someone-else", "name": "Display"}]
     assert classify_song_guess(song, selected) == "wrong"
+
+
+def test_verified_cross_provider_aliases_preserve_artist_credit_and_reject_mislabeled_versions():
+    original = {'song_key': 'spotify:original', 'title': 'Stronger', 'isrc': 'SAME',
+                'artists': [{'artist_key': 'spotify:kanye', 'name': 'Kanye West', 'aliases': ['apple:kanye']}]}
+    chosen = {'song_key': 'apple:other', 'title': 'Stronger', 'isrc': 'SAME',
+              'artists': [{'artist_key': 'apple:kanye', 'name': 'Kanye West'}]}
+    assert classify_song_guess(original, chosen) == 'correct'
+    for title in ('Stronger - Instrumental', 'Stronger (Live)', 'Stronger (Remix)'):
+        assert classify_song_guess(original, chosen | {'title': title}) == 'artist'
+    assert classify_song_guess(original, chosen | {'artists': [{'artist_key': 'apple:unrelated', 'name': 'Kanye West'}]}) == 'wrong'
+    assert classify_song_guess(original | {'title': 'Stronger (feat. Guest)'}, chosen) == 'correct'

@@ -70,7 +70,8 @@ export function createLobbyScreen(emit) {
     find(".room-code").textContent = state.room.code;
     picker.value = ui.character || state.me.character_id;
     picker.disabled = Boolean(ui.pending);
-    find(".roster-title").textContent = `Players (${players.length}/10)`;
+    const capacity = state.room.maximum_players ?? (state.room.mode === "normal" ? 5 : 10);
+    find(".roster-title").textContent = `Players (${players.length}/${capacity})`;
     syncKeyedChildren(find(".lobby-player-row"), players, cards, {
       key: (player) => player.id,
       create: () => document.createElement("player-card"),

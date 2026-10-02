@@ -9,6 +9,7 @@ from backend.core.config import Config
 from backend.storage.database import Database
 from tests.integration.test_game import Match
 from tests.support.catalog import write_large_catalog
+from tests.support.migrations import legacy_copy
 
 
 LEGACY_COLORS = {
@@ -35,9 +36,7 @@ def test_v2_upgrade_maps_live_and_frozen_colors_preserving_all_other_data(tmp_pa
         match.rooms.set_state(conn, match.room_id, 'lobby')
     path = tmp_path / 'v2.sqlite3'
     with match.db.read() as source, sqlite3.connect(path) as old:
-        # Migration 3 changes data only: the source's table layout is exactly v2.
-        source.backup(old)
-        old.execute('PRAGMA user_version=2')
+        legacy_copy(source, old, 2)
         old.execute('UPDATE players SET character_id=? WHERE id=?', (legacy, match.host))
         old.execute('UPDATE game_players SET character_id=? WHERE player_id=?', (legacy, match.host))
     old_db = Database(path)
@@ -51,10 +50,14 @@ def test_v2_upgrade_maps_live_and_frozen_colors_preserving_all_other_data(tmp_pa
             record['character_id'] = LEGACY_COLORS.get(record['character_id'], record['character_id'])
     for record in before_board:
         record['character_id'] = LEGACY_COLORS.get(record['character_id'], record['character_id'])
+    for record in expected['players']:
+        record['music_account_hash'] = None
+    for record in expected['songs']:
+        record['pool_kind'] = 'personal'
     old_db.initialize()
     old_db.initialize()
     with old_db.read() as conn:
-        assert conn.execute('PRAGMA user_version').fetchone()[0] == 3
+        assert conn.execute('PRAGMA user_version').fetchone()[0] == 4
         assert conn.execute('PRAGMA foreign_key_check').fetchall() == []
         assert records(conn) == expected  # Memberships, credentials, answers, points and receipts survive.
         assert match.rooms.authenticate(conn, match.room_id, match.token, match.now)['character_id'] == color

@@ -1,8 +1,9 @@
-"""Bounded public Apple metadata search, shared cache and global request budget.
+"""Shared metadata search cache, signed selections and local request budget.
 
-Apple documents its public search endpoint and approximately 20 requests/minute:
+The no-credentials Demo fallback uses public iTunes metadata (~20 requests/minute):
 https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/Searching.html
-Only metadata is read. This adapter never obtains or plays preview audio.
+Normal mode injects the developer catalog adapter instead. Only answer metadata
+is signed; listening evidence and playback URLs do not enter search responses.
 """
 import json
 import threading
@@ -45,9 +46,10 @@ def apple_search(query):
 
 
 class SongSearch:
-    def __init__(self, provider=apple_search, monotonic=time.monotonic, tokens=None):
+    def __init__(self, provider=apple_search, monotonic=time.monotonic, tokens=None, *, provider_name='apple', calls_per_minute=18):
         self.provider, self.monotonic = provider, monotonic
         self.tokens = tokens or SongTokens()
+        self.provider_name, self.calls_per_minute = provider_name, calls_per_minute
         self.cache = OrderedDict()
         self.calls = deque()
         self.lock = threading.Lock()
@@ -66,7 +68,7 @@ class SongSearch:
             if waiting is None:
                 while self.calls and self.calls[0] <= now - 60:
                     self.calls.popleft()
-                if len(self.calls) >= 18:
+                if len(self.calls) >= self.calls_per_minute:
                     raise DomainError('song_search_busy', 'Song search is busy. Try again in a minute.', 429,
                                       {'retry_after_seconds': 60})
                 self.calls.append(now)
@@ -101,7 +103,9 @@ class SongSearch:
         terms = query.casefold().split()
         local = []
         # Shared fixtures only: no membership, familiarity or room-specific pool filtering.
-        for row in conn.execute('SELECT id,title,artist,artists_json,artwork_url FROM demo_catalog ORDER BY title,id'):
+        room = conn.execute('SELECT mode FROM rooms WHERE id=?', (room_id,)).fetchone()
+        fixtures = [] if room and room['mode'] == 'normal' else conn.execute('SELECT id,title,artist,artists_json,artwork_url FROM demo_catalog ORDER BY title,id')
+        for row in fixtures:
             text = (row['title'] + ' ' + row['artist']).casefold()
             if all(term in text for term in terms):
                 local.append({'song_key': 'demo:' + row['id'], 'title': row['title'], 'artist': row['artist'],
@@ -112,7 +116,9 @@ class SongSearch:
             songs, source, cached = local, 'catalog', False
         else:
             songs, cached = self._remote(query.casefold())
-            source = 'apple'
+            source = self.provider_name
+        songs = [{key: value for key, value in song.items()
+                  if key in {'song_key', 'title', 'artist', 'artists', 'isrc', 'artwork_url'}} for song in songs]
         return {'songs': [{k: song[k] for k in ('title', 'artist', 'artwork_url')} |
                           {'token': self.tokens.issue(room_id, song, now)} for song in songs],
                 'source': source, 'cached': cached}

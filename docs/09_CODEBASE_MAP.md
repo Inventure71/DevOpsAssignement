@@ -2,9 +2,10 @@
 
 The backend is one Python process with two business domains. Directory
 boundaries describe responsibilities; they do not imply separate deployed
-services. `feature/frontend` adds the native browser client and a separate public
-metadata-search adapter. The four-song runtime catalog still supports lobby/data-flow
-checks only; real-song population and physical-device acceptance remain follow-up work.
+services. `feature/frontend` contains the native browser client, signed catalog
+search and the Normal Spotify/Apple provider checkpoint. The four-song Demo
+catalog still supports lobby/data-flow checks only; real-song Demo population,
+real five-account Spotify QA and physical-device acceptance remain follow-up work.
 
 ## Repository layout
 
@@ -18,7 +19,15 @@ backend/
   storage/                    SQLite connections and versioned SQL migrations
   rooms/                      Admission, identity, songs, familiarity, snapshots
   game/                       Planning, scoring, readiness, phases and rankings
-  catalog/                    Public metadata search/cache and signed song tokens
+  catalog/                    Public metadata search/cache, signed tokens and pure recording identity normalization
+  music/
+    spotify.py                PKCE, account verification and bounded top/recent imports
+    apple.py                  Developer catalog search/charts and recording resolution
+    http.py                   Bounded JSON transport and sanitized provider errors
+    media.py                  Allowed audio sources, delivery probes and recording matching
+    previews.py               Cached, bounded preview resolver
+    importer.py               Account imports, observed ownership and independent decoys
+    admissions.py             Expiring browser-bound receipts and background import jobs
 frontend/
   app.mjs                     Browser dependency composition and startup
   application/
@@ -26,6 +35,7 @@ frontend/
     actions.mjs               User commands and frozen retry payloads
     runtime.mjs               Non-overlapping polling and independent heartbeats
     screen-host.mjs           Screen selection, mounting and lifecycle
+    music-admission.mjs       OAuth navigation, import polling and connection recovery
   transport/client.mjs        JSON requests, cancellation and clock estimates
   audio/
     host.mjs                  Host lease, preload, decoded buffers and scheduling
@@ -35,7 +45,7 @@ frontend/
     timing.mjs                Elapsed/remaining deadline arithmetic
     results.mjs               Owner-only result projections and frozen rankings
     lobby-readiness.mjs       Pure lobby start eligibility
-  screens/                    Entry, lobby, round, results, help and history
+  screens/                    Entry/import progress, lobby, round, results, help/history
   components/                 Reusable character, controls, header and standings
   styles/                     Tokens, responsive composition and supporting pages
   assets/                     Local Nunito font/license and favicon
@@ -71,7 +81,11 @@ directory, or the directory selected by `DATA_DIR`.
 ## Backend ownership and data flow
 
 HTTP input passes through `backend/api/schemas.py` and handlers in `routes.py`.
-The API converts transport values into calls to `backend/application/coordinator.py`.
+Room APIs convert transport values into calls to `backend/application/coordinator.py`.
+`backend/api/music.py` owns pre-membership config/admission/callback/status/cancel
+transport, temporary cookies and canonical-origin validation.
+`backend/application/music_admission.py` rechecks an import receipt's validity
+inside the admission transaction, so expiry rolls back rather than orphaning a player.
 The coordinator orders room commands, checks authority and deadlines, and
 coordinates short transactions that touch both domains. It does not calculate
 scores or own the domains' SQL queries.
@@ -105,7 +119,10 @@ start the HTTP server.
 selects and mounts screens, owns their animation clock and destroys the outgoing
 screen. `transport/client.mjs` owns HTTP requests and server-clock estimates;
 `audio/host.mjs` owns host leases, bounded preload/decode and scheduled playback.
-Local drafts and accepted receipts never grant authority or change server points.
+`application/music-admission.mjs` owns OAuth navigation and receipt polling;
+`screens/music-import.mjs` renders progress and reconnection controls. Neither
+handles provider tokens. Local drafts and accepted receipts never grant
+authority or change server points.
 Pure `game/` modules project timing, results and lobby readiness; screens render
 those values and emit user intent. `components/site-header.mjs` owns navigation
 and the profile menu independently of game orchestration.
@@ -141,8 +158,9 @@ player's local listener-guess feedback. `styles/results.css` keeps their respons
 presentation separate from listening/lobby styles. All displays retain keyed
 characters across polling; submitted answers do not stop the waveform or audio.
 
-`backend/catalog/search.py` searches shared fixture metadata or Apple public metadata
-with bounded cache/budget and single-flight requests. `tokens.py` authenticates
+`backend/catalog/search.py` searches shared Demo fixtures or the configured
+Apple developer catalog, with a public iTunes fallback for no-credentials Demo.
+It owns bounded cache/budget and single-flight requests. `tokens.py` authenticates
 room-scoped selected facts. Search never consults hidden listener mappings and
 runs outside room command locks. Answer acceptance verifies the token, freezes
 song facts and calls pure scoring without provider I/O. Migration
@@ -150,9 +168,18 @@ song facts and calls pure scoring without provider I/O. Migration
 facts while retaining points/ranks. This adapter does not authorize personal music
 accounts or acquire playback audio.
 
+`backend/music/spotify.py` normalizes verified personal song facts;
+`apple.py` resolves recording previews and verified credited-artist aliases.
+`importer.py` coordinates bounded preview work and preserves unavailable observed
+ownership. `admissions.py` owns expiring PKCE receipts and its background worker
+queue, without SQL. The application's admission callback calls Rooms only after
+provider work completes. `backend/rooms/music.py` persists normalized imports
+through the Rooms repository; migration 004 adds account digests and pool kinds.
+Provider-specific details do not enter Game's selection/phase orchestration.
+
 The earlier `feature/demo-core` checkpoint preserves its temporary UI. Backend
-PR #1 is merged into `integration`; the current frontend and answer-contract changes
-remain uncommitted on `feature/frontend`.
+PR #1 is merged into `integration`; the redesigned UI checkpoint is committed at
+`a05e19e` on `feature/frontend`, with the provider checkpoint now uncommitted.
 
 ## Where to make a change
 
@@ -167,15 +194,16 @@ remain uncommitted on `feature/frontend`.
 | New HTTP field or command | `backend/api/schemas.py`, `backend/api/routes.py`, relevant service | API and affected service integration tests |
 | Catalog asset delivery | `backend/core/paths.py`, `backend/app.py` | HTTP resource and outside-working-directory startup tests |
 | Layout, visual style or browser interaction | `frontend/screens/`, `components/`, `styles/` | Browser interaction, standalone components and physical device checks |
-| Selected-song search and verification | `backend/catalog/`, `frontend/components/song-search.mjs` | Signature/cache/provider tests and browser typeahead checks |
+| Selected-song search and verification | `backend/catalog/`, `backend/music/apple.py`, `frontend/components/song-search.mjs` | Signature/cache/provider tests and browser typeahead checks |
+| Music authorization/import and previews | `backend/music/`, `backend/api/music.py`, `backend/rooms/music.py` | Provider/admission tests, five-player loop and real-account/audio QA |
 | Browser requests, receipts or clocks | `frontend/transport/`, `frontend/application/` | Native module tests and actual session/reconnect checks |
 | Schema or startup behavior | `backend/storage/`, `backend/app.py` | Temporary SQLite migration/restart integration tests |
 
-Future personal-history and preview providers need bounded adapters at the
-Rooms/import and application/preparation boundaries. They should return
-normalized values rather than spread provider-specific code through scoring,
-SQL repositories or presentation. Personal-history and preview-import adapters are not implemented; public metadata
-search is implemented independently.
+Additional personal-history sources belong behind the existing normalized
+adapters and verified admission boundary. They should return normalized values
+rather than spread provider-specific code through scoring, SQL repositories or
+presentation. File imports, multiple Spotify clients and other personal providers
+remain unimplemented; the active Normal path is one Spotify app plus Apple catalog.
 
 Frontend files use explicit `.mjs` extensions in imports and HTML entry scripts.
 The browser serves them directly; there is no npm manifest, install or build step.
