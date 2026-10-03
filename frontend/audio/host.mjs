@@ -158,7 +158,7 @@ export function createAudioController(
       if (playback.preloadingGame === gameId) {
         playback.preloadingGame = null;
         playback.preloadRetryAt = now() + 2000;
-        showNotice(`Audio preparation will retry: ${error.message}`);
+        showNotice("The music couldn’t load. We’ll try again automatically. Keep this screen open.");
       }
     }
   }

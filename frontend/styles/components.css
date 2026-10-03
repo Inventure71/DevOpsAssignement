@@ -73,8 +73,8 @@ svg {
   transform: translateX(-50%);
   padding: 14px 23px;
   border: 1px solid var(--line);
-  background: #fff;
-  color: var(--ink);
+  background: #242129;
+  color: #fff;
   border-radius: 20px;
   box-shadow: 0 10px 40px #17171719;
   max-width: min(90vw, 600px);

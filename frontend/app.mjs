@@ -65,8 +65,12 @@ function forgetRoom() {
   render();
 }
 const search = (query, { signal } = {}) =>
-  transport.api(transport.path(`/song-search?q=${encodeURIComponent(query)}`), {
+  transport.api(transport.path(`/song-search?q=${encodeURIComponent(query)}&local=true`), {
     signal,
+  });
+const resolveSong = (song, { signal } = {}) =>
+  transport.api(transport.path("/song-selection"), {
+    method: "POST", body: { token: song.token }, signal,
   });
 function viewModel() {
   return {
@@ -75,6 +79,7 @@ function viewModel() {
     audio: audio.status,
     now: transport.now(),
     search,
+    resolveSong,
   };
 }
 const screens = createScreenHost(root, {

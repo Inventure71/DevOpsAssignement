@@ -33,7 +33,7 @@ test("an unavailable LAN address blocks link sharing but still permits copying t
   const { action, notices } = session({ clipboard: { writeText: async (value) => { copied = value; } } }, null);
   await action("invite");
   assert.equal(copied, undefined);
-  assert.match(notices[0], /No network invite address/);
+  assert.match(notices[0], /invite link.*shared address/);
   await action("copy-code");
   assert.equal(copied, "ABC123");
 });

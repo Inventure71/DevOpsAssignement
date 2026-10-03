@@ -136,7 +136,8 @@ test("host retries a failed manifest after backoff, checks clips, then acknowled
     () => session.notices.length === 1,
     "failed preparation notice",
   );
-  assert.match(session.notices[0], /will retry.*Temporary network failure/);
+  assert.match(session.notices[0], /try again automatically/);
+  assert.doesNotMatch(session.notices[0], /Temporary network failure/);
   assert.equal(session.requestsFor("/audio").length, 1);
 
   session.clock.now = 1999;

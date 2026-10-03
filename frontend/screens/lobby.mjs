@@ -34,7 +34,7 @@ export function createLobbyScreen(emit) {
       </div></details>
     </div><div class="lobby-buttons"><button class="button button-primary start-game" type="button">Start game <span aria-hidden="true">→</span></button>
       <button class="button button-outline invite-friends" type="button">Invite friends <span aria-hidden="true">↗</span></button></div>
-      <p class="start-hint" id="start-hint"></p><div class="host-audio-controls"></div>
+      <p class="start-hint" id="start-hint" role="status"></p><div class="host-audio-controls"></div>
     </div>`;
   const find = (selector) => element.querySelector(selector);
   const cards = new Map();

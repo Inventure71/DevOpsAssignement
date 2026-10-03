@@ -127,7 +127,7 @@ test("an invalid OAuth callback shows verification failure without polling or ca
   assert.equal(new URL(s.urls[0]).searchParams.has("spotify"), false);
 });
 
-test("failed imports retain preview counts on the failure screen and stop polling", async () => {
+test("failed imports retain backend diagnostics in state and stop polling", async () => {
   const error = { code: "insufficient_playable_songs", message: "Not enough playable songs.",
     details: { candidate_count: 60, playable_count: 4 } };
   const s = session(() => ({ status: "failed", error }));
