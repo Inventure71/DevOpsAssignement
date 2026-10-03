@@ -22,7 +22,7 @@ export function createActions({
     const url = ui.state.room.invite_url;
     if (!copyCode && !url)
       throw new Error(
-        "No network invite address is available. Open the game using its LAN address or configure APP_PUBLIC_URL.",
+        "An invite link isn’t available yet. Ask the host to open the game at its shared address.",
       );
     if (!copyCode && navigator.share) {
       try {

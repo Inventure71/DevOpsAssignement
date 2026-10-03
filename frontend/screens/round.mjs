@@ -3,6 +3,7 @@ import "../components/player-card.mjs";
 import "../components/song-search.mjs";
 import "../components/music-waveform.mjs";
 import { syncKeyedGroups } from "../dom.mjs";
+import { roundPreparation } from "../game/preparation.mjs";
 import { roundTiming } from "../game/timing.mjs";
 
 export function createRoundScreen(emit) {
@@ -75,6 +76,7 @@ export function createRoundScreen(emit) {
         : "idle";
     if (sprite.getAttribute("mood") !== mood) sprite.setAttribute("mood", mood);
     if (vm.search) search.search = vm.search;
+    if (vm.resolveSong) search.resolve = vm.resolveSong;
     search.selection = submitted ? round.my_answer.song_guess : ui.songGuess;
     search.submitted = submitted;
     search.disabled = locked;
@@ -172,7 +174,7 @@ export function createRoundScreen(emit) {
       }
       if (timedOut && vm.state.me.is_host) {
         for (const [label, action] of [
-          ["Retry check-in", "retry-ready"],
+          ["Try again", "retry-ready"],
           ["Continue without missing players", "continue-ready"],
         ]) {
           const button = document.createElement("button");
@@ -220,20 +222,10 @@ export function createRoundScreen(emit) {
     } else if (game.phase === "countdown") {
       title = `${Math.max(1, Math.ceil((round.starts_at_ms - now) / 1000))}`;
       detail = "Get your ears ready";
-    } else if (game.phase === "setup") {
-      title = "Getting the music ready";
-      detail = `${game.preparation.checked} / ${game.preparation.total} clips checked`;
-    } else if (game.phase === "ready") {
-      const names = players
-        .filter((player) => game.missing_player_ids.includes(player.id))
-        .map((player) => player.nickname);
-      title =
-        now >= round.readiness_deadline_at_ms
-          ? "Check-in timed out"
-          : "Almost ready";
-      detail = names.length
-        ? `Waiting for ${names.join(", ")}`
-        : "Syncing everyone’s screens…";
+    } else {
+      const preparation = roundPreparation(game, players, now, model.state.me.is_host);
+      title = preparation?.title || "";
+      detail = preparation?.message || "";
     }
     if (title !== lastTitle) {
       heading.textContent = title;

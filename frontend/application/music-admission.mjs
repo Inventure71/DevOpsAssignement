@@ -63,7 +63,7 @@ export function createMusicAdmission({
       if (epoch !== generation) return;
       failures++;
       if ([401, 404, 410].includes(error.status)) {
-        ui.error = { message: error.message };
+        ui.error = { message: error.message, code: error.code };
         ui.musicImport = { status: "failed", error: ui.error };
         clearCallback();
       } else if (failures >= 3) {
