@@ -1,0 +1,65 @@
+id,artist_credit_id,artist_mbids,artist_credit_name,release_mbid,release_name,recording_mbid,recording_name,combined_lookup,score
+878075,303,b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d,The Beatles,aacc5091-c9b6-4a49-b7c3-87fffebfaefb,Sgt. Pepper’s Lonely Hearts Club Band,17c75743-6fc2-4c72-8152-25c5b45dfea7,A Day in the Life,thebeatlesadayinthelife,41
+631599,191,83d91898-7763-47d7-b03b-b92132375c47,Pink Floyd,7f6d3088-837d-495e-905f-be5c70ac2d82,The Dark Side of the Moon,7fef22bd-76aa-4803-b56b-93a5d6e70662,Money,pinkfloydmoney,1215
+786522,233,614e3804-7d34-41ba-857f-811bad7c2b7a,Dire Straits,2b3e222e-90c4-304e-a90a-1e07eac842df,Dire Straits,66a198cf-9ebc-4045-9737-fffb0cf3b7d4,Sultans of Swing,direstraitssultansofswing,1351
+860383,299,bd13909f-1c29-4c27-a874-d4aaf27c5b1a,Fleetwood Mac,89c1282b-257a-4a17-a870-433ce249f504,Rumours,248cc9d1-97ea-493e-84d4-4c5ec718683b,Dreams,fleetwoodmacdreams,1568
+631653,191,83d91898-7763-47d7-b03b-b92132375c47,Pink Floyd,8eb1532a-bccb-4cc4-b590-5be19386a6f7,The Wall,d3528f95-1a3f-45d2-a569-826740c0adee,Comfortably Numb,pinkfloydcomfortablynumb,2997
+631667,191,83d91898-7763-47d7-b03b-b92132375c47,Pink Floyd,f973f4e5-9c7d-4211-af65-ec628b0480f7,Wish You Were Here,feecff58-8ee2-4a7f-ac23-dc8ce7925286,Wish You Were Here,pinkfloydwishyouwerehere,2998
+786692,233,614e3804-7d34-41ba-857f-811bad7c2b7a,Dire Straits,4c618c14-0ed3-3b50-b32a-562e0f4cfe28,Brothers in Arms,e6c7f0d6-2b44-435c-b321-2fb6bff9a555,Money for Nothing,direstraitsmoneyfornothing,5444
+439918,138,64b94289-9474-4d43-8c93-918ccc1920d1,Billy Joel,c096904e-baa6-44d3-8a38-26ca251b5ed1,Piano Man,92ac918a-07f6-4f5e-b356-5897723310ca,Piano Man,billyjoelpianoman,6167
+669038,192,0383dadf-2a4e-4d10-a46a-e9e041da8eb3,Queen,a3fc41b4-4ab8-355a-94df-4f70654e455d,A Night at the Opera,b1a9c0e9-d987-4042-ae91-78d6a3267d69,Bohemian Rhapsody,queenbohemianrhapsody,9922
+878629,303,b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d,The Beatles,60ed52e9-7d16-44f4-b315-a1d4952000be,Let It Be,0cdc9b5b-b16b-4ff1-9f16-5b4ba76f1c17,Let It Be,thebeatlesletitbe,15373
+879247,303,b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d,The Beatles,d6e43525-76a2-42c9-ba26-3dc1b99fb6e3,Yesterday and Today,d671726d-4ef2-4567-9d92-acb7d89c3495,Yesterday,thebeatlesyesterday,56731
+152600,54,5b11f4ce-a62d-471e-81fc-a69a8278c7da,Nirvana,eccae410-7577-4daa-b602-92d305828331,Nevermind,5fb524f1-8cc8-4c04-a921-e34c0a911ea7,Smells Like Teen Spirit,nirvanasmellsliketeenspirit,60577
+879713,303,b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d,The Beatles,010a156d-7681-42a3-ba5e-829db5a6780d,The Beatles,2bc34fa0-e20f-4a1a-8a00-c7c672c40a6e,Hey Jude,thebeatlesheyjude,118696
+786504,233,614e3804-7d34-41ba-857f-811bad7c2b7a,Dire Straits,0b5131fa-92d9-48b7-b51b-534881650586,Communiqué,127889f5-e27c-4e03-abc0-bd72f60eb4af,Communiqué,direstraitscommunique,256
+786505,233,614e3804-7d34-41ba-857f-811bad7c2b7a,Dire Straits,0b5131fa-92d9-48b7-b51b-534881650586,Communiqué,20b1108a-eeb1-4af3-ba4d-c4a415260ebc,Portobello Belle,direstraitsportobellobelle,256
+439734,138,64b94289-9474-4d43-8c93-918ccc1920d1,Billy Joel,e291db33-9400-3253-ba90-39769484823a,52nd Street,2dcff4e3-5fcd-48c8-bf75-ea8549bb84f7,Zanzibar,billyjoelzanzibar,542
+439735,138,64b94289-9474-4d43-8c93-918ccc1920d1,Billy Joel,e291db33-9400-3253-ba90-39769484823a,52nd Street,39b67c97-87c3-4bdd-a2f6-3a9f28479e6f,52nd Street,billyjoel52ndstreet,542
+439736,138,64b94289-9474-4d43-8c93-918ccc1920d1,Billy Joel,e291db33-9400-3253-ba90-39769484823a,52nd Street,54598e8c-365a-489b-85dc-0d9e3b51bf09,Big Shot,billyjoelbigshot,542
+631591,191,83d91898-7763-47d7-b03b-b92132375c47,Pink Floyd,1786dd7d-169a-485f-b9f2-1ffd3763f6b5,Wish You Were Here,84a36ca4-8308-43a4-ad3e-498642d2af02,Have a Cigar / Wish You Were Here / Shine On You Crazy Diamond (Part 6) / Shine On You Crazy Diamond (Part 7) / Shine On You Crazy Diamond (Part 8) / Shine On You Crazy Diamond (Part 9),pinkfloydhaveacigarwishyouwerehereshineonyoucrazydiamondpart6shineonyoucrazydiamondpart7shineonyoucrazydiamondpart8shineonyoucrazydiamondpart9,544
+417184,129,5d02f264-e225-41ff-83f7-d9b1f0b1874a,Simon & Garfunkel,896485f6-f2f0-3e42-8221-640deb403ba2,Bridge Over Troubled Water,1b47010a-ecac-4455-966a-60c45c11bf7d,Baby Driver,simongarfunkelbabydriver,565
+417185,129,5d02f264-e225-41ff-83f7-d9b1f0b1874a,Simon & Garfunkel,896485f6-f2f0-3e42-8221-640deb403ba2,Bridge Over Troubled Water,2cb12f44-7e95-40db-8b7e-b34e97a3bc26,El cóndor pasa (If I Could),simongarfunkelelcondorpasaificould,565
+417186,129,5d02f264-e225-41ff-83f7-d9b1f0b1874a,Simon & Garfunkel,896485f6-f2f0-3e42-8221-640deb403ba2,Bridge Over Troubled Water,645acbbc-ffb9-4383-affa-6d5cfb052a32,The Boxer,simongarfunkeltheboxer,565
+417187,129,5d02f264-e225-41ff-83f7-d9b1f0b1874a,Simon & Garfunkel,896485f6-f2f0-3e42-8221-640deb403ba2,Bridge Over Troubled Water,a99c39dd-3bb1-4021-be2e-ecc6c6db8351,Bridge Over Troubled Water,simongarfunkelbridgeovertroubledwater,565
+253087,85,5f58803e-8c4c-478e-8b51-477f38483ede,Madness,55c821ab-4cd8-4290-b555-de0573434a7e,The Rise & Fall,0356ea05-c9b8-4c2f-91a1-c39cda52d8f1,Tomorrow’s (Just Another Day),madnesstomorrowsjustanotherday,686
+253088,85,5f58803e-8c4c-478e-8b51-477f38483ede,Madness,55c821ab-4cd8-4290-b555-de0573434a7e,The Rise & Fall,035f4cc2-72fd-4567-b12d-bee0c21793ed,Calling Cards,madnesscallingcards,686
+253089,85,5f58803e-8c4c-478e-8b51-477f38483ede,Madness,55c821ab-4cd8-4290-b555-de0573434a7e,The Rise & Fall,04d698b0-14c5-432f-8d2e-b0fe3560acd6,That Face,madnessthatface,686
+253090,85,5f58803e-8c4c-478e-8b51-477f38483ede,Madness,55c821ab-4cd8-4290-b555-de0573434a7e,The Rise & Fall,2733c3bf-12c1-40c6-9723-3ae216d5cbc6,Our House,madnessourhouse,686
+794405,236,b83bc61f-8451-4a5d-8b8e-7e9ed295e822,Elton John,83f7dd27-8657-416d-9830-9dac4b84b0ce,The Fox,2ec68329-a0b7-48ef-910e-bdcacd3e7430,Breaking Down Barriers,eltonjohnbreakingdownbarriers,687
+794406,236,b83bc61f-8451-4a5d-8b8e-7e9ed295e822,Elton John,83f7dd27-8657-416d-9830-9dac4b84b0ce,The Fox,3437821b-a06b-44b0-8c16-f603d28cbec3,Carla / Etude / Fanfare / Chloe,eltonjohncarlaetudefanfarechloe,687
+794407,236,b83bc61f-8451-4a5d-8b8e-7e9ed295e822,Elton John,83f7dd27-8657-416d-9830-9dac4b84b0ce,The Fox,3c178167-6912-49bf-85d1-b9df1924c073,Heels of the Wind,eltonjohnheelsofthewind,687
+794408,236,b83bc61f-8451-4a5d-8b8e-7e9ed295e822,Elton John,83f7dd27-8657-416d-9830-9dac4b84b0ce,The Fox,6887bb59-4f7c-44b1-86be-928e89753717,Just Like Belgium,eltonjohnjustlikebelgium,687
+556300,183,0d8b0d50-e4cf-4da4-965d-f24c58ec3268,Boston,3de8fb85-06c8-417b-a1e4-d8e212586851,Don’t Look Back,1c76cdaf-5a78-4139-8d52-5e75dda45820,Don’t Be Afraid,bostondontbeafraid,797
+556301,183,0d8b0d50-e4cf-4da4-965d-f24c58ec3268,Boston,3de8fb85-06c8-417b-a1e4-d8e212586851,Don’t Look Back,23772cd3-49f0-4f40-9475-f3d0f9cfdecc,It’s Easy,bostonitseasy,797
+556302,183,0d8b0d50-e4cf-4da4-965d-f24c58ec3268,Boston,3de8fb85-06c8-417b-a1e4-d8e212586851,Don’t Look Back,27ef2c81-a171-4e59-b7e1-95247aa0a609,A Man I’ll Never Be,bostonamanillneverbe,797
+556303,183,0d8b0d50-e4cf-4da4-965d-f24c58ec3268,Boston,3de8fb85-06c8-417b-a1e4-d8e212586851,Don’t Look Back,9d2a5b9c-0667-4748-98fe-fb77dac55716,Used to Bad News,bostonusedtobadnews,797
+473820,151,401c3991-b76b-499d-8082-9f2df958ef78,Phil Collins,0a813a99-f682-4af3-9ddd-4c600d71f890,"Hello, I Must Be Going!",126db47d-50de-480a-b4c3-d79b801d415d,Thru These Walls,philcollinsthruthesewalls,848
+473821,151,401c3991-b76b-499d-8082-9f2df958ef78,Phil Collins,0a813a99-f682-4af3-9ddd-4c600d71f890,"Hello, I Must Be Going!",4010de72-311f-4868-b955-2940f3da433c,You Can’t Hurry Love,philcollinsyoucanthurrylove,848
+473822,151,401c3991-b76b-499d-8082-9f2df958ef78,Phil Collins,0a813a99-f682-4af3-9ddd-4c600d71f890,"Hello, I Must Be Going!",4ce7f4ac-13a1-4a36-8dd4-5c98f18a723c,Don’t Let Him Steal Your Heart Away,philcollinsdontlethimstealyourheartaway,848
+473823,151,401c3991-b76b-499d-8082-9f2df958ef78,Phil Collins,0a813a99-f682-4af3-9ddd-4c600d71f890,"Hello, I Must Be Going!",5d8cb90c-47b8-4f10-85fb-92ae3935094f,It Don’t Matter to Me,philcollinsitdontmattertome,848
+403647,123,b5c2fdfc-d037-45b8-84f9-09ebb7ff8aa1,Cliff Richard,bb7c4d37-9bac-44c7-aaff-323876412c92,"Now You See Me, Now You Don’t",1671701f-4dbb-4a9a-89f1-1276ffdf4f34,Be in My Heart,cliffrichardbeinmyheart,863
+403648,123,b5c2fdfc-d037-45b8-84f9-09ebb7ff8aa1,Cliff Richard,bb7c4d37-9bac-44c7-aaff-323876412c92,"Now You See Me, Now You Don’t",29be966e-3e0f-472a-8c39-870b802eab0a,"It Has to Be You, It Has to Be Me",cliffrichardithastobeyouithastobeme,863
+403649,123,b5c2fdfc-d037-45b8-84f9-09ebb7ff8aa1,Cliff Richard,bb7c4d37-9bac-44c7-aaff-323876412c92,"Now You See Me, Now You Don’t",78088525-71e6-493e-a7d7-c9015743b807,The Only Way Out,cliffrichardtheonlywayout,863
+403650,123,b5c2fdfc-d037-45b8-84f9-09ebb7ff8aa1,Cliff Richard,bb7c4d37-9bac-44c7-aaff-323876412c92,"Now You See Me, Now You Don’t",829043ba-6845-4cdd-83fb-2f337ac9b2a4,Little Town,cliffrichardlittletown,863
+399219,119,a6b93c3c-88bc-431c-a46c-155dee9371aa,George Winston,e2a19cb2-1a8b-4b27-bed3-c1752e260165,December,0f5f6bd5-6c2f-45c6-95bb-2daa939e8234,Prelude,georgewinstonprelude,916
+399220,119,a6b93c3c-88bc-431c-a46c-155dee9371aa,George Winston,e2a19cb2-1a8b-4b27-bed3-c1752e260165,December,2339c0ca-72d4-4d17-89b0-64b95cbfa8eb,Peace,georgewinstonpeace,916
+399221,119,a6b93c3c-88bc-431c-a46c-155dee9371aa,George Winston,e2a19cb2-1a8b-4b27-bed3-c1752e260165,December,500a4397-d2d5-4453-8e07-3759f9feaf28,"Jesus, Jesus, Rest Your Head",georgewinstonjesusjesusrestyourhead,916
+399222,119,a6b93c3c-88bc-431c-a46c-155dee9371aa,George Winston,e2a19cb2-1a8b-4b27-bed3-c1752e260165,December,5a108f57-1c9e-4be0-935a-0207fd2a797a,Joy,georgewinstonjoy,916
+470266,146,6be2828f-6c0d-4059-99d4-fa18acf1a296,Janet Jackson,4216c729-f054-49bc-8b2a-5f794c17697c,Janet Jackson,06dc2630-7899-478a-a929-0e6650805552,Come Give Your Love to Me,janetjacksoncomegiveyourlovetome,919
+470267,146,6be2828f-6c0d-4059-99d4-fa18acf1a296,Janet Jackson,4216c729-f054-49bc-8b2a-5f794c17697c,Janet Jackson,7d140941-11df-4dec-a81f-4f91749066f2,Young Love,janetjacksonyounglove,919
+470268,146,6be2828f-6c0d-4059-99d4-fa18acf1a296,Janet Jackson,4216c729-f054-49bc-8b2a-5f794c17697c,Janet Jackson,88a07720-ee80-4ba3-9066-904b03ba69cf,Don’t Mess Up This Good Thing,janetjacksondontmessupthisgoodthing,919
+470269,146,6be2828f-6c0d-4059-99d4-fa18acf1a296,Janet Jackson,4216c729-f054-49bc-8b2a-5f794c17697c,Janet Jackson,98882fc8-fff2-4c51-a469-fb24e576674c,The Magic Is Working,janetjacksonthemagicisworking,919
+480868,153,070d193a-845c-479f-980e-bef15710653e,Prince,8b907c02-94e8-48ca-9ce5-c5f1ec7ad529,1999,10015f04-8ff1-4423-aef2-04f5de7b361c,Lady Cab Driver,princeladycabdriver,920
+480869,153,070d193a-845c-479f-980e-bef15710653e,Prince,8b907c02-94e8-48ca-9ce5-c5f1ec7ad529,1999,18fe52d0-d030-4430-8b63-81b682baa5cc,Little Red Corvette,princelittleredcorvette,920
+480870,153,070d193a-845c-479f-980e-bef15710653e,Prince,8b907c02-94e8-48ca-9ce5-c5f1ec7ad529,1999,193127ec-3c22-495c-8573-3c9cdabd1339,Free,princefree,920
+480871,153,070d193a-845c-479f-980e-bef15710653e,Prince,8b907c02-94e8-48ca-9ce5-c5f1ec7ad529,1999,4573c305-b308-44e2-aa33-bef6e871591c,Delirious,princedelirious,920
+834990,253,7249b899-8db8-43e7-9e6e-22f1e736024e,Def Leppard,0a0a4a8b-914d-4e79-a0da-eda08aa2a15b,Pyromania,087525c5-14bc-42b9-8ab7-9b19a9ac23e6,Stagefright,defleppardstagefright,1141
+834991,253,7249b899-8db8-43e7-9e6e-22f1e736024e,Def Leppard,0a0a4a8b-914d-4e79-a0da-eda08aa2a15b,Pyromania,1eeccc56-d368-40bf-950a-04dbf5caf6ee,Comin’ Under Fire,defleppardcominunderfire,1141
+834992,253,7249b899-8db8-43e7-9e6e-22f1e736024e,Def Leppard,0a0a4a8b-914d-4e79-a0da-eda08aa2a15b,Pyromania,230c22a7-52f9-4dbd-9e25-7fbdd41dd7f1,Die Hard the Hunter,deflepparddiehardthehunter,1141
+834993,253,7249b899-8db8-43e7-9e6e-22f1e736024e,Def Leppard,0a0a4a8b-914d-4e79-a0da-eda08aa2a15b,Pyromania,55dfcf72-9943-411e-a5b5-4bf736d435bc,Rock of Ages,defleppardrockofages,1141
+262209,89,79239441-bfd5-4981-a70c-55c3f15c1287,Madonna,5d9a5a55-e75f-4282-906b-1141f94f1885,Madonna,516012bf-ff23-4fb9-ae18-d70f35fa8603,Borderline,madonnaborderline,1279
+262210,89,79239441-bfd5-4981-a70c-55c3f15c1287,Madonna,5d9a5a55-e75f-4282-906b-1141f94f1885,Madonna,69c1c7e0-4bd5-40d5-9e35-857142fa64df,I Know It,madonnaiknowit,1279
+262211,89,79239441-bfd5-4981-a70c-55c3f15c1287,Madonna,5d9a5a55-e75f-4282-906b-1141f94f1885,Madonna,9a501c4e-c7cb-40f8-ae2d-6cd92807f9a8,Lucky Star,madonnaluckystar,1279
+262212,89,79239441-bfd5-4981-a70c-55c3f15c1287,Madonna,5d9a5a55-e75f-4282-906b-1141f94f1885,Madonna,a17afcb2-d983-40d4-af7a-c9a2d803fe48,Burning Up,madonnaburningup,1279
+436860,133,47c8a452-4efb-45b4-a0d3-df506dbe42b2,Wang Chung,7d323b0d-8c90-4d04-b86f-4193f7bd5c15,Points on the Curve,546dac4f-b9b5-4b01-8199-15050cba9738,Don’t Be My Enemy,wangchungdontbemyenemy,1280

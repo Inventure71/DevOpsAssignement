@@ -1,8 +1,10 @@
 """Bounded preview delivery checks and conservative recording identity matching."""
 
+import math
+
 from backend.catalog.identity import normalized_words, recording_title
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 
@@ -17,6 +19,27 @@ def allowed_preview_url(url):
     except ValueError:
         return False
     return host in {"audio-ssl.itunes.apple.com", "audio.itunes.apple.com"} or host.endswith(".mzstatic.com")
+
+
+def preview_cache_ttl(url, now, maximum=1200):
+    """Never reuse a provider URL beyond an explicit numeric signed expiry."""
+    ttl = maximum
+    if not isinstance(url, str):
+        return 0
+    for name, values in parse_qs(urlsplit(url).query).items():
+        if name.casefold() not in {'exp', 'expires'}:
+            continue
+        for value in values:
+            try:
+                expiry = float(value)
+                if not math.isfinite(expiry):
+                    continue
+                if expiry > 10**12:  # common Unix-millisecond form
+                    expiry /= 1000
+                ttl = min(ttl, max(0, expiry - now))
+            except ValueError:
+                continue
+    return ttl
 
 
 class _SafeRedirect(HTTPRedirectHandler):

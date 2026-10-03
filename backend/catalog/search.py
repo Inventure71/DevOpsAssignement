@@ -14,6 +14,8 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from backend.catalog.tokens import SongTokens
+from backend.catalog.identity import normalized_words
+from backend.catalog.store import public_song
 from backend.core.errors import DomainError
 
 
@@ -46,16 +48,22 @@ def apple_search(query):
 
 
 class SongSearch:
-    def __init__(self, provider=apple_search, monotonic=time.monotonic, tokens=None, *, provider_name='apple', calls_per_minute=18):
+    def __init__(self, provider=apple_search, monotonic=time.monotonic, tokens=None, *, provider_name='apple', calls_per_minute=18, store=None, provider_scope=None, clock=time.time):
         self.provider, self.monotonic = provider, monotonic
         self.tokens = tokens or SongTokens()
         self.provider_name, self.calls_per_minute = provider_name, calls_per_minute
+        self.store, self.clock = store, clock
+        self.provider_scope = provider_scope or provider_name
         self.cache = OrderedDict()
         self.calls = deque()
         self.lock = threading.Lock()
         self.inflight = {}
 
-    def _remote(self, query):
+    def _remote(self, query, provider_query=None):
+        if self.store:
+            persisted = self.store.query(self.provider_scope, query, self.clock())
+            if persisted is not None:
+                return persisted, True
         with self.lock:
             now = self.monotonic()
             cached = self.cache.get(query)
@@ -74,13 +82,18 @@ class SongSearch:
                 self.calls.append(now)
                 self.inflight[query] = threading.Event()
         if waiting is not None:
-            if not waiting.wait(timeout=5):
+            if not waiting.wait(timeout=10):
                 raise DomainError('song_search_unavailable', 'Song search is taking too long. Try again shortly.', 503)
-            return self._remote(query)
+            return self._remote(query, provider_query)
         try:
-            songs = self.provider(query)
+            raw = self.provider(provider_query or query)
+            if not isinstance(raw, list):
+                raise DomainError('song_search_unavailable', 'Song search returned invalid results.', 503)
+            songs = [entry for song in raw[:20] if (entry := public_song(song))]
+            if self.store:
+                songs = self.store.save_query(self.provider_scope, query, songs, self.clock())
             with self.lock:
-                self.cache[query] = (self.monotonic() + 300, songs)
+                self.cache[query] = (self.monotonic() + (300 if songs else 60), songs)
                 self._trim()
             return songs, False
         except DomainError as exc:
@@ -96,17 +109,19 @@ class SongSearch:
         while len(self.cache) > 128:
             self.cache.popitem(last=False)
 
-    def search(self, conn, room_id, query, now):
+    def search(self, conn, room_id, query, now, *, local_first=False):
         query = ' '.join(query.split())
         if not 2 <= len(query) <= 100:
             raise DomainError('invalid_song_query', 'Enter between 2 and 100 characters.')
-        terms = query.casefold().split()
+        terms = normalized_words(query).split()
+        if not terms:
+            raise DomainError('invalid_song_query', 'Enter a song or artist name.')
         local = []
         # Shared fixtures only: no membership, familiarity or room-specific pool filtering.
         room = conn.execute('SELECT mode FROM rooms WHERE id=?', (room_id,)).fetchone()
         fixtures = [] if room and room['mode'] == 'normal' else conn.execute('SELECT id,title,artist,artists_json,artwork_url FROM demo_catalog ORDER BY title,id')
         for row in fixtures:
-            text = (row['title'] + ' ' + row['artist']).casefold()
+            text = normalized_words(row['title'] + ' ' + row['artist'])
             if all(term in text for term in terms):
                 local.append({'song_key': 'demo:' + row['id'], 'title': row['title'], 'artist': row['artist'],
                               'artists': json.loads(row['artists_json']), 'artwork_url': row['artwork_url']})
@@ -114,11 +129,47 @@ class SongSearch:
                     break
         if local:
             songs, source, cached = local, 'catalog', False
+        elif local_first and self.store and (bulk := self.store.search(query, scope=self.provider_scope, now=self.clock())):
+            # Public bulk metadata is searchable without upstream traffic. A signed
+            # reference requires explicit resolution before it can become a guess.
+            return {'songs': [self.result(room_id, song, now, reference=song['song_key'].startswith('musicbrainz:'))
+                              for song in bulk], 'source': 'catalog', 'cached': True}
         else:
-            songs, cached = self._remote(query.casefold())
-            source = self.provider_name
+            indexed = self.store.search(query, selectable=True, scope=self.provider_scope, now=self.clock()) if self.store else []
+            complete = self.store.query(self.provider_scope, normalized_words(query), self.clock()) if self.store else None
+            # Prefix hits never establish coverage: cached 'track10'...'track19'
+            # must not hide an uncached exact 'track1' recording.
+            exact_title = any(normalized_words(song['title']) == normalized_words(query)
+                              for song in indexed)
+            if complete is not None:
+                covered_keys = {song['song_key'] for song in complete}
+                songs = (complete + [song for song in indexed if song['song_key'] not in covered_keys])[:20]
+                source, cached = 'catalog', True
+            elif exact_title:
+                songs, source, cached = indexed, 'catalog', True
+            else:
+                try:
+                    remote, cached = self._remote(normalized_words(query), query.casefold())
+                    songs = remote + [song for song in indexed if song['song_key'] not in
+                                      {entry['song_key'] for entry in remote}]
+                    songs, source = songs[:20], self.provider_name
+                except DomainError:
+                    if not indexed:
+                        raise
+                    songs, source, cached = indexed, 'catalog', True
         songs = [{key: value for key, value in song.items()
                   if key in {'song_key', 'title', 'artist', 'artists', 'isrc', 'artwork_url'}} for song in songs]
-        return {'songs': [{k: song[k] for k in ('title', 'artist', 'artwork_url')} |
-                          {'token': self.tokens.issue(room_id, song, now)} for song in songs],
+        return {'songs': [self.result(room_id, song, now) for song in songs],
                 'source': source, 'cached': cached}
+
+    def result(self, room_id, song, now, *, reference=False):
+        metadata = public_song(song)
+        if metadata is None:
+            raise DomainError('song_search_unavailable', 'Song search returned invalid metadata.', 503)
+        if reference:
+            metadata['_catalog_reference'] = True
+        result = {key: metadata[key] for key in ('title', 'artist', 'artwork_url')}
+        result['token'] = self.tokens.issue(room_id, metadata, now)
+        if reference:
+            result['resolve_required'] = True
+        return result

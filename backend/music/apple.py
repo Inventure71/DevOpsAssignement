@@ -80,7 +80,7 @@ class AppleCatalog:
             self._token, self._expires = token, now + 3600
             return token
 
-    def _get(self, resource, params):
+    def _get(self, resource, params, *, missing_ok=False):
         with self._lock:
             remaining = self._retry_at - self.clock()
         if remaining > 0:
@@ -90,6 +90,8 @@ class AppleCatalog:
         try:
             return self.transport.request("GET", url, headers={"Authorization": "Bearer " + self._developer_token()})
         except ProviderHttpError as error:
+            if missing_ok and error.status == 404:
+                return {'data': []}
             if error.status in (401, 403):
                 raise MusicProviderError("apple_authorization_failed", "Apple Music rejected the server's catalog credentials.", 503) from None
             if error.status == 429:
@@ -135,17 +137,21 @@ class AppleCatalog:
                     songs.append(song)
         return songs[:30]
 
-    def _matched(self, song, candidates):
+    def _matched(self, song, candidates, on_verified=None):
         probes = 0
         for candidate in candidates:
             if song.get("isrc") and candidate.get("isrc") and song["isrc"] != candidate["isrc"]:
                 continue
-            if not matches_recording(song, candidate) or not candidate.get("preview_url"):
+            if not matches_recording(song, candidate):
+                continue
+            if on_verified:
+                on_verified(candidate)
+            if not candidate.get("preview_url"):
                 continue
             probes += 1
             if self.probe(candidate["preview_url"]):
                 result = deepcopy(song)
-                result.update(preview_url=candidate["preview_url"],
+                result.update(preview_url=candidate["preview_url"], provider_song_key=candidate["song_key"],
                               artwork_url=song.get("artwork_url") or candidate.get("artwork_url"))
                 for credit in result.get("artists", []):
                     aliases = [artist["artist_key"] for artist in candidate["artists"]
@@ -160,13 +166,35 @@ class AppleCatalog:
         return None
 
     def resolve(self, song):
+        return self.resolve_verified(song)
+
+    def resolve_verified(self, song, on_verified=None):
+        """Report a verified catalog identity independently of audio delivery."""
         if song["song_key"].startswith("apple:track:") and allowed_preview_url(song.get("preview_url")):
+            if on_verified:
+                on_verified(song)
             return deepcopy(song) if self.probe(song["preview_url"]) else None
         # Even an ISRC hit must match title/version/lead artist: provider records
         # can be mislabeled and the same ISRC may have multiple catalog entries.
         if song.get("isrc"):
             payload = self._get("songs", {"filter[isrc]": song["isrc"], "include": "artists"})
-            matched = self._matched(song, self._songs(payload.get("data", [])))
+            matched = self._matched(song, self._songs(payload.get("data", [])), on_verified)
             if matched:
                 return matched
-        return self._matched(song, self.search(song["title"] + " " + song["artist"]))
+        return self._matched(song, self.search(song["title"] + " " + song["artist"]), on_verified)
+
+    def refresh(self, song, known, on_verified=None, on_invalid=None):
+        """Renew media by an already verified ID, without searching again."""
+        key = known['song_key']
+        if not key.startswith('apple:track:'):
+            return None
+        payload = self._get('songs', {'ids': key.removeprefix('apple:track:'),
+                                     'include': 'artists'}, missing_ok=True)
+        candidates = [row for row in self._songs(payload.get('data', [])) if row['song_key'] == key]
+        if candidates and (not matches_recording(song, candidates[0]) or
+                           (song.get('isrc') and candidates[0].get('isrc') and
+                            song['isrc'] != candidates[0]['isrc'])):
+            if on_invalid:
+                on_invalid(key)
+            return None
+        return self._matched(song, candidates, on_verified)

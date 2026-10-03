@@ -1,0 +1,15 @@
+{
+  "source_url": "https://data.metabrainz.org/pub/musicbrainz/canonical_data/musicbrainz-canonical-dump-20261003-080003/musicbrainz-canonical-dump-20261003-080003.tar.zst",
+  "license": "CC0 core canonical metadata",
+  "sample_method": "first 100000 complete CSV records from bounded compressed prefix; not representative of whole catalog",
+  "content_range": "bytes 0-16777215/2379610408",
+  "downloaded_bytes": 16777216,
+  "rows": 100000,
+  "csv_bytes": 23266046,
+  "elapsed_seconds": 1.68,
+  "starter_rows": 64,
+  "starter_sha256": "ffb13f4ad68d755d632e0e12150f362b19e8c772d5be6abf58c32898c90d45da",
+  "selection": "Curated familiar title/artist examples present in sampled first 100000 canonical rows; fill remaining slots by ascending public canonical priority. At most four recordings per artist; deduplicate title plus artist ID; skip malformed/composite credits and bracketed non-song labels. Curated membership never changes search ranking, which uses public canonical priority only.",
+  "license_url": "https://musicbrainz.org/doc/About/Data_License",
+  "dataset_documentation": "https://musicbrainz.org/doc/Canonical_MusicBrainz_data"
+}

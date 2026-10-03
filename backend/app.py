@@ -16,6 +16,7 @@ from backend.api.security import check_origin
 from backend.application.coordinator import Coordinator
 from backend.application.music_admission import MusicAdmissionHandler
 from backend.catalog.search import SongSearch
+from backend.catalog.store import CatalogStore
 from backend.core.config import Config
 from backend.core.errors import DomainError
 from backend.core.paths import DEMO_ASSETS_DIR, FRONTEND_DIR
@@ -54,14 +55,21 @@ def create_app(config=None, clock=None, game=None, background=True, song_search=
                                              config.spotify_redirect_uri)
     apple = apple_catalog or AppleCatalog(config.apple_team_id, config.apple_key_id,
                                          config.apple_private_key_path, config.apple_storefront)
-    song_search = song_search or (SongSearch(apple.search, calls_per_minute=60) if apple.configured else SongSearch())
-    importer = music_importer or MusicImporter(spotify, PreviewResolver(apple=apple), decoy_provider=apple.decoys)
+    catalog_store = CatalogStore(config.data_dir / 'catalog.sqlite3')
+    song_search = song_search or (SongSearch(apple.search, calls_per_minute=60,
+                                           provider_scope='apple:' + getattr(apple, 'storefront', config.apple_storefront))
+                                  if apple.configured else SongSearch(provider_scope='itunes:us'))
+    if song_search.store is None:
+        song_search.store = catalog_store
+    importer = music_importer or MusicImporter(spotify, PreviewResolver(apple=apple, store=catalog_store),
+                                               decoy_provider=apple.decoys)
 
     admissions = MusicAdmissions(spotify, importer, MusicAdmissionHandler(coordinator),
                                  enabled=bool(spotify.configured and apple.configured))
 
     @asynccontextmanager
     async def lifespan(application):
+        await asyncio.to_thread(catalog_store.initialize, seed=True)
         await asyncio.to_thread(coordinator.initialize)
         application.state.ready = True
 
@@ -96,6 +104,7 @@ def create_app(config=None, clock=None, game=None, background=True, song_search=
     application = FastAPI(title="Who's On Repeat", lifespan=lifespan)
     application.state.coordinator = coordinator
     application.state.song_search = song_search
+    application.state.catalog_store = catalog_store
     application.state.music_admissions = admissions
     application.state.ready = False
 

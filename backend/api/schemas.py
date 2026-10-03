@@ -70,3 +70,7 @@ class Answer(Body):
 class Controller(Body):
     tab_id: Annotated[str, Field(min_length=1, max_length=128)]
     takeover: bool = False
+
+
+class SongSelection(Body):
+    token: Annotated[str, Field(min_length=1, max_length=12000)]
