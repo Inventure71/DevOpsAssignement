@@ -24,7 +24,7 @@ class Coordinator:
     def __init__(self, config, clock=now_ms, game=None):
         self.config, self.clock = config, clock
         self.db = Database(config.database_path)
-        self.rooms = RoomsService()
+        self.rooms = RoomsService(playtest=config.playtest)
         self.game = game or GameService(setup_timeout_ms=config.setup_timeout_ms)
         self.phases = PhaseMachine(self.game)
         self.leases = AudioLeases()
@@ -139,7 +139,7 @@ class Coordinator:
                 'is_host': bool(p['is_host']), 'connected': connected.get(p['player_id'], False),
                 'music_status': 'ready' if lobby['mode'] == 'normal' else 'demo', 'song_count': counts.get(p['player_id'], 0)} for p in self.game.repo.roster(conn, latest['id'])]
         return {'server_now_ms': now,
-            'room': {'id': room_id, **{k: lobby[k] for k in ('code', 'mode', 'state', 'revision', 'maximum_players')}, 'expires_at_ms': lobby['expires_at_ms']},
+            'room': {'id': room_id, **{k: lobby[k] for k in ('code', 'mode', 'state', 'revision', 'maximum_players', 'minimum_players', 'playtest')}, 'expires_at_ms': lobby['expires_at_ms']},
             'me': {k: player[k] for k in ('id', 'nickname', 'character_id', 'is_host')}, 'players': players,
             'settings': self.settings(conn, room_id), 'game': game_view(self.game.repo, conn, latest, player['id'], bool(player['is_host']))}
 

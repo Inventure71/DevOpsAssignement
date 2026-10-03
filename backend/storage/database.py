@@ -7,7 +7,8 @@ from typing import Iterator
 
 from backend.core.paths import MIGRATIONS_DIR
 
-MIGRATIONS = ("001_initial.sql", "002_song_selections.sql", "003_blob_colors.sql", "004_music_admission.sql")
+MIGRATIONS = ("001_initial.sql", "002_song_selections.sql", "003_blob_colors.sql", "004_music_admission.sql",
+              "005_playtest.sql")
 
 
 class Database:

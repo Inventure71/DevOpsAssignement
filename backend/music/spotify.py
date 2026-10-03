@@ -96,8 +96,10 @@ class SpotifyClient:
             return self.transport.request(method, url, headers=headers, data=data)
         except ProviderHttpError as error:
             if error.status == 403:
-                raise MusicProviderError("spotify_account_not_allowed",
-                    "Spotify refused access. Check that this account is on the app's five-account allowlist.", 403) from None
+                operation = urlsplit(url).path
+                raise MusicProviderError("spotify_access_denied",
+                    "Spotify refused access. Check that your account is approved for this app and has granted the requested permissions.",
+                    403, {"provider": "spotify", "operation": operation, "http_status": 403}) from None
             if error.status == 401:
                 raise MusicProviderError("spotify_authorization_expired",
                     "Spotify authorization expired or was rejected. Connect Spotify again.", 401) from None

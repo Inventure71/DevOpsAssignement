@@ -80,7 +80,10 @@ function viewModel() {
 const screens = createScreenHost(root, {
   info: (vm) => createInfoScreen(vm.ui.page, navigate),
   entry: () => createEntryScreen(emit),
-  "music-import": () => createMusicImportScreen(() => emit("retry-import")),
+  "music-import": () => createMusicImportScreen(
+    () => emit("retry-import"),
+    () => emit("back-to-sign-in"),
+  ),
   restoring: () => ({
     element: element(
       '<section class="entry-loading"><repeat-character color="coral" mood="idle"></repeat-character><h1>Back to your room…</h1></section>',

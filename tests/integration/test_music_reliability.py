@@ -3,7 +3,21 @@ import pytest
 
 from backend.application.music_admission import MusicAdmissionHandler
 from backend.core.errors import DomainError
-from tests.integration.test_music_admission import MUSIC, begin, normal_session, song
+from tests.integration.test_music_admission import MUSIC, begin, finish, normal_session, song
+
+
+def test_unexpected_import_error_logs_source_frames_without_credentials(normal_session, monkeypatch, caplog):
+    def crash(token, include_decoys=False):
+        raise RuntimeError('private-token private-authorization-code')
+    monkeypatch.setattr(normal_session['importer'], 'import_account', crash)
+    host = normal_session['host']
+    with caplog.at_level('WARNING', logger='backend.music.admissions'):
+        result = finish(host, begin(host, 'Host'), 'private-authorization-code')
+    assert result['error']['code'] == 'music_import_failed'
+    assert 'RuntimeError' in caplog.text and 'crash' in caplog.text
+    assert 'private-token' not in caplog.text and 'private-authorization-code' not in caplog.text
+    with normal_session['app'].state.coordinator.db.read() as conn:
+        assert conn.execute('SELECT COUNT(*) FROM rooms').fetchone()[0] == 0
 
 
 def test_cancelled_running_import_cannot_create_a_room(normal_session):

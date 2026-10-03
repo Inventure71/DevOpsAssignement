@@ -78,6 +78,15 @@ test("unconfigured Spotify and mismatched callback origin stop before creating a
   assert.deepEqual(mismatch.navigation, []);
 });
 
+test("LAN sign-in never sends another device to the server's loopback address", async () => {
+  const s = session(() => ({ ...configured, requires_shared_url: true }));
+  s.ui.canonicalUrl = "http://127.0.0.1:8000/";
+  await assert.rejects(s.controller.start({}), /server computer only/);
+  assert.equal(s.ui.canonicalUrl, null);
+  assert.equal(s.requests.length, 1);
+  assert.deepEqual(s.navigation, []);
+});
+
 test("callback restores imported room only after a complete receipt, then stops polling", async () => {
   let calls = 0;
   const admission = { room_id: "new-room", player_id: "player", code: "ABC123" };
@@ -100,7 +109,9 @@ test("denied or failed imports show an actionable error and never admit or fall 
   const s = session(() => ({ status: "failed", error: { code: "denied", message: "Spotify authorization was denied." } }));
   await s.controller.resume();
   assert.equal(s.ui.error.code, "denied");
-  assert.equal(s.ui.musicImport, null);
+  assert.equal(s.ui.musicImport.status, "failed");
+  assert.equal(screenKey({ ui: s.ui }), "music-import");
+  assert.equal(s.ui.musicImport.error, s.ui.error);
   assert.deepEqual(s.admissions, []);
   assert.equal(s.jobs.size, 0);
   assert.equal(s.requests.length, 1);
@@ -110,10 +121,28 @@ test("an invalid OAuth callback shows verification failure without polling or ca
   const s = session(() => { throw new Error("Must not be called"); });
   await s.controller.resume("error");
   assert.match(s.ui.error.message, /verification failed/);
-  assert.equal(s.ui.musicImport, null);
+  assert.equal(s.ui.musicImport.status, "failed");
   assert.deepEqual(s.requests, []);
   assert.equal(s.jobs.size, 0);
   assert.equal(new URL(s.urls[0]).searchParams.has("spotify"), false);
+});
+
+test("failed imports retain preview counts on the failure screen and stop polling", async () => {
+  const error = { code: "insufficient_playable_songs", message: "Not enough playable songs.",
+    details: { candidate_count: 60, playable_count: 4 } };
+  const s = session(() => ({ status: "failed", error }));
+  await s.controller.resume();
+  assert.deepEqual(s.ui.musicImport, { status: "failed", error });
+  assert.equal(s.jobs.size, 0);
+  assert.equal(new URL(s.urls[0]).searchParams.has("spotify"), false);
+});
+
+test("expired receipts stay visible rather than silently returning to entry", async () => {
+  const s = session(() => { throw Object.assign(new Error("Sign-in expired."), { status: 401 }); });
+  await s.controller.resume();
+  assert.equal(s.ui.musicImport.status, "failed");
+  assert.equal(s.ui.musicImport.error.message, "Sign-in expired.");
+  assert.equal(s.jobs.size, 0);
 });
 
 test("connection failures retry finitely and manual retry resumes the existing receipt", async () => {
@@ -159,6 +188,15 @@ function actionsSession(api) {
   });
   return { model, action, oauth, admissions, errors };
 }
+
+test("admission errors stay in the form instead of producing a duplicate toast", async () => {
+  const s = actionsSession(async () => { throw new Error("Cannot join this room."); });
+  s.model.ui.screen = "join";
+  await s.action("admit");
+  assert.deepEqual(s.model.ui.error, { message: "Cannot join this room." });
+  assert.deepEqual(s.errors, []);
+  assert.equal(s.model.ui.pending, false);
+});
 
 test("host explicitly chooses Normal OAuth or Demo admission", async () => {
   const requests = [];

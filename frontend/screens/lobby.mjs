@@ -8,7 +8,8 @@ export function createLobbyScreen(emit) {
   element.className = "lobby-screen";
   element.innerHTML = `
     <div class="lobby-intro"><h1>Your room is ready!<span class="heading-spark" aria-hidden="true">✦</span></h1>
-      <p>Share the code with your friends and get ready to play.</p></div>
+      <p>Share the code with your friends and get ready to play.</p>
+      <p class="playtest-note" hidden>Playtest mode: two players can start, and a Spotify account can join more than once.</p></div>
     <div class="lobby-top">
       <div class="character-gathering" aria-hidden="true">
         <span class="floating-note note-one">♪</span><span class="floating-note note-two">♫</span>
@@ -67,6 +68,7 @@ export function createLobbyScreen(emit) {
     const { state, ui, audio } = vm;
     if (!state) return;
     const players = state.players;
+    find(".playtest-note").hidden = !state.room.playtest;
     find(".room-code").textContent = state.room.code;
     picker.value = ui.character || state.me.character_id;
     picker.disabled = Boolean(ui.pending);

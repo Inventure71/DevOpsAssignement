@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import RedirectResponse
 
 from backend.api.cookies import issue_cookie
+from backend.api.invitations import is_local_only
 from backend.api.schemas import MusicAdmission
 from backend.core.errors import DomainError
 from backend.music.admissions import LIFETIME_SECONDS
@@ -19,16 +20,24 @@ def create_music_router(coordinator, admissions, limits, *, search_provider):
     callback = urlsplit(c.config.spotify_redirect_uri)
     application_url = f'{callback.scheme}://{callback.netloc}/'
 
+    def requires_shared_url(request):
+        return is_local_only(callback.hostname) and not is_local_only(request.url.hostname)
+
     @router.get('/config')
-    def config():
+    def config(request: Request):
         return {'enabled': admissions.enabled, 'maximum_players': 5,
-                'application_url': application_url, 'search_provider': search_provider}
+                'playtest': c.config.playtest, 'minimum_players': c.rooms.minimum_players,
+                'application_url': application_url, 'search_provider': search_provider,
+                'requires_shared_url': requires_shared_url(request)}
 
     @router.post('/admissions')
     def begin(payload: MusicAdmission, request: Request, response: Response):
         limits.check('join' if payload.room_id else 'create', request.client.host, c.clock())
         if callback.path != COOKIE_PATH + '/callback':
             raise DomainError('music_callback_misconfigured', 'The configured Spotify callback must end in /api/music/spotify/callback.', 503)
+        if requires_shared_url(request):
+            raise DomainError('music_shared_url_required',
+                              'Spotify is configured for the server computer only. The host must finish network setup before other devices can sign in.', 503)
         if str(request.base_url).rstrip('/') != application_url.rstrip('/'):
             raise DomainError('music_origin_mismatch', 'Open the configured game address before Spotify sign-in.', 409,
                               {'application_url': application_url})

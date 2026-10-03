@@ -117,10 +117,11 @@ class FakeImporter:
 
 
 @pytest.fixture
-def normal_session(tmp_path):
+def normal_session(tmp_path, request):
     clock, spotify, apple = Clock(), FakeSpotify(), FakeApple()
     importer = FakeImporter(spotify, apple)
-    config = Config(tmp_path, spotify_redirect_uri="http://testserver/api/music/spotify/callback")
+    config = Config(tmp_path, spotify_redirect_uri="http://testserver/api/music/spotify/callback",
+                    playtest=getattr(request, 'param', False))
     app = create_app(config, clock=clock, background=False, spotify_client=spotify,
                      apple_catalog=apple, music_importer=importer)
     clients = []
@@ -236,6 +237,29 @@ def search_token(client, prefix, title):
     return result["songs"][0]["token"]
 
 
+@pytest.mark.parametrize('callback, origin, requires_shared', [
+    ('http://127.0.0.1:8000/api/music/spotify/callback', 'http://192.168.1.80:8000', True),
+    ('http://127.0.0.1:8000/api/music/spotify/callback', 'http://127.0.0.1:8000', False),
+    ('http://127.0.0.1:8000/api/music/spotify/callback', 'http://localhost:8000', False),
+    ('http://[::1]:8000/api/music/spotify/callback', 'http://192.168.1.80:8000', True),
+    ('https://game.example/api/music/spotify/callback', 'http://192.168.1.80:8000', False),
+])
+def test_music_config_explains_lan_sign_in_capability(tmp_path, callback, origin, requires_shared):
+    spotify, apple = FakeSpotify(), FakeApple()
+    app = create_app(Config(tmp_path, spotify_redirect_uri=callback), background=False,
+                     spotify_client=spotify, apple_catalog=apple, music_importer=FakeImporter(spotify, apple))
+    with TestClient(app, base_url=origin) as client:
+        config = client.get(MUSIC + '/config').json()
+        assert config['enabled'] is True
+        assert config['requires_shared_url'] is requires_shared
+        if requires_shared:
+            response = client.post(MUSIC + '/admissions', json={'nickname': 'LAN User', 'character_id': 'coral'})
+            assert response.status_code == 503
+            assert response.json()['error']['code'] == 'music_shared_url_required'
+            assert not spotify.authorizations
+            assert 'set-cookie' not in response.headers
+
+
 def test_pkce_receipt_cookie_wrong_state_cross_browser_and_replay(normal_session):
     session, host = normal_session, normal_session["host"]
     state = begin(host, "Host")
@@ -309,6 +333,7 @@ def test_normal_admission_preserves_real_overlap_and_prevents_duplicate_accounts
     assert session["importer"].imports == [("same-account", True), ("same-account", False), ("peer-account", False)]
 
 
+@pytest.mark.parametrize('normal_session', [False, True], indirect=True, ids=['standard', 'playtest'])
 def test_concurrent_pending_imports_cannot_exceed_five_players(normal_session):
     session, host = normal_session, normal_session["host"]
     room = admit(host, "Host", "host-account")
@@ -335,9 +360,27 @@ def test_concurrent_pending_imports_cannot_exceed_five_players(normal_session):
 
 
 @pytest.mark.parametrize('round_count', [5, 10, 15])
-def test_five_player_normal_game_completes_all_round_settings_private_results_and_rematch(normal_session, round_count):
+@pytest.mark.parametrize('normal_session', [False, True], indirect=True, ids=['five-distinct-accounts', 'two-shared-account'])
+def test_normal_game_completes_all_round_settings_private_results_and_rematch(normal_session, round_count):
     session = normal_session
-    room, clients, player_ids = five_players(session)
+    if session['config'].playtest:
+        room = admit(session['host'], 'Host', 'same-account')
+        peer = session['new_client']()
+        joined = admit(peer, 'Peer', 'same-account', room['room_id'])
+        clients = [session['host'], peer]
+        player_ids = [room['player_id'], joined['player_id']]
+        assert len(set(player_ids)) == 2
+        state = clients[0].get('/api/rooms/' + room['room_id'] + '/state').json()
+        assert state['room']['minimum_players'] == 2 and state['room']['playtest'] is True
+        assert all(player['song_count'] == 60 for player in state['players'])
+        c = session['app'].state.coordinator
+        with c.db.read() as conn:
+            snapshot = c.rooms.snapshot(conn, room['room_id'])
+            personal = [song for song in snapshot['songs'] if song['listeners']]
+            assert len(personal) == 60
+            assert all({owner['player_id'] for owner in song['listeners']} == set(player_ids) for song in personal)
+    else:
+        room, clients, player_ids = five_players(session)
     prefix, game_id, lease = prepare_game(session, room, round_count)
     totals = {player_id: 0 for player_id in player_ids}
     seen_candidates = set()
@@ -382,7 +425,7 @@ def test_five_player_normal_game_completes_all_round_settings_private_results_an
     assert final["game"]["playable_rounds"] == round_count
     with session["app"].state.coordinator.db.read() as conn:
         assert len(session["app"].state.coordinator.game.repo.attempts(conn, game_id)) == round_count
-        assert conn.execute("SELECT count(*) FROM answers WHERE game_id=?", (game_id,)).fetchone()[0] == round_count * 5
+        assert conn.execute("SELECT count(*) FROM answers WHERE game_id=?", (game_id,)).fetchone()[0] == round_count * len(clients)
     anonymous = session["new_client"]()
     history = anonymous.get("/api/room-codes/" + room["code"] + "/history").json()
     assert history["games"][0]["id"] == game_id
@@ -392,6 +435,25 @@ def test_five_player_normal_game_completes_all_round_settings_private_results_an
                               "room_revision": final["room"]["revision"], "lease_id": lease})
     assert response.status_code == 200 and response.json()["game_id"] != game_id
     assert len(session["importer"].imports) == before
+
+
+@pytest.mark.parametrize('normal_session,count', [(False, 2), (True, 1)], indirect=['normal_session'])
+def test_start_rejects_rosters_below_the_configured_minimum(normal_session, count):
+    session, host = normal_session, normal_session['host']
+    room = admit(host, 'Host', 'host-account')
+    prefix = '/api/rooms/' + room['room_id']
+    if count == 2:
+        admit(session['new_client'](), 'Peer', 'peer-account', room['room_id'])
+    lease = host.post(prefix + '/audio-controller', json={'tab_id': 'host-tab'}).json()['lease_id']
+    state = host.get(prefix + '/state').json()
+    minimum = 2 if session['config'].playtest else 3
+    assert state['room']['minimum_players'] == minimum
+    response = host.post(prefix + '/start', json={'request_id': str(uuid4()),
+                         'room_revision': state['room']['revision'], 'lease_id': lease})
+    assert response.status_code == 400 and response.json()['error']['code'] == 'player_count'
+    assert str(minimum) in response.json()['error']['message']
+    with session['app'].state.coordinator.db.read() as conn:
+        assert conn.execute('SELECT count(*) FROM games').fetchone()[0] == 0
 
 
 def test_missing_answer_and_explicit_nobody_differ_at_deadline(normal_session):

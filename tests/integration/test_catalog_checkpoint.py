@@ -114,7 +114,7 @@ def test_app_resources_work_when_started_outside_checkout(tmp_path, monkeypatch)
             assert response.content == module.read_bytes()
         with app.state.coordinator.db.read() as conn:
             # Startup must find and apply the real migration and catalog files.
-            assert conn.execute('PRAGMA user_version').fetchone()[0] == 4
+            assert conn.execute('PRAGMA user_version').fetchone()[0] == 5
             songs = list(conn.execute('SELECT preview_url, artwork_url FROM demo_catalog'))
             assert len(songs) == 4
         for song in songs:

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Request, Response
 from backend.catalog.search import SongSearch
 
 from backend.api.cookies import cookie_name, issue_cookie
+from backend.api.invitations import InviteLinks
 from backend.api.schemas import (
     Answer, Command, Continue, Controller, Create, Failure, Identity,
     Preload, Ready, Recovery, Settings, Start,
@@ -14,6 +15,7 @@ def create_router(coordinator, limits, song_search=None):
     router = APIRouter(prefix='/api')
     c = coordinator
     search = song_search or SongSearch()
+    invitations = InviteLinks(c.config.public_url, c.config.port)
 
     def run(request, room_id, operation, write=True):
         return c.execute(room_id, request.cookies.get(cookie_name(room_id)), operation, write)
@@ -60,6 +62,7 @@ def create_router(coordinator, limits, song_search=None):
     @router.get('/rooms/{room_id}/state')
     def state(room_id: str, request: Request, response: Response):
         result = run(request, room_id, lambda conn, player, now: c.state(conn, room_id, player, now), False)
+        result['room']['invite_url'] = invitations.for_room(str(request.base_url), result['room']['code'])
         # Renew cookie only up to the existing server-side retention anchor.
         token = request.cookies.get(cookie_name(room_id))
         response.set_cookie(cookie_name(room_id), token,

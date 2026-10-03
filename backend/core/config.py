@@ -18,6 +18,8 @@ class Config:
     apple_key_id: str = ''
     apple_private_key_path: str = ''
     apple_storefront: str = 'es'
+    public_url: str = ''
+    playtest: bool = False
 
     @property
     def database_path(self) -> Path:
@@ -31,6 +33,9 @@ class Config:
         secure = os.environ.get("COOKIE_SECURE", "false").lower()
         if secure not in {"true", "false", "1", "0"}:
             raise ValueError("COOKIE_SECURE must be true or false")
+        playtest = os.environ.get("PLAYTEST_MODE", "false").lower()
+        if playtest not in {"true", "false", "1", "0"}:
+            raise ValueError("PLAYTEST_MODE must be true or false")
         setup_timeout = int(os.environ.get("SETUP_TIMEOUT_MS", "60000"))
         if not 10_000 <= setup_timeout <= 120_000:
             raise ValueError("SETUP_TIMEOUT_MS must be between 10000 and 120000")
@@ -38,4 +43,5 @@ class Config:
                    os.environ.get('SPOTIFY_CLIENT_ID', ''), os.environ.get('SPOTIFY_CLIENT_SECRET', ''),
                    os.environ.get('SPOTIFY_REDIRECT_URI', f'http://127.0.0.1:{port}/api/music/spotify/callback'),
                    os.environ.get('APPLE_TEAM_ID', ''), os.environ.get('APPLE_KEY_ID', ''),
-                   os.environ.get('APPLE_PRIVATE_KEY_PATH', ''), os.environ.get('APPLE_STOREFRONT', 'es'))
+                   os.environ.get('APPLE_PRIVATE_KEY_PATH', ''), os.environ.get('APPLE_STOREFRONT', 'es'),
+                   os.environ.get('APP_PUBLIC_URL', ''), playtest in {'true', '1'})

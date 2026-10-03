@@ -49,7 +49,7 @@ def test_v1_choices_migrate_to_frozen_song_facts_and_keep_history(tmp_path):
     migrated.initialize()
     migrated.initialize()  # Repeated startup is safe.
     with migrated.read() as conn:
-        assert conn.execute('PRAGMA user_version').fetchone()[0] == 4
+        assert conn.execute('PRAGMA user_version').fetchone()[0] == 5
         assert conn.execute('PRAGMA foreign_key_check').fetchall() == []
         assert 'options_json' not in {row['name'] for row in conn.execute('PRAGMA table_info(rounds)')}
         answers = match.game.repo.answers(conn, rounds[0]['id'])

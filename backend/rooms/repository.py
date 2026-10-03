@@ -57,13 +57,14 @@ def add_player(
     nickname_key: str, character_id: str, music_status: str, token_hash: str,
     is_host: bool, now_ms: int,
     music_provider: str | None = None, music_account_hash: str | None = None,
+    shared_music_account: bool = False,
 ) -> None:
     conn.execute(
         """INSERT INTO players (id, room_id, nickname, nickname_key, character_id, music_status,
-           session_token_hash, is_host, joined_at_ms, last_seen_at_ms, music_provider, music_account_hash)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           session_token_hash, is_host, joined_at_ms, last_seen_at_ms, music_provider, music_account_hash, shared_music_account)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (player_id, room_id, nickname, nickname_key, character_id, music_status,
-         token_hash, int(is_host), now_ms, now_ms, music_provider, music_account_hash),
+         token_hash, int(is_host), now_ms, now_ms, music_provider, music_account_hash, int(shared_music_account)),
     )
 
 

@@ -46,10 +46,10 @@ export function createMusicAdmission({
         return;
       }
       if (result.status === "failed") {
-        ui.musicImport = null;
         ui.error = result.error || {
           message: "Spotify could not import your music. Please try again.",
         };
+        ui.musicImport = { status: "failed", error: ui.error };
         clearCallback();
         render();
         return;
@@ -63,8 +63,8 @@ export function createMusicAdmission({
       if (epoch !== generation) return;
       failures++;
       if ([401, 404, 410].includes(error.status)) {
-        ui.musicImport = null;
         ui.error = { message: error.message };
+        ui.musicImport = { status: "failed", error: ui.error };
         clearCallback();
       } else if (failures >= 3) {
         ui.musicImport = {
@@ -87,6 +87,10 @@ export function createMusicAdmission({
       const config = await api("/api/music/spotify/config");
       if (!config.enabled)
         throw new Error("Spotify sign-in is not configured on this server yet.");
+      if (config.requires_shared_url)
+        throw new Error(
+          "Spotify is configured for the server computer only. The host must finish network setup before other devices can sign in.",
+        );
       const application = new URL(config.application_url);
       if (
         !["http:", "https:"].includes(application.protocol) ||
@@ -120,10 +124,10 @@ export function createMusicAdmission({
       ui.page = "play";
       ui.error = null;
       if (callbackStatus === "error") {
-        ui.musicImport = null;
         ui.error = {
           message: "Spotify verification failed. Sign in again to retry.",
         };
+        ui.musicImport = { status: "failed", error: ui.error };
         clearCallback();
         render();
         return Promise.resolve();

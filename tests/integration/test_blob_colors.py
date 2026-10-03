@@ -52,12 +52,13 @@ def test_v2_upgrade_maps_live_and_frozen_colors_preserving_all_other_data(tmp_pa
         record['character_id'] = LEGACY_COLORS.get(record['character_id'], record['character_id'])
     for record in expected['players']:
         record['music_account_hash'] = None
+        record['shared_music_account'] = 0
     for record in expected['songs']:
         record['pool_kind'] = 'personal'
     old_db.initialize()
     old_db.initialize()
     with old_db.read() as conn:
-        assert conn.execute('PRAGMA user_version').fetchone()[0] == 4
+        assert conn.execute('PRAGMA user_version').fetchone()[0] == 5
         assert conn.execute('PRAGMA foreign_key_check').fetchall() == []
         assert records(conn) == expected  # Memberships, credentials, answers, points and receipts survive.
         assert match.rooms.authenticate(conn, match.room_id, match.token, match.now)['character_id'] == color

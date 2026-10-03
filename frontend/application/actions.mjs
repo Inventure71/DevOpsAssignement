@@ -19,21 +19,24 @@ export function createActions({
   let retryStart = null;
   async function share(copyCode = false) {
     const code = ui.state.room.code;
-    const url = new URL("/", location.origin);
-    url.searchParams.set("join", code);
+    const url = ui.state.room.invite_url;
+    if (!copyCode && !url)
+      throw new Error(
+        "No network invite address is available. Open the game using its LAN address or configure APP_PUBLIC_URL.",
+      );
     if (!copyCode && navigator.share) {
       try {
         await navigator.share({
           title: "Who's On Repeat",
           text: `Join my room: ${code}`,
-          url: url.href,
+          url,
         });
         return;
       } catch (error) {
         if (error.name === "AbortError") return;
       }
     }
-    const content = copyCode ? code : url.href;
+    const content = copyCode ? code : url;
     if (navigator.clipboard?.writeText) {
       try {
         await navigator.clipboard.writeText(content);
@@ -50,7 +53,7 @@ export function createActions({
     field.select();
     const copied = document.execCommand("copy");
     field.remove();
-    notice(copied ? "Invitation copied." : `Share this room code: ${code}`);
+    notice(copied ? "Invitation copied." : content);
   }
   async function action(name, payload) {
     if (name === "draft") {
@@ -75,6 +78,12 @@ export function createActions({
     }
     if (name === "retry-import") {
       await musicAdmission.resume();
+      return;
+    }
+    if (name === "back-to-sign-in") {
+      musicAdmission.stop();
+      ui.musicImport = null;
+      render();
       return;
     }
     if (name === "character" && !ui.state) {
@@ -239,7 +248,7 @@ export function createActions({
       }
     } catch (error) {
       if (name === "admit") ui.error = { message: error.message };
-      notice(error.message);
+      else notice(error.message);
       if (ui.roomId) await runtime.refresh({ fresh: true });
     } finally {
       ui.pending = false;

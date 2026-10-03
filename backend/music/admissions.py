@@ -1,15 +1,18 @@
 """Expiring, browser-bound PKCE receipts and background imports, without SQL."""
 import base64
 import hashlib
+import logging
 import secrets
 import threading
 import time
+import traceback
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from backend.core.errors import DomainError
 
 LIFETIME_SECONDS = 15 * 60
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -91,7 +94,12 @@ class MusicAdmissions:
                 receipt = self._receipts.get(credential)
                 if receipt:
                     self._fail(receipt, exc)
-        except Exception:
+        except Exception as exc:
+            # Log source frames, never exception text or locals: provider errors
+            # can contain tokens, authorization codes or personal account data.
+            logger.error('Unexpected music import failure (%s); frames=%s', type(exc).__name__,
+                         [(frame.filename, frame.lineno, frame.name)
+                          for frame in traceback.extract_tb(exc.__traceback__)])
             with self._lock:
                 receipt = self._receipts.get(credential)
                 if receipt:
@@ -127,6 +135,7 @@ class MusicAdmissions:
 
     @staticmethod
     def _fail(receipt, exc):
+        logger.warning('Music admission failed: code=%s', exc.code)
         receipt.status = 'failed'
         receipt.error = {'code': exc.code, 'message': exc.message, 'details': dict(exc.details),
                          'retryable': exc.status in (429, 503)}

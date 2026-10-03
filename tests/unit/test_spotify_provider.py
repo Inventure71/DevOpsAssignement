@@ -221,7 +221,7 @@ def test_decoys_are_independent_public_catalog_search_not_personal_history():
     assert len(songs) == 30 and offsets == [0, 10, 20]
 
 
-@pytest.mark.parametrize("status,code,api_status", [(403, "spotify_account_not_allowed", 403),
+@pytest.mark.parametrize("status,code,api_status", [(403, "spotify_access_denied", 403),
     (401, "spotify_authorization_expired", 401), (429, "spotify_rate_limited", 429),
     (500, "spotify_unavailable", 503)])
 def test_provider_failures_are_safe_structured_errors_without_retry_sleep(status, code, api_status):
@@ -231,6 +231,8 @@ def test_provider_failures_are_safe_structured_errors_without_retry_sleep(status
         client(Transport(fail)).profile("secret-user-token")
     assert error.value.code == code and error.value.status == api_status
     assert "secret-user-token" not in str(error.value)
+    if status == 403:
+        assert error.value.details == {"provider": "spotify", "operation": "/v1/me", "http_status": 403}
     if status == 429:
         assert error.value.details == {"retry_after_seconds": 12}
 

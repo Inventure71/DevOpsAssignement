@@ -81,7 +81,7 @@ rules are satisfied. Public catalog search does not add songs to that game pool.
 |---|---|---|
 | `POST /api/rooms` | Demo admission | Create Demo room with host nickname/character; issue host cookie. Normal requires the Spotify admission flow below |
 | `GET /api/room-codes/{code}` | Code holder | Resolve room ID/mode/capacity/join availability; no hidden pool or host privileges |
-| `GET /api/music/spotify/config` | Entry browser | Configuration availability, maximum players, canonical application URL and search provider; no secrets |
+| `GET /api/music/spotify/config` | Entry browser | Configuration availability, minimum/maximum players, playtest flag, canonical application URL, search provider and `requires_shared_url` for LAN browsers facing a loopback callback; no secrets |
 | `POST /api/music/spotify/admissions` | Same-origin JSON, admission checks | Begin cookie-bound PKCE for nickname/character and optional target room; return Spotify authorization URL |
 | `GET /api/music/spotify/callback` | Matching admission cookie and one-use OAuth state | Queue verified import, redirect to processing UI; invalid callback goes to a generic verification error |
 | `GET /api/music/spotify/status` | Matching admission cookie | Pending/processing/failed/complete receipt; complete issues room cookie and returns room/code/player IDs |
@@ -474,7 +474,15 @@ and imports in the background. Receipts are bounded to 64 and queued/processing
 imports to eight, with two workers. Each import resolves previews with bounded
 outbound work outside SQLite transactions. Admission finally revalidates room
 lobby/capacity/nickname/account constraints atomically. At most one verified
-Spotify account identity is admitted per room.
+Spotify account identity is admitted per room by default. With the explicit
+server setting `PLAYTEST_MODE=true`, the minimum roster is two and the same
+verified account can join under distinct nicknames and independent credentials.
+Room state publishes `minimum_players` and `playtest` for lobby readiness and
+the visible testing notice. Shared-account admissions retain the account hash
+and a persisted exemption from the ordinary unique-account index; turning the
+setting off restores duplicate rejection against those identities as well.
+Both player IDs remain listeners to their shared recordings. Provider admission,
+song counts, room capacity, preloading and scoring still run normally.
 
 Status returns `pending`, `processing`, `failed` with a sanitized error, or
 `complete` with `admission: {room_id, code, player_id}`. A complete status retry

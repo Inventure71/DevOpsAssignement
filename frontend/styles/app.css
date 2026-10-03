@@ -768,27 +768,6 @@ svg {
   font-size: 25px;
   margin-top: 32px;
 }
-.toast-stack {
-  position: fixed;
-  left: 50%;
-  bottom: 24px;
-  transform: translateX(-50%);
-  z-index: 40;
-  width: min(520px, calc(100vw - 32px));
-  pointer-events: none;
-}
-.toast {
-  background: #252525;
-  color: white;
-  padding: 16px 22px;
-  border-radius: 22px;
-  box-shadow: 0 8px 30px #1112;
-  font-size: 15px;
-  line-height: 1.4;
-  text-align: center;
-  animation: toast-in 0.22s ease-out;
-  pointer-events: auto;
-}
 .error-banner {
   background: #fff0ea;
   color: #8c4236;
@@ -821,16 +800,6 @@ svg {
   }
   95% {
     rotate: -15deg;
-  }
-}
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    translate: 0 8px;
-  }
-  to {
-    opacity: 1;
-    translate: 0 0;
   }
 }
 @media (min-width: 1100px) and (max-height: 850px) {
@@ -1264,4 +1233,7 @@ svg {
   color: var(--muted);
   line-height: 1.6;
   margin: 16px 0 24px;
+}
+.music-import-screen[data-status="failed"] p:first-of-type {
+  color: var(--ink);
 }

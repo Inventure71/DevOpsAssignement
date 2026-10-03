@@ -38,6 +38,16 @@ schema, and `/health/live` and `/health/ready` the process/initialization checks
 `/ui-lab` displays isolated design fixtures and standalone character components;
 it does not create a real room or start a match.
 
+For friends on the same Wi-Fi, open this computer's LAN address instead of
+`localhost` (for example `http://192.168.1.80:8000/`). The server already listens
+on all interfaces. **Invite friends** includes the room code and uses that
+reachable origin; when the host opens a loopback address, the server detects its
+outbound private IPv4 address instead. Allow Python through the computer's
+firewall if prompted. Guest Wi-Fi isolation can prevent devices from connecting.
+Set `APP_PUBLIC_URL` to override detection for multiple interfaces, a proxy, or
+HTTPS hosting. LAN HTTP supports Demo joining; Normal Spotify admission still
+requires the shared HTTPS address and registered callback described below.
+
 Create a Demo room through `POST /api/rooms` with a nickname and character, then
 join using its room code from separate browser sessions. The API sets a
 room-specific identity cookie; keep that cookie when requesting room state or
@@ -89,8 +99,10 @@ unavailable rather than being guessed from a display string. See
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `8000` | HTTP port; binds to `0.0.0.0` |
+| `APP_PUBLIC_URL` | empty | Reachable HTTP(S) origin for invitations; otherwise use the request origin or detect LAN IPv4 for loopback requests |
 | `DATA_DIR` | `./data` | SQLite directory |
 | `COOKIE_SECURE` | `false` | Set `true` when served over HTTPS |
+| `PLAYTEST_MODE` | `false` | Allow two-player games and the same Spotify account in separate player sessions; lobby displays a playtest notice |
 | `SETUP_TIMEOUT_MS` | `60000` | Bounded full-game preload window (10000–120000 ms) |
 | `ROOM_CREATE_LIMIT` | `10` | Room creation attempts per client address per minute |
 | `ROOM_JOIN_LIMIT` | `30` | Join attempts per client address per minute |
@@ -109,6 +121,21 @@ PoC's callback `http://127.0.0.1:8765/callback` is different and does not regist
 the application's callback. Five real accounts must be approved in the same
 Spotify development app. Five separate devices need a reachable HTTPS game URL
 and its exact callback, rather than the server computer's loopback address.
+When a LAN device opens a server configured with a loopback callback, the UI
+explains that multiplayer Spotify sign-in needs network setup; it never sends
+that device to `127.0.0.1`. A local `localhost` browser can still follow the
+configured loopback address for sign-in on the server computer.
+
+If Spotify displays **Invalid redirect URI**, register exactly
+`http://127.0.0.1:8000/api/music/spotify/callback` for local testing, or the exact
+HTTPS `SPOTIFY_REDIRECT_URI` for shared-device testing. The redirect URI must
+match the dashboard entry, including its path. An authorization link reaching
+Spotify's login page does not verify the callback registration or allowlist;
+check the round trip after signing in with an approved account.
+Failed imports stay on the music-loading screen with the provider's safe error
+message and available preview counts. Return to sign-in explicitly to retry.
+Server diagnostics record failure codes and, for unexpected exceptions, source
+frames without exception messages, credentials, or personal listening data.
 
 For Normal mode, fill an ignored `.env` using [.env.example](.env.example), then:
 
@@ -118,6 +145,15 @@ source .env
 set +a
 python -m backend
 ```
+
+For a two-device playtest with one Spotify account, set `PLAYTEST_MODE=true`
+before starting the server. Use separate devices or browser sessions and different
+nicknames. Both players still complete Spotify sign-in and preview checks, and
+each receives a separate room credential. Shared songs count both players as
+listeners. The ten-song minimum, audio checks and room capacity still apply.
+The lobby displays a playtest notice. Set the flag back to `false` and restart
+to restore three-player starts and duplicate-account rejection; existing account
+hashes remain available to that rejection check.
 
 SQLite lives at **`DATA_DIR/whos_on_repeat.sqlite3`**. Startup applies versioned
 migrations, seeds the catalog and recovers interrupted games automatically.

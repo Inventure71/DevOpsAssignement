@@ -36,6 +36,10 @@ def _token_hash(token: str) -> str:
 
 
 class RoomsService:
+    def __init__(self, *, playtest=False):
+        self.playtest = playtest
+        self.minimum_players = 2 if playtest else 3
+
     def room(self, conn: sqlite3.Connection, room_id: str, now_ms: int) -> dict:
         room = repository.room(conn, room_id)
         if room is None:
@@ -103,13 +107,14 @@ class RoomsService:
     def _add_player(self, conn, room_id, nickname, nickname_key, character_id, now_ms, *, is_host, imported=None):
         player_id, token = secrets.token_hex(16), secrets.token_urlsafe(32)
         account_hash = _token_hash(room_id + ':spotify:' + imported['account_id']) if imported else None
-        if account_hash and repository.music_account_taken(conn, room_id, account_hash):
+        if account_hash and not self.playtest and repository.music_account_taken(conn, room_id, account_hash):
             raise DomainError('music_account_taken', 'That Spotify account has already joined this room.', 409)
         repository.add_player(
             conn, room_id=room_id, player_id=player_id, nickname=nickname,
             nickname_key=nickname_key, character_id=character_id, music_status='ready' if imported else 'demo',
             token_hash=_token_hash(token), is_host=is_host, now_ms=now_ms,
             music_provider='spotify' if imported else None, music_account_hash=account_hash,
+            shared_music_account=bool(imported and self.playtest),
         )
         if imported:
             music.store(conn, room_id, player_id, imported['songs'])
@@ -166,6 +171,7 @@ class RoomsService:
                    for p in repository.players(conn, room_id)]
         return {"room_id": room_id, "code": room["code"], "mode": room["mode"], "state": room["state"],
                 "maximum_players": MAX_PLAYERS[room['mode']],
+                "minimum_players": self.minimum_players, "playtest": self.playtest,
                 "revision": room["revision"], "players": players,
                 "expires_at_ms": (room["last_completed_at_ms"] if room["last_completed_at_ms"] is not None else room["created_at_ms"]) + RETENTION_MS}
 
@@ -187,6 +193,8 @@ class RoomsService:
         if room["mode"] == "demo":
             songs.extend(demo.decoys(conn))
         return {"room_id": room_id, "revision": room["revision"], "mode": room["mode"],
+                "minimum_players": self.minimum_players, "maximum_players": MAX_PLAYERS[room['mode']],
+                "playtest": self.playtest,
                 "host_id": next((p["id"] for p in roster if p["is_host"]), None), "players": roster, "songs": songs}
 
     def set_state(self, conn: sqlite3.Connection, room_id: str, state: str) -> None:

@@ -23,8 +23,9 @@ class GameService:
             raise DomainError('host_required', 'Only the host can start.', 403)
         if snapshot['revision'] != payload['room_revision']:
             raise DomainError('stale_revision', 'The lobby changed. Refresh and try again.', 409)
-        if not 3 <= len(snapshot['players']) <= 10:
-            raise DomainError('player_count', 'A game needs 3–10 players.')
+        minimum, maximum = snapshot.get('minimum_players', 3), snapshot.get('maximum_players', 10)
+        if not minimum <= len(snapshot['players']) <= maximum:
+            raise DomainError('player_count', f'A game needs {minimum}–{maximum} players.')
         if any(sum(any(l['player_id'] == p['id'] for l in s['listeners']) for s in snapshot['songs']) < 10 for p in snapshot['players']):
             raise DomainError('insufficient_songs', 'Every player needs at least ten songs.')
         if any(g['room_id'] == snapshot['room_id'] for g in self.repo.active(conn)):
@@ -36,7 +37,7 @@ class GameService:
         self.repo.insert(conn, 'games', {
             'id': game_id, 'room_id': snapshot['room_id'], 'room_revision': snapshot['revision'],
             'start_request_id': payload['request_id'], 'status': 'preparing', 'phase': 'setup',
-            'settings_json': encode({**settings, 'mode': snapshot['mode']}),
+            'settings_json': encode({**settings, 'mode': snapshot['mode'], 'playtest': snapshot.get('playtest', False)}),
             'songs_snapshot_json': encode(snapshot['songs']), 'round_plan_json': encode(plan),
             'started_at_ms': now, 'phase_ends_at_ms': now + 5000,
         })
