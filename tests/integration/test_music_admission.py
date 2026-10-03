@@ -231,10 +231,11 @@ def search_token(client, prefix, title):
     response = client.get(prefix + "/song-search", params={"q": title})
     assert response.status_code == 200, response.text
     result = response.json()
-    assert result["source"] == "apple"
-    assert len(result["songs"]) == 1
-    assert set(result["songs"][0]) == {"title", "artist", "artwork_url", "token"}
-    return result["songs"][0]["token"]
+    assert result["source"] in {"apple", "catalog"}
+    assert result["songs"]
+    assert all(set(row) == {"title", "artist", "artwork_url", "token"} for row in result["songs"])
+    chosen = next(row for row in result["songs"] if row["title"] == title)
+    return chosen["token"]
 
 
 @pytest.mark.parametrize('callback, origin, requires_shared', [

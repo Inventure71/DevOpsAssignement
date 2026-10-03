@@ -9,6 +9,12 @@ htmlcov/
 # App data (SQLite lives here)
 data/
 
+# Public catalog setup artifacts, including custom DATA_DIR locations
+catalog-downloads/
+catalog.sqlite3
+catalog.sqlite3-*
+canonical_musicbrainz_data.csv*
+
 # Secrets: never commit keys
 .env
 *.p8

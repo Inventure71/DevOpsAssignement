@@ -257,3 +257,28 @@ python -m tools.load_demo
 It measures the actual ASGI state endpoint for 20 rooms × 10 players, with
 400 requests and 20 workers. It excludes real network and browser delivery,
 so its measurements describe server capacity rather than deployment acceptance.
+
+The optimized catalog keeps public metadata and expiring preview references in
+`DATA_DIR/catalog.sqlite3`, separate from private room listening history. A small
+CC0 starter catalog works immediately; the streaming import tool can expand it
+without per-search provider requests. See [catalog optimization](docs/14_CATALOG_OPTIMIZATION.md)
+for the bulk import command and the additive local search/selection API.
+
+To populate the local public search catalog from the pinned official metadata dump:
+
+```bash
+python tools/setup_catalog.py --info
+python tools/setup_catalog.py --all
+```
+
+Setup requires `zstd` on `PATH`. It downloads the roughly 2.38 GB metadata archive
+once, verifies the published SHA-256, and streams the needed CSV fields into
+`DATA_DIR/catalog.sqlite3` without extracting the roughly 7.70 GB CSV. Downloads
+are resumable and live under `DATA_DIR/catalog-downloads/`; both downloads and
+the generated database are ignored by Git. Without `--all`, import is limited to
+100,000 input rows, but the archive download is still the same size. No audio,
+provider verification, or private listening history is downloaded by this setup.
+
+For the combined device test checkout, run `bash tools/run_playtest.sh` to load
+the existing local provider configuration, enable two-player testing and print
+the shared device URL. See [the device playtest guide](docs/16_DEVICE_PLAYTEST.md).

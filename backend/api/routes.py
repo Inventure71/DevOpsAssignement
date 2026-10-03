@@ -1,12 +1,13 @@
 """Map validated HTTP commands to application and domain services."""
 from fastapi import APIRouter, Request, Response
 from backend.catalog.search import SongSearch
+from backend.catalog.selection import CatalogSelections
 
 from backend.api.cookies import cookie_name, issue_cookie
 from backend.api.invitations import InviteLinks
 from backend.api.schemas import (
     Answer, Command, Continue, Controller, Create, Failure, Identity,
-    Preload, Ready, Recovery, Settings, Start,
+    Preload, Ready, Recovery, Settings, Start, SongSelection,
 )
 from backend.core.errors import DomainError
 
@@ -71,11 +72,17 @@ def create_router(coordinator, limits, song_search=None):
         return result
 
     @router.get('/rooms/{room_id}/song-search')
-    def song_search_results(room_id: str, q: str, request: Request):
+    def song_search_results(room_id: str, q: str, request: Request, local: bool = False):
         run(request, room_id, lambda conn, player, now: None, False)
         # Authenticate before searching. Provider I/O never holds the room lock.
         with c.db.read() as conn:
-            return search.search(conn, room_id, q, c.clock())
+            return search.search(conn, room_id, q, c.clock(), local_first=local)
+
+    @router.post('/rooms/{room_id}/song-selection')
+    def resolve_song_selection(room_id: str, payload: SongSelection, request: Request):
+        run(request, room_id, lambda conn, player, now: None, False)
+        # Public-provider matching is outside room locks and DB transactions.
+        return CatalogSelections(search).resolve(room_id, payload.token, c.clock())
 
     @router.post('/rooms/{room_id}/heartbeat')
     def heartbeat(room_id: str, request: Request):
@@ -138,6 +145,8 @@ def create_router(coordinator, limits, song_search=None):
             values = {'song_guess': None, 'who_player_ids': payload.who_player_ids}
             if payload.song_guess_token is not None:
                 values['song_guess'], values['_token_expires_ms'] = search.tokens.decode(payload.song_guess_token, room_id)
+                if values['song_guess'].get('_catalog_reference'):
+                    raise DomainError('song_selection_unresolved', 'Select the song again before submitting.', 409)
             return c.game.answer(conn, game_id, round_id, player['id'], values, now)
         return run(request, room_id, operation)
 
