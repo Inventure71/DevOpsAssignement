@@ -10,7 +10,6 @@ const END_REASONS = {
     "A player did not check in before the match began.",
   host_preparation_timeout: "The audio could not be prepared in time.",
   too_many_skipped: "More than 30% of the planned songs could not be played.",
-  pool_exhausted: "There were not enough playable songs to finish the match.",
   host_left: "The host left the room.",
   host_ended: "The host ended the match.",
 };
@@ -33,7 +32,6 @@ export function createResultsScreen(emit) {
     const finished = ["completed", "aborted"].includes(game.status);
     const showingReveal =
       game.phase === "reveal" && Boolean(game.round?.reveal);
-    root.dataset.phase = showingReveal ? "reveal" : "leaderboard";
     reveal.element.hidden = !showingReveal;
     standings.element.hidden = showingReveal;
     find(".results-actions").hidden = !finished;

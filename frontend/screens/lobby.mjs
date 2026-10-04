@@ -26,15 +26,17 @@ export function createLobbyScreen(emit) {
     <div class="lobby-roster"><h2 class="roster-title">Players</h2><div class="lobby-player-row"></div>
       <button class="invite-tile" type="button"><span aria-hidden="true">+</span>Invite a friend</button></div>
     <div class="lobby-footer"><div class="settings-bar">
-      <label><span aria-hidden="true">♫</span> Rounds <select name="round_count" aria-label="Rounds"><option value="5">5</option><option value="10">10</option><option value="15">15</option></select></label>
-      <label><span aria-hidden="true">◷</span> Song length <select name="answer_seconds" aria-label="Song length"><option value="10">10 seconds</option><option value="20">20 seconds</option><option value="30">30 seconds</option></select></label>
-      <details class="extra-settings"><summary>Game settings <span aria-hidden="true">⌄</span></summary><div class="extra-settings-panel surface-card">
+      <label>Rounds <select name="round_count" aria-label="Rounds"><option value="5">5</option><option value="10">10</option><option value="15">15</option></select></label>
+      <label>Song length <select name="answer_seconds" aria-label="Song length"><option value="10">10 seconds</option><option value="20">20 seconds</option><option value="30">30 seconds</option></select></label>
+      <details class="extra-settings"><summary>More settings <span aria-hidden="true">⌄</span></summary><div class="extra-settings-panel surface-card">
         <label>Difficulty <select name="difficulty"><option value="easy">Easy</option><option value="mixed">Mixed</option><option value="hard">Hard</option></select></label>
         <label class="checkbox-label"><input type="checkbox" name="decoys_enabled"> Include songs nobody knows</label>
       </div></details>
-    </div><div class="lobby-buttons"><button class="button button-primary start-game" type="button">Start game <span aria-hidden="true">→</span></button>
-      <button class="button button-outline invite-friends" type="button">Invite friends <span aria-hidden="true">↗</span></button></div>
-      <p class="start-hint" id="start-hint" role="status"></p><div class="host-audio-controls"></div>
+    </div><div class="lobby-buttons">
+      <button class="button button-outline leave-room" type="button"><span aria-hidden="true">←</span> Leave room</button>
+      <div class="lobby-host-actions">
+        <button class="button button-primary start-game" type="button">Start game <span aria-hidden="true">→</span></button></div>
+    </div><p class="start-hint" id="start-hint" role="status"></p>
     </div>`;
   const find = (selector) => element.querySelector(selector);
   const cards = new Map();
@@ -46,7 +48,7 @@ export function createLobbyScreen(emit) {
     [".copy-code", "copy-code"],
     [".share-room", "share-room"],
     [".invite-tile", "invite"],
-    [".invite-friends", "invite"],
+    [".leave-room", "leave"],
     [".start-game", "start"],
   ]) {
     find(selector).addEventListener("click", () => emit(action));
@@ -65,7 +67,7 @@ export function createLobbyScreen(emit) {
     });
   });
   function update(vm) {
-    const { state, ui, audio } = vm;
+    const { state, ui } = vm;
     if (!state) return;
     const players = state.players;
     find(".playtest-note").hidden = !state.room.playtest;
@@ -97,8 +99,10 @@ export function createLobbyScreen(emit) {
       else input.value = state.settings[input.name];
       input.disabled = !state.me.is_host || Boolean(ui.pending);
     }
-    const readiness = startReadiness(state, ui, audio);
+    const readiness = startReadiness(state, ui);
     const start = find(".start-game");
+    start.hidden = !state.me.is_host;
+    find(".lobby-host-actions").hidden = !state.me.is_host;
     start.disabled = !readiness.canStart;
     start.setAttribute("aria-describedby", "start-hint");
     start.textContent =
@@ -107,31 +111,11 @@ export function createLobbyScreen(emit) {
         : state.me.is_host
           ? "Start game →"
           : "Waiting for host";
-    find(".start-hint").textContent = readiness.reason;
-    const audioControls = find(".host-audio-controls");
-    const audioAction =
-      state.me.is_host && (!audio.unlocked || !audio.leaseId)
-        ? audio.conflict
-          ? "takeover-audio"
-          : "enable-audio"
-        : null;
-    if (audioControls.dataset.action !== String(audioAction)) {
-      audioControls.replaceChildren();
-      audioControls.dataset.action = String(audioAction);
-      if (audioAction) {
-        const button = document.createElement("button");
-        button.className = "button button-outline";
-        button.type = "button";
-        button.textContent =
-          audioAction === "takeover-audio"
-            ? "Use audio in this tab"
-            : "Enable shared audio";
-        button.addEventListener("click", () => emit(audioAction));
-        audioControls.append(button);
-      }
-    }
-    const audioButton = audioControls.querySelector("button");
-    if (audioButton) audioButton.disabled = Boolean(ui.pending);
+    find(".leave-room").disabled = Boolean(ui.pending);
+    const hint = find(".start-hint");
+    hint.textContent =
+      readiness.canStart ? "" : readiness.reason;
+    hint.hidden = !hint.textContent;
   }
   return {
     element,

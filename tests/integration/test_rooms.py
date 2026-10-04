@@ -36,7 +36,7 @@ def create(database, service, nickname="Host", now=1000):
 def test_schema_initialization_is_versioned_and_idempotent(database):
     database.initialize()
     with database.read() as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 6
         assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert conn.execute("SELECT COUNT(*) FROM demo_catalog").fetchone()[0] == 120
@@ -54,7 +54,9 @@ def test_transaction_rolls_back_all_room_admission_data(database, service):
         assert conn.execute("SELECT COUNT(*) FROM songs").fetchone()[0] == 0
 
 
-def test_credential_survives_restart_is_only_a_digest_and_is_room_scoped(database, service):
+def test_credential_survives_restart_is_only_a_digest_and_is_room_scoped(
+    database, service
+):
     first, second = create(database, service), create(database, service)
     database.initialize()
     with database.read() as conn:
@@ -90,11 +92,24 @@ def test_hidden_assignment_counts_shared_dedup_and_independent_rooms(database, s
         assert "session_token_hash" not in json.dumps(lobby)
         assert "Artist" not in json.dumps(lobby)
         # The assignment is a union of each player's songs, with no duplicate identities.
-        identities = [row[0] for row in conn.execute("SELECT identity_key FROM songs WHERE room_id=?", (room_id,))]
+        identities = [
+            row[0]
+            for row in conn.execute(
+                "SELECT identity_key FROM songs WHERE room_id=?", (room_id,)
+            )
+        ]
         assert 36 <= len(identities) <= 72
         assert len(set(identities)) == len(identities)
-        ids_first = {row[0] for row in conn.execute("SELECT id FROM songs WHERE room_id=?", (room_id,))}
-        ids_second = {row[0] for row in conn.execute("SELECT id FROM songs WHERE room_id=?", (second["room"]["id"],))}
+        ids_first = {
+            row[0]
+            for row in conn.execute("SELECT id FROM songs WHERE room_id=?", (room_id,))
+        }
+        ids_second = {
+            row[0]
+            for row in conn.execute(
+                "SELECT id FROM songs WHERE room_id=?", (second["room"]["id"],)
+            )
+        }
         assert ids_first.isdisjoint(ids_second)
 
 
@@ -102,7 +117,10 @@ def test_snapshot_copies_artwork_credits_characters_and_decoys(database, service
     joined = create(database, service)
     room_id = joined["room"]["id"]
     with database.transaction() as conn:
-        conn.execute("UPDATE songs SET artwork_url='/static/demo/covers/test.svg' WHERE room_id=?", (room_id,))
+        conn.execute(
+            "UPDATE songs SET artwork_url='/static/demo/local/covers/test.svg' WHERE room_id=?",
+            (room_id,),
+        )
         snapshot = service.snapshot(conn, room_id)
         assert snapshot["host_id"] == joined["player"]["id"]
         assert snapshot["players"][0]["character_id"] == "coral"
@@ -111,10 +129,12 @@ def test_snapshot_copies_artwork_credits_characters_and_decoys(database, service
         for song in snapshot["songs"]:
             assert song["artists"][0]["artist_key"].startswith("demo:")
             if song["listeners"]:
-                assert song["artwork_url"] == "/static/demo/covers/test.svg"
+                assert song["artwork_url"] == "/static/demo/local/covers/test.svg"
                 assert song["listeners"][0]["player_id"] == joined["player"]["id"]
         conn.execute("UPDATE songs SET title='Changed' WHERE room_id=?", (room_id,))
-        service.update_player(conn, room_id, joined["player"]["id"], "Changed", "lavender", 1100)
+        service.update_player(
+            conn, room_id, joined["player"]["id"], "Changed", "lavender", 1100
+        )
         assert snapshot["players"][0]["nickname"] == "Host"
         assert all(song["title"] != "Changed" for song in snapshot["songs"])
 
@@ -146,8 +166,13 @@ def test_roster_limit_and_lobby_lock_allow_existing_identity(database, service):
             service.join(conn, room_id, "New browser", "lavender", 1100)
         assert error.value.code == "room_locked"
         with pytest.raises(DomainError):
-            service.update_player(conn, room_id, joined["player"]["id"], "New Host", "lemon", 1200)
-        assert service.authenticate(conn, room_id, joined["token"], 1200)["id"] == joined["player"]["id"]
+            service.update_player(
+                conn, room_id, joined["player"]["id"], "New Host", "lemon", 1200
+            )
+        assert (
+            service.authenticate(conn, room_id, joined["token"], 1200)["id"]
+            == joined["player"]["id"]
+        )
 
 
 def test_host_heartbeat_at_exact_grace_cannot_revive_playing_game(database, service):
@@ -155,20 +180,30 @@ def test_host_heartbeat_at_exact_grace_cannot_revive_playing_game(database, serv
     room_id, host = joined["room"]["id"], joined["player"]["id"]
     with database.transaction() as conn:
         service.set_state(conn, room_id, "playing")
-        assert service.heartbeat(conn, room_id, host, 60_999)["last_seen_at_ms"] == 60_999
+        assert (
+            service.heartbeat(conn, room_id, host, 60_999)["last_seen_at_ms"] == 60_999
+        )
         with pytest.raises(DomainError) as error:
             service.heartbeat(conn, room_id, host, 120_999)
         assert error.value.code == "host_expired"
-        assert service.snapshot(conn, room_id)["players"][0]["last_seen_at_ms"] == 60_999
+        assert (
+            service.snapshot(conn, room_id)["players"][0]["last_seen_at_ms"] == 60_999
+        )
 
 
-def test_host_presence_uses_heartbeat_only_and_revision_changes_are_explicit(database, service):
+def test_host_presence_uses_heartbeat_only_and_revision_changes_are_explicit(
+    database, service
+):
     joined = create(database, service)
     room_id = joined["room"]["id"]
     with database.transaction() as conn:
         initial_revision = service.room(conn, room_id, 1000)["revision"]
         presence = service.host_presence(conn, room_id, 1000)
-        assert presence == {"player_id": joined["player"]["id"], "connected": True, "expires_at_ms": 61_000}
+        assert presence == {
+            "player_id": joined["player"]["id"],
+            "connected": True,
+            "expires_at_ms": 61_000,
+        }
         assert service.host_presence(conn, room_id, 16_000)["connected"] is False
         # Reads, authentication and revision updates never renew host presence.
         service.authenticate(conn, room_id, joined["token"], 20_000)
@@ -179,40 +214,66 @@ def test_host_presence_uses_heartbeat_only_and_revision_changes_are_explicit(dat
         assert service.host_presence(conn, room_id, 61_000)["expires_at_ms"] == 121_000
 
 
-def test_presence_and_polling_do_not_renew_retention_and_exact_expiry_is_rejected(database, service):
+def test_presence_and_polling_do_not_renew_retention_and_exact_expiry_is_rejected(
+    database, service
+):
     joined = create(database, service)
     room_id, host = joined["room"]["id"], joined["player"]["id"]
     with database.transaction() as conn:
         service.heartbeat(conn, room_id, host, RETENTION_MS)
-        assert service.room(conn, room_id, RETENTION_MS + 999)["last_completed_at_ms"] is None
+        assert (
+            service.room(conn, room_id, RETENTION_MS + 999)["last_completed_at_ms"]
+            is None
+        )
         with pytest.raises(DomainError) as error:
             service.authenticate(conn, room_id, joined["token"], RETENTION_MS + 1000)
         assert error.value.code == "room_expired"
         assert service.expired_ids(conn, RETENTION_MS + 1000) == [room_id]
 
 
-def test_completion_renews_room_and_cleanup_preserves_other_room_and_catalog(database, service):
+def test_completion_renews_room_and_cleanup_preserves_other_room_and_catalog(
+    database, service
+):
     joined, other = create(database, service), create(database, service)
     room_id = joined["room"]["id"]
     with database.transaction() as conn:
         service.complete(conn, room_id, 2000)
-        assert service.room(conn, room_id, RETENTION_MS + 1000)["last_completed_at_ms"] == 2000
+        assert (
+            service.room(conn, room_id, RETENTION_MS + 1000)["last_completed_at_ms"]
+            == 2000
+        )
         assert service.expired_ids(conn, RETENTION_MS + 1000) == [other["room"]["id"]]
         service.delete(conn, room_id)
-        assert conn.execute("SELECT COUNT(*) FROM players WHERE room_id=?", (room_id,)).fetchone()[0] == 0
-        assert conn.execute("SELECT COUNT(*) FROM songs WHERE room_id=?", (room_id,)).fetchone()[0] == 0
+        assert (
+            conn.execute(
+                "SELECT COUNT(*) FROM players WHERE room_id=?", (room_id,)
+            ).fetchone()[0]
+            == 0
+        )
+        assert (
+            conn.execute(
+                "SELECT COUNT(*) FROM songs WHERE room_id=?", (room_id,)
+            ).fetchone()[0]
+            == 0
+        )
         assert conn.execute("SELECT COUNT(*) FROM demo_catalog").fetchone()[0] == 120
-        assert service.room(conn, other["room"]["id"], 2000)["id"] == other["room"]["id"]
+        assert (
+            service.room(conn, other["room"]["id"], 2000)["id"] == other["room"]["id"]
+        )
         assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
 
 
 def test_cross_room_relationship_is_rejected_by_database(database, service):
     first, second = create(database, service), create(database, service)
     with database.transaction() as conn:
-        second_song = conn.execute("SELECT id FROM songs WHERE room_id=? LIMIT 1", (second["room"]["id"],)).fetchone()[0]
+        second_song = conn.execute(
+            "SELECT id FROM songs WHERE room_id=? LIMIT 1", (second["room"]["id"],)
+        ).fetchone()[0]
         with pytest.raises(sqlite3.IntegrityError):
-            conn.execute("INSERT INTO player_songs (room_id,player_id,song_id,familiarity) VALUES (?,?,?,'easy')",
-                         (first["room"]["id"], first["player"]["id"], second_song))
+            conn.execute(
+                "INSERT INTO player_songs (room_id,player_id,song_id,familiarity) VALUES (?,?,?,'easy')",
+                (first["room"]["id"], first["player"]["id"], second_song),
+            )
 
 
 def test_member_leave_removes_only_own_links_and_unreferenced_songs(database, service):
@@ -222,7 +283,12 @@ def test_member_leave_removes_only_own_links_and_unreferenced_songs(database, se
         guest = service.join(conn, room_id, "Guest", "lavender", 1100)
         service.remove_player(conn, room_id, guest["player"]["id"], 1200)
         assert len(service.lobby(conn, room_id, 1200)["players"]) == 1
-        assert conn.execute("SELECT COUNT(*) FROM songs WHERE room_id=?", (room_id,)).fetchone()[0] == 36
+        assert (
+            conn.execute(
+                "SELECT COUNT(*) FROM songs WHERE room_id=?", (room_id,)
+            ).fetchone()[0]
+            == 36
+        )
         assert service.lobby(conn, room_id, 1200)["players"][0]["song_count"] == 36
         with pytest.raises(DomainError):
             service.authenticate(conn, room_id, guest["token"], 1200)

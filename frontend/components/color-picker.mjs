@@ -4,7 +4,7 @@ import { BLOB_COLORS, getBlobColor } from "./blob-palette.mjs";
 const styles = `
   :host { display:block; font-family:inherit; color:var(--ink,#171717); }
   * { box-sizing:border-box; }
-  .preview { display:flex; align-items:center; justify-content:center; gap:9px; margin:10px 0 12px; }
+  .preview { display:flex; align-items:center; justify-content:center; gap:9px; margin:10px 0 12px; -webkit-user-select:none; user-select:none; }
   .preview[hidden] { display:none; }
   repeat-character { display:block; width:172px; height:157px; max-width:calc(100% - 92px); }
   .step { display:grid; place-items:center; flex:none; width:40px; height:40px; border:1px solid #eeedf0; border-radius:50%; background:white; color:inherit; font:inherit; font-size:30px; box-shadow:0 3px 10px #17171706; cursor:pointer; }
@@ -17,12 +17,13 @@ const styles = `
   .swatch[aria-pressed=true] .check { visibility:visible; }
   .label { margin:9px 0 0; text-align:center; color:var(--muted,#727383); font-size:13px; font-weight:750; line-height:1.35; }
   button:disabled { cursor:default; opacity:.6; }
+  button { -webkit-user-select:none; user-select:none; }
   button:focus-visible { outline:3px solid #8f67c5; outline-offset:4px; }
   @media(prefers-reduced-motion:reduce) { button { transition:none; } }
 `;
 
 /** One palette control shared by admission, lobby and standalone design fixtures. */
-export class BlobColorPicker extends HTMLElement {
+class BlobColorPicker extends HTMLElement {
   static observedAttributes = ["preview", "disabled", "value"];
 
   constructor() {

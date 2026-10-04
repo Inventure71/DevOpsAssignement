@@ -14,7 +14,7 @@ export function createInfoScreen(page, navigate) {
     const steps = document.createElement("ol");
     for (const description of [
       "Create a room and share its code. Everyone joins on their own screen.",
-      "The host enables the shared speaker. Each round starts with a synced countdown.",
+      "Enable sound on the host’s device so everyone can hear its speaker. Each round starts with a synced countdown.",
       "Search for the song and select the friends you think listen to it. Submit once before time runs out.",
       "See the song, everyone’s guesses and the leaderboard. An empty player selection means nobody.",
     ]) {
@@ -28,6 +28,12 @@ export function createInfoScreen(page, navigate) {
     paragraph.textContent =
       "A music guessing game for friends. The host plays too, and everyone answers on their own screen.";
     content.append(paragraph);
+    const credits = document.createElement("a");
+    credits.href = "/music-credits";
+    credits.textContent = "Music credits";
+    credits.target = "_blank";
+    credits.rel = "noopener";
+    content.append(credits);
   }
   section
     .querySelector("button")

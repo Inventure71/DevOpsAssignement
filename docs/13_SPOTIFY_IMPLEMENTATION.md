@@ -1,3 +1,8 @@
+> Historical checkpoint/research document. Current architecture, complete
+> offline Demo and storage/setup are described in [README](../README.md),
+> [architecture](05_ARCHITECTURE.md) and [implementation status](08_IMPLEMENTATION_STATUS.md).
+> Four-song references below describe the earlier development seed.
+
 # Five-player Normal mode implementation
 
 Checkpoint: 2026-10-02. Normal uses **one Spotify development app with at most
@@ -88,10 +93,10 @@ still run during game setup.
 
 Normal needs `SPOTIFY_CLIENT_ID`, `SPOTIFY_REDIRECT_URI`, `APPLE_TEAM_ID`,
 `APPLE_KEY_ID` and `APPLE_PRIVATE_KEY_PATH`; `APPLE_STOREFRONT` defaults to `es`.
-Spotify PKCE does not require a client secret. `SPOTIFY_CLIENT_SECRET` remains an
-optional input for the separate Spotify public-search adapter; the active game
-search uses Apple. Process environment configuration and signing keys stay
-outside Git; private environment files are not automatically loaded.
+Spotify PKCE does not require a client secret. Spotify supplies personal listening
+history; Apple supplies public search, previews and decoys. Process environment
+configuration and signing keys stay outside Git. The real-game launcher loads
+literal settings from `.env`; direct `python -m backend` does not load that file.
 
 The default application callback is
 `http://127.0.0.1:8000/api/music/spotify/callback` (port follows `PORT`). Register

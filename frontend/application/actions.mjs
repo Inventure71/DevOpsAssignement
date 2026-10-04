@@ -1,4 +1,6 @@
 import { requestId } from "../transport/client.mjs";
+import { modeAvailable, modeReason } from "./launch-config.mjs";
+import { startReadiness } from "../game/lobby-readiness.mjs";
 
 // User commands own mutations. Polling never guesses, submits or changes settings.
 export function createActions({
@@ -11,6 +13,7 @@ export function createActions({
   forgetRoom,
   musicAdmission,
   admitted,
+  retryLaunch,
   navigator = globalThis.navigator,
   confirm = globalThis.confirm,
 }) {
@@ -69,14 +72,19 @@ export function createActions({
       return;
     }
     if (name === "entry-mode") {
-      if (ui.pending || !["demo", "normal"].includes(payload)) return;
+      if (ui.pending || !modeAvailable(ui, payload)) return;
       ui.mode = payload;
       ui.error = null;
       ui.canonicalUrl = null;
       render();
       return;
     }
+    if (name === "retry-launch") {
+      if (!ui.pending) await retryLaunch();
+      return;
+    }
     if (name === "retry-import") {
+      if (!modeAvailable(ui, "normal")) return;
       await musicAdmission.resume();
       return;
     }
@@ -106,6 +114,13 @@ export function createActions({
       return;
     }
     if (ui.pending) return;
+    if (name === "start") {
+      const readiness = startReadiness(ui.state, ui);
+      if (!readiness.canStart) {
+        notice(readiness.reason);
+        return;
+      }
+    }
     if (
       name === "leave" &&
       !confirm(
@@ -125,6 +140,8 @@ export function createActions({
     render();
     try {
       if (name === "admit") {
+        if (ui.launchStatus !== "ready")
+          throw new Error(ui.launchError || "Please wait while the game connects.");
         const fields = {
           nickname: ui.draftNickname.trim(),
           character_id: ui.character,
@@ -134,6 +151,8 @@ export function createActions({
           const resolved = await api(
             `/api/room-codes/${encodeURIComponent(ui.draftCode.trim())}`,
           );
+          if (!modeAvailable(ui, resolved.mode))
+            throw new Error(modeReason(ui, resolved.mode));
           try {
             result = await api(`/api/rooms/${resolved.room_id}/join`, {
               method: "POST",
@@ -144,6 +163,8 @@ export function createActions({
             await musicAdmission.start({ ...fields, room_id: resolved.room_id });
             return;
           }
+        } else if (!modeAvailable(ui, ui.mode)) {
+          throw new Error(modeReason(ui, ui.mode));
         } else if (ui.mode === "normal") {
           await musicAdmission.start(fields);
           return;
@@ -170,15 +191,32 @@ export function createActions({
         await audio.enable(name === "takeover-audio");
         await runtime.refresh({ fresh: true });
       } else if (name === "start") {
-        const revision = ui.state.room.revision;
-        if (!retryStart || retryStart.revision !== revision)
-          retryStart = { revision, request_id: requestId() };
+        const { id: roomId, revision } = ui.state.room;
+        const playerId = ui.state.me.id;
+        if (
+          !retryStart ||
+          retryStart.roomId !== roomId ||
+          retryStart.revision !== revision
+        )
+          retryStart = { roomId, revision, request_id: requestId() };
+        // Stay in the click's gesture stack: resume audio before any network await.
+        const status = audio.status;
+        if (!status.unlocked || !status.leaseId)
+          await audio.enable(Boolean(status.conflict));
+        if (
+          ui.state?.room?.id !== roomId ||
+          ui.state?.me?.id !== playerId ||
+          !ui.state?.me?.is_host
+        ) return;
+        const enabled = audio.status;
+        if (!enabled.unlocked || !enabled.leaseId)
+          throw new Error("Audio couldn’t start. Click Start game to try again.");
         await api(path("/start"), {
           method: "POST",
           body: {
             request_id: retryStart.request_id,
             room_revision: revision,
-            lease_id: audio.status.leaseId,
+            lease_id: enabled.leaseId,
           },
         });
         ui.dismissedGame = null;
@@ -247,8 +285,14 @@ export function createActions({
           );
       }
     } catch (error) {
-      if (name === "admit") ui.error = { message: error.message };
-      else notice(error.message);
+      if (name === "admit") {
+        ui.error = { message: error.message };
+        if (error.code === "session_https_required" && error.details?.application_url) {
+          const address = new URL(error.details.application_url);
+          if (ui.screen === "join") address.searchParams.set("join", ui.draftCode);
+          ui.canonicalUrl = address.href;
+        }
+      } else notice(error.message);
       if (ui.roomId) await runtime.refresh({ fresh: true });
     } finally {
       ui.pending = false;

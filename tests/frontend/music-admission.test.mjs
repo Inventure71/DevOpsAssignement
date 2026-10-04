@@ -175,10 +175,16 @@ test("leaving the page aborts polling and ignores a late import receipt", async 
   assert.equal(s.jobs.size, 0);
 });
 
-function actionsSession(api) {
+function actionsSession(api, mode = "normal") {
   const model = createModel({ getItem: () => null, setItem() {}, removeItem() {} });
   model.ui.draftNickname = " Jules ";
   model.ui.draftCode = "ABC123";
+  model.ui.launchStatus = "ready";
+  model.ui.mode = mode;
+  model.ui.launchConfig = { launch_mode: mode, modes: {
+    demo: { enabled: true, reason: null },
+    normal: { enabled: mode === "normal", reason: mode === "normal" ? null : "Unavailable in this session." },
+  } };
   const oauth = [], admissions = [], errors = [];
   const transport = { api, path: (suffix) => suffix };
   const action = createActions({ model, transport, audio: {}, runtime: {},
@@ -198,7 +204,30 @@ test("admission errors stay in the form instead of producing a duplicate toast",
   assert.equal(s.model.ui.pending, false);
 });
 
-test("host explicitly chooses Normal OAuth or Demo admission", async () => {
+for (const joining of [false, true]) {
+  test(`HTTPS admission recovery preserves ${joining ? "the invitation" : "Demo form"}`, async () => {
+    const s = actionsSession(async (url) => {
+      if (url.includes("room-codes")) return { room_id: "demo-room", mode: "demo" };
+      const error = new Error("Open the shared HTTPS game address to create or join a room.");
+      error.code = "session_https_required";
+      error.details = { application_url: "https://game.example/" };
+      throw error;
+    }, "demo");
+    s.model.ui.mode = "demo";
+    s.model.ui.screen = joining ? "join" : "create";
+    await s.action("admit");
+    assert.equal(s.model.ui.canonicalUrl, joining
+      ? "https://game.example/?join=ABC123" : "https://game.example/");
+    assert.match(s.model.ui.error.message, /HTTPS/);
+    assert.equal(s.model.ui.roomId, null);
+    assert.equal(s.model.ui.draftNickname, " Jules ");
+    assert.equal(s.model.ui.pending, false);
+    assert.deepEqual(s.admissions, []);
+    assert.deepEqual(s.errors, []);
+  });
+}
+
+test("a real launch lets the host choose Spotify or Demo and switch back", async () => {
   const requests = [];
   const s = actionsSession(async (...args) => {
     requests.push(args);
@@ -208,10 +237,30 @@ test("host explicitly chooses Normal OAuth or Demo admission", async () => {
   assert.deepEqual(s.oauth, [{ nickname: "Jules", character_id: "coral" }]);
   assert.deepEqual(requests, []);
   await s.action("entry-mode", "demo");
+  assert.equal(s.model.ui.mode, "demo");
   await s.action("admit");
   assert.deepEqual(requests[0], ["/api/rooms", { method: "POST", body: {
     nickname: "Jules", character_id: "coral", mode: "demo",
   } }]);
+  assert.deepEqual(s.admissions, [{ room_id: "demo-room" }]);
+  await s.action("entry-mode", "normal");
+  await s.action("admit");
+  assert.equal(s.model.ui.mode, "normal");
+  assert.equal(s.oauth.length, 2);
+  assert.equal(requests.length, 1);
+});
+
+test("a Demo launch creates Demo rooms and cannot switch to Spotify", async () => {
+  const requests = [];
+  const s = actionsSession(async (...args) => {
+    requests.push(args);
+    return { room_id: "demo-room" };
+  }, "demo");
+  await s.action("entry-mode", "normal");
+  assert.equal(s.model.ui.mode, "demo");
+  await s.action("admit");
+  assert.equal(requests[0][1].body.mode, "demo");
+  assert.deepEqual(s.oauth, []);
   assert.deepEqual(s.admissions, [{ room_id: "demo-room" }]);
 });
 

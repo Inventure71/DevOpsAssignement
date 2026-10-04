@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from tests.integration.test_api import session, start
+from tests.integration.test_api import session as session, start
 
 
 def _state(client, prefix):
@@ -27,23 +27,30 @@ def _submit_distinct_answers(session, game_id, attempt):
         game = coordinator.game.repo.game(conn, game_id)
         current = coordinator.game.repo.current(conn, game_id)
         actual = next(
-            song for song in json.loads(game["songs_snapshot_json"])
+            song
+            for song in json.loads(game["songs_snapshot_json"])
             if song["song_key"] == current["song_key"]
         )
         private_titles = [
-            row["title"] for row in conn.execute("SELECT title FROM demo_catalog ORDER BY id")
+            row["title"]
+            for row in conn.execute("SELECT title FROM demo_catalog ORDER BY id")
             if row["title"] != actual["title"]
-        ][:len(clients)]
+        ][: len(clients)]
     expected = []
-    path = prefix + f'/games/{game_id}/rounds/{attempt["id"]}/answers'
+    path = prefix + f"/games/{game_id}/rounds/{attempt['id']}/answers"
     for client, title in zip(clients, private_titles):
         player_id = _state(client, prefix)["me"]["id"]
-        selection = client.get(prefix + "/song-search", params={"q": title}).json()["songs"][0]
+        selection = client.get(prefix + "/song-search", params={"q": title}).json()[
+            "songs"
+        ][0]
         assert selection["title"] == title
-        response = client.post(path, json={
-            "song_guess_token": selection["token"],
-            "who_player_ids": [player_id],
-        })
+        response = client.post(
+            path,
+            json={
+                "song_guess_token": selection["token"],
+                "who_player_ids": [player_id],
+            },
+        )
         assert response.status_code == 200, response.text
         expected.append({"player_id": player_id, "title": title})
         if len(expected) < len(clients):
@@ -66,7 +73,12 @@ def _assert_owner_only(session, phase, expected):
         assert set(reveal) == {"song", "listener_ids", "my_answer"}
         answer = reveal["my_answer"]
         assert set(answer) == {
-            "player_id", "status", "points", "song_guess", "song_match", "who_player_ids",
+            "player_id",
+            "status",
+            "points",
+            "song_guess",
+            "song_match",
+            "who_player_ids",
         }
         assert answer["player_id"] == owner["player_id"]
         assert answer["status"] == "submitted"
@@ -83,7 +95,10 @@ def _advance_phase(session):
     coordinator, clock, host, _, _, prefix, _ = session
     clock.value = _state(host, prefix)["game"]["phase_ends_at_ms"]
     assert host.post(prefix + "/heartbeat", json={}).status_code == 200
-    assert host.post(prefix + "/audio-controller", json={"tab_id": "host"}).status_code == 200
+    assert (
+        host.post(prefix + "/audio-controller", json={"tab_id": "host"}).status_code
+        == 200
+    )
     coordinator.tick()
 
 
@@ -108,7 +123,7 @@ def test_owner_only_reveal_leaderboard_completed_and_anonymous_history(session):
             attempt = next_state["game"]["round"]
             for client in [host, *guests]:
                 response = client.post(
-                    prefix + f'/games/{game_id}/rounds/{attempt["id"]}/ready',
+                    prefix + f"/games/{game_id}/rounds/{attempt['id']}/ready",
                     json={
                         "readiness_generation": attempt["readiness_generation"],
                         "lease_id": lease if client is host else None,
@@ -142,7 +157,7 @@ def test_missing_submission_is_distinct_from_submitted_nobody(session):
     game_id, attempt, _ = start(session)
     _begin_answering(coordinator, clock, game_id)
     response = host.post(
-        prefix + f'/games/{game_id}/rounds/{attempt["id"]}/answers',
+        prefix + f"/games/{game_id}/rounds/{attempt['id']}/answers",
         json={"song_guess_token": None, "who_player_ids": []},
     )
     assert response.status_code == 200
@@ -168,15 +183,22 @@ def test_void_attempt_retains_private_answers_for_diagnosis(session):
     coordinator, clock, host, guests, room, prefix, lease = session
     game_id, attempt, _ = start(session)
     _begin_answering(coordinator, clock, game_id)
-    selected = guests[0].get(prefix + "/song-search", params={"q": "Test Song 001"}).json()["songs"][0]
+    selected = (
+        guests[0]
+        .get(prefix + "/song-search", params={"q": "Test Song 001"})
+        .json()["songs"][0]
+    )
     guest_id = _state(guests[0], prefix)["me"]["id"]
     response = guests[0].post(
-        prefix + f'/games/{game_id}/rounds/{attempt["id"]}/answers',
-        json={"song_guess_token": selected["token"], "who_player_ids": [room["player_id"]]},
+        prefix + f"/games/{game_id}/rounds/{attempt['id']}/answers",
+        json={
+            "song_guess_token": selected["token"],
+            "who_player_ids": [room["player_id"]],
+        },
     )
     assert response.status_code == 200
     failed = host.post(
-        prefix + f'/games/{game_id}/rounds/{attempt["id"]}/audio-failure',
+        prefix + f"/games/{game_id}/rounds/{attempt['id']}/audio-failure",
         json={
             "request_id": str(uuid4()),
             "readiness_generation": attempt["readiness_generation"],
@@ -192,7 +214,11 @@ def test_void_attempt_retains_private_answers_for_diagnosis(session):
         assert all(row["score"] == 0 for row in state["game"]["leaderboard"])
     with coordinator.db.read() as conn:
         stored = coordinator.game.repo.answers(conn, attempt["id"])
-        old = next(row for row in coordinator.game.repo.attempts(conn, game_id) if row["id"] == attempt["id"])
+        old = next(
+            row
+            for row in coordinator.game.repo.attempts(conn, game_id)
+            if row["id"] == attempt["id"]
+        )
     assert old["status"] == "void"
     assert len(stored) == 1
     assert stored[0]["player_id"] == guest_id

@@ -4,13 +4,22 @@ import json
 
 from backend.game.scoring import classify_song_guess
 
-
 GAME_FIELDS = (
-    "id", "status", "phase", "state_version", "phase_ends_at_ms", "end_reason",
+    "id",
+    "status",
+    "phase",
+    "state_version",
+    "phase_ends_at_ms",
+    "end_reason",
 )
 ROUND_FIELDS = (
-    "id", "round_number", "attempt", "readiness_generation",
-    "readiness_deadline_at_ms", "starts_at_ms", "deadline_at_ms",
+    "id",
+    "round_number",
+    "attempt",
+    "readiness_generation",
+    "readiness_deadline_at_ms",
+    "starts_at_ms",
+    "deadline_at_ms",
 )
 SONG_DISPLAY_FIELDS = ("title", "artist", "artwork_url")
 
@@ -21,6 +30,18 @@ def game_view(repo, conn, game, player_id, host=False):
 
     plan = json.loads(game["round_plan_json"])
     result = _game_overview(repo, conn, game, plan)
+    pending = repo.pending_preparation(conn, game["id"])
+    result["upcoming_round"] = (
+        {
+            **{
+                key: pending[key]
+                for key in ("id", "round_number", "readiness_generation")
+            },
+            **({"audio_candidate_id": pending["song_key"]} if host else {}),
+        }
+        if pending is not None and game["phase"] in ("reveal", "leaderboard")
+        else None
+    )
     current = repo.current(conn, game["id"])
     if current is None:
         return result
@@ -76,7 +97,9 @@ def _skipped_rounds(attempts, plan, end_reason):
 def _round_projection(repo, conn, game, current, plan, player_id, host):
     answers = repo.answers(conn, current["id"])
     own = next((answer for answer in answers if answer["player_id"] == player_id), None)
-    slot = next(slot for slot in plan if slot["round_number"] == current["round_number"])
+    slot = next(
+        slot for slot in plan if slot["round_number"] == current["round_number"]
+    )
     result = {
         **{key: current[key] for key in ROUND_FIELDS},
         "waveform": slot.get("waveforms", {}).get(current["song_key"]),
@@ -106,7 +129,8 @@ def _submission_receipt(answer):
 
 def _reveal(game, current, own, player_id):
     song = next(
-        song for song in json.loads(game["songs_snapshot_json"])
+        song
+        for song in json.loads(game["songs_snapshot_json"])
         if song["song_key"] == current["song_key"]
     )
     return {
@@ -146,7 +170,8 @@ def audio_manifest(game):
                 "candidate_id": candidate["song_key"],
                 "preview_url": songs[candidate["song_key"]]["preview_url"],
             }
-            for slot in plan for candidate in slot["candidates"]
+            for slot in plan
+            for candidate in slot["candidates"]
         ],
     }
 

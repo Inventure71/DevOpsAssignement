@@ -1,11 +1,17 @@
+> Current storage update (2026-10-04): Catalog owns public tables inside
+> `DATA_DIR/whos_on_repeat.sqlite3`, alongside logically separate Rooms/Game
+> tables. Provider/search contracts are injected; no private Rooms SQL remains
+> in public search. Pre-release separate-file imports and old catalog-schema
+> upgrade paths have been retired. Instructions below use the current one-file path.
+
 # Persistent catalog and preview preparation
 
-The server owns two independent SQLite WAL databases. `whos_on_repeat.sqlite3`
-contains private room, listener and game facts. `catalog.sqlite3` contains public
+The server owns one SQLite WAL file with independently owned tables.
+Rooms/Game tables contain private room, listener and game facts. Catalog tables contain public
 recording metadata, the FTS5 index, provider query coverage, recording-selection
 mappings and short-lived preview references. Catalog queries never read private
 song/listener tables, and no imported Spotify history is copied into suggestions.
-Each database operation uses a short connection/transaction; provider requests
+Each storage operation uses a short connection/transaction; provider requests
 run outside transactions and room command locks.
 
 ## Search and selection
@@ -98,7 +104,7 @@ additional index and normalized-field overhead: an isolated approximately
 size for the complete dataset. Leave space for both the compressed archive and
 the growing database/WAL; the tool does not make the whole dataset a small file.
 
-Generated `catalog.sqlite3` files and `catalog-downloads/` directories are
+Generated `whos_on_repeat.sqlite3` files and `catalog-downloads/` directories are
 ignored even under a custom in-repository data directory. The importer retains
 recording ID, title, artist identities/names, public priority and search fields;
 it discards unused album/release and combined-lookup columns. This canonical
@@ -131,12 +137,8 @@ explicit reverses. Distinct source IDs seen through a shared preview cache each
 receive their verified links. No relation to an unimplemented provider or
 unverified transitive relation is manufactured.
 
-Version 1/2 successful selection mappings migrate, including entries past the
-old 30-day expiry. The old selection table is then removed. An unusual old
-mapping created from an unindexed signed source has no stored source title or
-artist IDs; its target is preserved as an unbound legacy record, but cannot be
-trusted automatically until its source identity is verified again. Migration
-only affects `catalog.sqlite3`, never the private game database.
+The current catalog schema is created directly. Pre-release selection-table
+upgrades have been removed; current verified links remain durable across restarts.
 
 Download the **canonical metadata CSV**, rather than MusicBrainz canonical
 recording redirects. The latter intentionally combine some recording versions
@@ -147,7 +149,7 @@ No large download or scheduled ingestion runs automatically.
 
 ```bash
 .venv/bin/python tools/import_catalog.py /path/canonical_musicbrainz_data.csv \
-  --database /path/to/data/catalog.sqlite3 --limit 100000
+  --database /path/to/data/whos_on_repeat.sqlite3 --limit 100000
 ```
 
 The tool streams plain or gzip-compressed UTF-8 CSV, commits at most 500 records
@@ -196,9 +198,10 @@ tracks and 12 host decoys (the final batch may add up to three extra successes).
 Low availability continues through the remaining candidates; the ten-playable
 admission minimum and three-decoy minimum are unchanged. All 60 observed personal
 songs are retained for private ownership evidence, even if preview resolution
-was skipped. `unavailable_count` counts attempted misses; the additive
-`unresolved_count` counts candidates not attempted. Game plans use available
-songs and retain the existing reserves/skip policy.
+was skipped. Successful imports return account identity, observed ownership,
+playable songs and decoys. Admission failures retain useful candidate/playable
+counts and provider errors. Game plans use available songs and retain the existing
+reserves/skip policy.
 
 With all candidates available, the first host performs 36 preview resolutions
 instead of 90; another player importing the same recordings can reuse all

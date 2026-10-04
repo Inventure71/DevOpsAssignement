@@ -21,7 +21,7 @@ class ProviderHttpError(Exception):
 
 class _NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        raise ValueError('Provider redirects are not permitted')
+        raise ValueError("Provider redirects are not permitted")
 
 
 def _retry_after(value):
@@ -41,8 +41,12 @@ class JsonHttpTransport:
         self.opener = opener or build_opener(_NoRedirect()).open
 
     def request(self, method, url, headers=None, data=None):
-        request = Request(url, data=data, method=method,
-                          headers={"Accept": "application/json", **(headers or {})})
+        request = Request(
+            url,
+            data=data,
+            method=method,
+            headers={"Accept": "application/json", **(headers or {})},
+        )
         try:
             with self.opener(request, timeout=self.timeout) as response:
                 body = response.read(self.max_bytes + 1)
@@ -53,10 +57,15 @@ class JsonHttpTransport:
                 raise ValueError("Expected a JSON object")
             return payload
         except HTTPError as error:
-            retry_after = _retry_after(error.headers.get("Retry-After") if error.headers else None)
+            retry_after = _retry_after(
+                error.headers.get("Retry-After") if error.headers else None
+            )
             # Do not retain or read provider bodies, which can include credentials.
             error.close()
             raise ProviderHttpError(error.code, retry_after) from None
-        except (URLError, TimeoutError, OSError, ValueError) as error:
-            raise MusicProviderError("music_provider_unavailable",
-                                     "The music provider is unavailable. Try again shortly.", 503) from None
+        except (URLError, TimeoutError, OSError, ValueError):
+            raise MusicProviderError(
+                "music_provider_unavailable",
+                "The music provider is unavailable. Try again shortly.",
+                503,
+            ) from None

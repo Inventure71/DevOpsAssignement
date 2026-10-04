@@ -1,4 +1,5 @@
 """FastAPI composition root: dependency wiring, lifecycle and static delivery."""
+
 import asyncio
 import logging
 import os
@@ -6,71 +7,107 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.api.rate_limits import AdmissionLimits
 from backend.api.routes import create_router
 from backend.api.music import create_music_router
 from backend.api.security import check_origin
+from backend.api.session_transport import check_session_transport, https_game_url
 from backend.application.coordinator import Coordinator
+from backend.application.commands import GameCommands, RoomCommands
 from backend.application.music_admission import MusicAdmissionHandler
 from backend.catalog.search import SongSearch
 from backend.catalog.store import CatalogStore
 from backend.core.config import Config
 from backend.core.errors import DomainError
-from backend.core.paths import DEMO_ASSETS_DIR, FRONTEND_DIR
+from backend.core.paths import FRONTEND_DIR
 from backend.music.admissions import MusicAdmissions
 from backend.music.apple import AppleCatalog
 from backend.music.importer import MusicImporter
 from backend.music.previews import PreviewResolver
 from backend.music.spotify import SpotifyClient
+from backend.rooms.demo import preview_sample
 
 logger = logging.getLogger(__name__)
 
 
 def error_response(exc):
-    retry = exc.details.get('retry_after_seconds')
-    headers = {'Retry-After': str(retry)} if exc.status == 429 and isinstance(retry, int) and retry > 0 else None
+    retry = exc.details.get("retry_after_seconds")
+    headers = (
+        {"Retry-After": str(retry)}
+        if exc.status == 429 and isinstance(retry, int) and retry > 0
+        else None
+    )
     return JSONResponse(
-        {'error': {
-            'code': exc.code,
-            'message': exc.message,
-            'details': exc.details,
-            'retryable': exc.status in (429, 503),
-        }},
+        {
+            "error": {
+                "code": exc.code,
+                "message": exc.message,
+                "details": exc.details,
+                "retryable": exc.status in (429, 503),
+            }
+        },
         status_code=exc.status,
         headers=headers,
     )
 
 
-def create_app(config=None, clock=None, game=None, background=True, song_search=None,
-               spotify_client=None, apple_catalog=None, music_importer=None):
+def create_app(
+    config=None,
+    clock=None,
+    game=None,
+    background=True,
+    song_search=None,
+    spotify_client=None,
+    apple_catalog=None,
+    music_importer=None,
+):
     config = config or Config.from_env()
-    kwargs = {'game': game}
+    kwargs = {"game": game}
     if clock:
-        kwargs['clock'] = clock
+        kwargs["clock"] = clock
     coordinator = Coordinator(config, **kwargs)
-    spotify = spotify_client or SpotifyClient(config.spotify_client_id, config.spotify_client_secret,
-                                             config.spotify_redirect_uri)
-    apple = apple_catalog or AppleCatalog(config.apple_team_id, config.apple_key_id,
-                                         config.apple_private_key_path, config.apple_storefront)
-    catalog_store = CatalogStore(config.data_dir / 'catalog.sqlite3')
-    song_search = song_search or (SongSearch(apple.search, calls_per_minute=60,
-                                           provider_scope='apple:' + getattr(apple, 'storefront', config.apple_storefront))
-                                  if apple.configured else SongSearch(provider_scope='itunes:us'))
+    spotify = spotify_client or SpotifyClient(
+        config.spotify_client_id,
+        config.spotify_redirect_uri,
+    )
+    apple = apple_catalog or AppleCatalog(
+        config.apple_team_id,
+        config.apple_key_id,
+        config.apple_private_key_path,
+        config.apple_storefront,
+    )
+    catalog_store = CatalogStore(config.database_path)
+    song_search = song_search or SongSearch(
+        apple.search if config.game_mode == "normal" else lambda query: [],
+        provider_name="apple" if config.game_mode == "normal" else "catalog",
+        calls_per_minute=60,
+        provider_scope="apple:" + getattr(apple, "storefront", config.apple_storefront),
+    )
     if song_search.store is None:
         song_search.store = catalog_store
-    importer = music_importer or MusicImporter(spotify, PreviewResolver(apple=apple, store=catalog_store),
-                                               decoy_provider=apple.decoys)
+    importer = music_importer or MusicImporter(
+        spotify,
+        PreviewResolver(apple=apple, store=catalog_store),
+        decoy_provider=apple.decoys,
+    )
 
-    admissions = MusicAdmissions(spotify, importer, MusicAdmissionHandler(coordinator),
-                                 enabled=bool(spotify.configured and apple.configured))
+    admissions = MusicAdmissions(
+        spotify,
+        importer,
+        MusicAdmissionHandler(coordinator),
+        enabled=bool(
+            config.game_mode == "normal" and spotify.configured and apple.configured
+        ),
+    )
 
     @asynccontextmanager
     async def lifespan(application):
-        await asyncio.to_thread(catalog_store.initialize, seed=True)
         await asyncio.to_thread(coordinator.initialize)
+        await asyncio.to_thread(catalog_store.initialize)
+        await asyncio.to_thread(catalog_store.initialize, seed=True)
         application.state.ready = True
 
         async def runtime():
@@ -84,7 +121,7 @@ def create_app(config=None, clock=None, game=None, background=True, song_search=
                         await asyncio.to_thread(coordinator.cleanup)
                 except Exception:
                     application.state.ready = False
-                    logger.exception('Runtime transition failed')
+                    logger.exception("Runtime transition failed")
                     raise
 
         task = asyncio.create_task(runtime()) if background else None
@@ -108,16 +145,19 @@ def create_app(config=None, clock=None, game=None, background=True, song_search=
     application.state.music_admissions = admissions
     application.state.ready = False
 
-    @application.middleware('http')
+    @application.middleware("http")
     async def boundary(request: Request, call_next):
         try:
             check_origin(request)
+            check_session_transport(request, config)
         except DomainError as exc:
             return error_response(exc)
         response = await call_next(request)
-        response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['Referrer-Policy'] = 'same-origin'
-        response.headers['Cache-Control'] = 'no-store' if request.url.path.startswith('/api/') else 'no-cache'
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "same-origin"
+        response.headers["Cache-Control"] = (
+            "no-store" if request.url.path.startswith("/api/") else "no-cache"
+        )
         return response
 
     @application.exception_handler(DomainError)
@@ -126,41 +166,77 @@ def create_app(config=None, clock=None, game=None, background=True, song_search=
 
     @application.exception_handler(RequestValidationError)
     async def validation_error(request, exc):
-        return error_response(DomainError(
-            'invalid_request',
-            'Check the request fields.',
-            422,
-            {'fields': [list(item['loc']) for item in exc.errors()]},
-        ))
+        return error_response(
+            DomainError(
+                "invalid_request",
+                "Check the request fields.",
+                422,
+                {"fields": [list(item["loc"]) for item in exc.errors()]},
+            )
+        )
 
-    @application.get('/health/live')
+    @application.get("/health/live")
     def live():
-        return {'status': 'live'}
+        return {"status": "live"}
 
-    @application.get('/health/ready')
+    @application.get("/api/config")
+    def launch_config():
+        return coordinator.launch_mode.capabilities(music_configured=admissions.enabled)
+
+    @application.get("/api/demo/preview")
+    def demo_preview():
+        with coordinator.db.read() as conn:
+            return {"song": preview_sample(conn)}
+
+    @application.get("/health/ready")
     def ready():
         if not application.state.ready:
-            return JSONResponse({'status': 'not_ready'}, status_code=503)
+            return JSONResponse({"status": "not_ready"}, status_code=503)
         with coordinator.db.read() as conn:
-            conn.execute('SELECT id FROM rooms LIMIT 1').fetchone()
-        return {'status': 'ready'}
+            conn.execute("SELECT id FROM rooms LIMIT 1").fetchone()
+        return {"status": "ready"}
 
-    @application.get('/', include_in_schema=False)
-    def frontend():
-        return FileResponse(FRONTEND_DIR / 'index.html')
+    @application.get("/", include_in_schema=False)
+    def frontend(request: Request):
+        address = https_game_url(config)
+        if config.cookie_secure and request.url.scheme != "https" and address:
+            if request.url.query:
+                address += "?" + request.url.query
+            return RedirectResponse(address, status_code=307)
+        return FileResponse(FRONTEND_DIR / "index.html")
 
-    @application.get('/ui-lab', include_in_schema=False)
+    @application.get("/ui-lab", include_in_schema=False)
     def ui_lab():
-        return FileResponse(FRONTEND_DIR / 'lab.html')
+        return FileResponse(FRONTEND_DIR / "lab.html")
+
+    @application.get("/music-credits", include_in_schema=False)
+    def music_credits():
+        return FileResponse(config.demo_pack_dir / "assets" / "credits.html")
 
     limits = AdmissionLimits(
-        int(os.environ.get('ROOM_CREATE_LIMIT', '10')),
-        int(os.environ.get('ROOM_JOIN_LIMIT', '30')),
+        int(os.environ.get("ROOM_CREATE_LIMIT", "10")),
+        int(os.environ.get("ROOM_JOIN_LIMIT", "30")),
     )
-    application.include_router(create_router(coordinator, limits, song_search))
-    application.include_router(create_music_router(coordinator, admissions, limits, search_provider=song_search.provider_name))
-    application.mount('/static/demo', StaticFiles(directory=DEMO_ASSETS_DIR), name='demo-assets')
-    application.mount('/ui', StaticFiles(directory=FRONTEND_DIR), name='frontend')
+    room_commands = RoomCommands(coordinator, song_search)
+    game_commands = GameCommands(coordinator, song_search.tokens)
+    application.include_router(
+        create_router(coordinator, limits, room_commands, game_commands)
+    )
+    application.include_router(
+        create_music_router(
+            coordinator,
+            admissions,
+            limits,
+            search_provider=song_search.provider_name,
+            room_commands=room_commands,
+        )
+    )
+    application.mount(
+        "/static/demo/local",
+        StaticFiles(directory=config.demo_pack_dir / "assets", check_dir=False),
+        name="demo-assets",
+    )
+    application.mount("/ui", StaticFiles(directory=FRONTEND_DIR), name="frontend")
     return application
 
 

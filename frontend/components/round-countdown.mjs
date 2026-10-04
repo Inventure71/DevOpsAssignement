@@ -1,7 +1,7 @@
 import { roundTiming } from "../game/timing.mjs";
 
 // A 200-degree upper arc: there is no bottom segment behind the controls.
-export class RoundCountdown extends HTMLElement {
+class RoundCountdown extends HTMLElement {
   #data = {};
   constructor() {
     super();

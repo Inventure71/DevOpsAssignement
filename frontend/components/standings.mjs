@@ -13,7 +13,6 @@ export function createStandingsView() {
     const model = standingsModel(standings);
     view.querySelector(".standings-empty").hidden = standings.length !== 0;
     const cards = view.querySelector(".podium-grid");
-    cards.dataset.count = String(model.podium.length);
     syncKeyedChildren(cards, model.podium, podium, {
       key: (player) => player.player_id,
       create: () =>

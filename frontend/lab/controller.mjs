@@ -1,15 +1,31 @@
 import { createLabAudio } from "../audio/lab.mjs";
-import { createCharacterStudio } from "./characters.mjs";
 import {
   LAB_SCENES,
-  LAB_SONGS,
   createLabState,
   createLabUi,
   createRoundFixture,
 } from "./fixtures.mjs";
 
+/** Only server-selected, locally installed audio is used by the UI lab. */
+export async function fetchLabPreview(fetch = globalThis.fetch, signal) {
+  const response = await fetch("/api/demo/preview", { signal });
+  if (!response.ok) throw new Error("Demo preview is unavailable.");
+  const { song } = await response.json();
+  if (
+    !song || typeof song.title !== "string" || !song.title.trim() ||
+    typeof song.artist !== "string" || !song.artist.trim() ||
+    typeof song.preview_url !== "string" ||
+    !song.preview_url.startsWith("/static/demo/local/") || song.preview_url.includes("..") ||
+    !(song.artwork_url === null || typeof song.artwork_url === "string")
+  )
+    throw new Error("Invalid Demo preview metadata.");
+  return song;
+}
+
 /** Owns fixture navigation, timing and preview audio; screens remain reusable. */
-export function createLabController({ root, navigation, params }) {
+export function createLabController({
+  root, navigation, params, fetch = globalThis.fetch,
+}) {
   const state = createLabState(Date.now());
   const ui = createLabUi();
   const listeners = new AbortController();
@@ -23,25 +39,52 @@ export function createLabController({ root, navigation, params }) {
     frame = 0,
     lastFrame = 0;
   let disposed = false;
-  const preview = createLabAudio({
-    url: "/static/demo/clips/song-001.mp3",
-    onChange({ levels, error }) {
-      measuredLevels = levels;
-      if (state.game?.round) state.game.round.waveform = levels;
-      if (state.game?.phase === "setup")
-        state.game.preparation = { checked: levels.length ? 1 : 0, total: 1 };
-      if (error && ["listening", "submitted"].includes(sceneName)) {
-        errorNotice.textContent = error;
-        root.append(errorNotice);
-      } else errorNotice.remove();
-      update();
-    },
-  });
+  let preview = null,
+    songs = [],
+    previewPromise = null,
+    previewError = null;
+  const previewRequest = new AbortController();
+  let previewTimeout;
+  function preparePreview() {
+    if (previewPromise) return previewPromise;
+    previewTimeout = setTimeout(() => previewRequest.abort(), 10000);
+    previewPromise = fetchLabPreview(fetch, previewRequest.signal).then((song) => {
+      if (disposed) return false;
+      songs = [
+        { ...song, token: "lab-active-song" },
+        {
+          token: "lab-other-guess",
+          title: "Another title (sample guess)",
+          artist: "Another artist (sample guess)",
+          artwork_url: null,
+        },
+      ];
+      preview = createLabAudio({
+        url: song.preview_url,
+        onChange({ levels, error }) {
+          measuredLevels = levels;
+          if (state.game?.round) state.game.round.waveform = levels;
+          if (state.game?.phase === "setup")
+            state.game.preparation = { checked: levels.length ? 1 : 0, total: 1 };
+          if (error && ["listening", "submitted"].includes(sceneName)) {
+            errorNotice.textContent = `${error} Select the scene again to retry.`;
+            root.append(errorNotice);
+          } else errorNotice.remove();
+          update();
+        },
+      });
+      return true;
+    }).catch(() => {
+      if (!disposed)
+        previewError = "Demo music couldn’t load. Run the Demo setup, then reload this page. Characters and Lobby are still available.";
+      return false;
+    }).finally(() => clearTimeout(previewTimeout));
+    return previewPromise;
+  }
   const searchSongs = async (query) => {
-    await new Promise((resolve) => setTimeout(resolve, 180));
     const term = query.toLowerCase();
     return {
-      songs: LAB_SONGS.filter((song) =>
+      songs: songs.filter((song) =>
         `${song.title} ${song.artist}`.toLowerCase().includes(term),
       ),
     };
@@ -86,7 +129,7 @@ export function createLabController({ root, navigation, params }) {
         String(button.dataset.scene === name),
       );
   }
-  async function showScene(requestedName) {
+  async function showScene(requestedName, gesture) {
     if (disposed) return;
     const name = LAB_SCENES.includes(requestedName)
       ? requestedName
@@ -94,12 +137,12 @@ export function createLabController({ root, navigation, params }) {
     const generation = ++sceneGeneration;
     if (name === "submitted" && sceneName === "listening" && canAnswer()) {
       sceneName = name;
-      ui.songGuess ||= LAB_SONGS[0];
+      ui.songGuess ||= songs[0];
       action("submit-answer");
       selectNavigation(name);
       return;
     }
-    preview.stop();
+    preview?.stop();
     sceneName = name;
     screen?.destroy?.();
     screen = null;
@@ -107,12 +150,22 @@ export function createLabController({ root, navigation, params }) {
     selectNavigation(name);
     if (name === "characters") {
       state.game = null;
+      const { createCharacterStudio } = await import("./characters.mjs");
+      if (disposed || generation !== sceneGeneration) return;
       root.append(createCharacterStudio());
       return;
     }
-    const audioStart = ["listening", "submitted"].includes(name)
-      ? preview.play()
-      : null;
+    const audioScene = ["listening", "submitted"].includes(name);
+    // Resume from the scene click, before any asynchronous metadata/import work.
+    const audioStart = audioScene && gesture && preview ? preview.play() : null;
+    if (name !== "lobby" && !await preparePreview()) {
+      if (!disposed && generation === sceneGeneration) {
+        errorNotice.textContent = previewError;
+        root.append(errorNotice);
+      }
+      return;
+    }
+    if (disposed || generation !== sceneGeneration) return;
     const now = Date.now();
     let createScreen;
     if (name === "lobby") {
@@ -122,7 +175,7 @@ export function createLabController({ root, navigation, params }) {
         await import("../screens/lobby.mjs"));
     } else {
       state.room.state = "playing";
-      ui.songGuess = name === "submitted" ? LAB_SONGS[0] : null;
+      ui.songGuess = name === "submitted" ? songs[0] : null;
       state.game = createRoundFixture({
         scene: name,
         state,
@@ -130,6 +183,7 @@ export function createLabController({ root, navigation, params }) {
         now,
         levels: measuredLevels,
         params,
+        songs,
       });
       if (["reveal", "leaderboard"].includes(name))
         ({ createResultsScreen: createScreen } =
@@ -144,6 +198,10 @@ export function createLabController({ root, navigation, params }) {
     const waveform = screen.element.querySelector("music-waveform");
     if (waveform) waveform.appearance = { mode: params.get("waveform") };
     update();
+    if (audioScene && !audioStart) {
+      errorNotice.textContent = `Select ${name === "submitted" ? "Submitted" : "Listening"} to start the preview.`;
+      root.append(errorNotice);
+    }
     if (audioStart) {
       const timing = await audioStart;
       if (
@@ -159,9 +217,9 @@ export function createLabController({ root, navigation, params }) {
       update();
     }
   }
-  function navigate(name) {
+  function navigate(name, gesture = false) {
     const generation = sceneGeneration + 1;
-    void showScene(name).catch((error) => {
+    void showScene(name, gesture).catch((error) => {
       if (disposed || generation !== sceneGeneration) return;
       errorNotice.textContent = error.message;
       root.append(errorNotice);
@@ -189,7 +247,7 @@ export function createLabController({ root, navigation, params }) {
       frame = requestAnimationFrame(tick);
   }
   function suspend() {
-    preview.stop();
+    preview?.stop();
     cancelAnimationFrame(frame);
     frame = 0;
   }
@@ -212,18 +270,8 @@ export function createLabController({ root, navigation, params }) {
   });
   listen(navigation, "click", (event) => {
     const button = event.target.closest("[data-scene]");
-    if (button) navigate(button.dataset.scene);
+    if (button) navigate(button.dataset.scene, true);
   });
-  // The first browser gesture unlocks sound; only the scene controller starts it.
-  for (const event of ["pointerdown", "keydown"])
-    listen(
-      document,
-      event,
-      () => {
-        void preview.unlock().catch(() => {});
-      },
-      { once: true },
-    );
   listen(document, "visibilitychange", () =>
     document.hidden ? suspend() : resumeClock(),
   );
@@ -231,9 +279,9 @@ export function createLabController({ root, navigation, params }) {
   listen(window, "pageshow", resumeClock);
   return {
     start() {
+      void preparePreview();
       navigate(params.get("scene") || "characters");
       resumeClock();
-      void preview.load().catch(() => {});
     },
     dispose() {
       if (disposed) return;
@@ -241,7 +289,9 @@ export function createLabController({ root, navigation, params }) {
       sceneGeneration++;
       listeners.abort();
       cancelAnimationFrame(frame);
-      preview.close();
+      previewRequest.abort();
+      clearTimeout(previewTimeout);
+      preview?.close();
       screen?.destroy?.();
     },
   };

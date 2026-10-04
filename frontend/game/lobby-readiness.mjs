@@ -1,20 +1,26 @@
-/** One readiness decision supplies both the button state and its explanation. */
-export function startReadiness(state, ui, audio) {
-  let reason;
+/** Lobby eligibility; the Start game gesture activates audio before starting. */
+export function startReadiness(state, ui) {
+  const blocked = (blocker, reason) => ({ canStart: false, blocker, reason });
+  if (!state?.me?.is_host) return blocked("host", "Waiting for the host to start.");
   const shortage = state.players.filter((player) => player.song_count < 10);
   const minimum = state.room?.minimum_players ?? 3;
-  if (!state.me.is_host) reason = "Waiting for the host to start.";
-  else if (state.players.length < minimum)
-    reason = `At least ${minimum} players are needed to start.`;
-  else if (shortage.length)
-    reason = `At least 10 songs per player are needed. ${shortage.map((player) => player.nickname).join(", ")} ${shortage.length === 1 ? "has" : "have"} fewer.`;
-  else if (!audio.unlocked || !audio.leaseId)
-    reason = "Enable shared audio before starting.";
-  else if (ui.disconnected) reason = "Reconnecting to your room…";
-  else if (ui.pending)
-    reason = ui.pending === "start" ? "Starting…" : "Saving your changes…";
+  if (state.players.length < minimum)
+    return blocked("players", `At least ${minimum} players are needed to start.`);
+  if (shortage.length)
+    return blocked(
+      "songs",
+      `At least 10 songs per player are needed. ${shortage.map((player) => player.nickname).join(", ")} ${shortage.length === 1 ? "has" : "have"} fewer.`,
+    );
+  if (ui.disconnected)
+    return blocked("connection", "Reconnecting to your room…");
+  if (ui.pending)
+    return blocked(
+      "pending",
+      ui.pending === "start" ? "Starting…" : "Saving your changes…",
+    );
   return {
-    canStart: !reason,
-    reason: reason || "Everyone is here. Let’s play!",
+    canStart: true,
+    blocker: null,
+    reason: "Everyone is here. Let’s play!",
   };
 }

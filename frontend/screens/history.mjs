@@ -32,6 +32,7 @@ export function createHistoryScreen(onBack) {
         const ranks = document.createElement("ol");
         for (const rank of game.leaderboard) {
           const row = document.createElement("li");
+          row.value = rank.rank;
           row.textContent = `${rank.nickname} · ${rank.score} points`;
           ranks.append(row);
         }

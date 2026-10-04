@@ -1,284 +1,165 @@
 # Who's On Repeat
 
-A music party game for **3–5 approved Spotify accounts in Normal mode**, or
-3–10 people in explicit Demo mode. The host also plays; everyone guesses on
-their own screen and the host device supplies the shared speaker. This branch
-contains the game backend, redesigned browser UI and Spotify/Apple provider
-integration. Demo still has four temporary fictional songs and hidden assignments. The lobby and round design uses
-one animated fluid blob with selectable pastel colors, direct player selection
-and catalog song search. Friendly idle eyes and sad/correct-song reactions use
-server-revealed outcomes.
-Normal admission uses Spotify authorization and top/recent-song imports, with
-Apple developer catalog search and preview resolution. Real five-account and
-physical-audio acceptance remain pending; implementation is separate from those
-live checks. Real-song Demo catalog population is also pending.
+A music party game where players guess the song and who listens to it. Each player answers on their own screen; the **host device plays the sound**. All-device audio is a future feature.
 
-The [provider checkpoint](docs/13_SPOTIFY_IMPLEMENTATION.md) describes setup,
-boundaries and remaining checks. The [music provider comparison](docs/12_MUSIC_PROVIDER_OPTIONS.md)
-preserves alternatives and tradeoffs; the accepted scope is one Spotify app with
-five approved accounts, including the host.
+Demo works without credentials and uses simulated listening histories. On a fresh checkout, the launcher installs the pinned [100-song Drive pack](catalog/README.md#install-the-drive-pack) once; subsequent games work offline. The sole default Demo contains 80 personal songs and 20 Nobody songs. Normal mode imports each player's Spotify top/recent tracks and resolves playable previews through Apple. Normal supports 3-5 approved Spotify accounts; Demo supports 3-10 players. The launcher's explicit `--playtest` option relaxes admission to two players and permits a shared Spotify account for testing.
 
-## Run locally
+## Run
 
-Python 3.12+ is recommended. From the repository root:
+The teacher should use **Demo**. Install Python 3.12+ and use a modern browser;
+there is no frontend install or build. On macOS/Linux:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-python -m backend
+bash tools/run_demo.sh
+# For a two-player test:
+bash tools/run_demo.sh --playtest
 ```
 
-Open **`http://127.0.0.1:8000/`**. Choose Spotify for Normal mode or Demo for
-no-credentials lobby checks. Spotify needs the configuration below and the exact
-callback registered in its developer dashboard. The browser UI
-uses native ES modules (`.mjs`) and Web Components; no npm manifest, installation
-or frontend build is required. `/docs` contains the interactive API reference, `/openapi.json` its
-schema, and `/health/live` and `/health/ready` the process/initialization checks.
-`/ui-lab` displays isolated design fixtures and standalone character components;
-it does not create a real room or start a match.
+On Windows, use `py -3 tools/launch_game.py demo`; the Python launcher also
+works on macOS/Linux. First launch creates `.venv` and installs the single root
+`requirements.txt`, which needs internet or a prepared package cache. It also
+downloads the 98.02 MiB Drive music pack if the pinned installation is missing,
+verifies the ZIP and every extracted file, then selects the complete pack.
+Subsequent Demo launches and games work offline. A failed download or invalid
+pack stops launch with setup guidance. For installation without contacting Drive,
+run `python3 tools/setup_demo_pack.py --archive /path/to/whos-on-repeat-demo-100.zip`.
+Demo ignores private `.env` settings and inherited provider/tunnel configuration;
+it needs the installed pack, but no API keys, account, FFmpeg or Cloudflare. Its SQLite path is
+`data/demo/whos_on_repeat.sqlite3` by default. Both launchers use the same documented
+`DATA_DIR/whos_on_repeat.sqlite3` storage contract.
 
-For friends on the same Wi-Fi, open this computer's LAN address instead of
-`localhost` (for example `http://192.168.1.80:8000/`). The server already listens
-on all interfaces. **Invite friends** includes the room code and uses that
-reachable origin; when the host opens a loopback address, the server detects its
-outbound private IPv4 address instead. Allow Python through the computer's
-firewall if prompted. Guest Wi-Fi isolation can prevent devices from connecting.
-Set `APP_PUBLIC_URL` to override detection for multiple interfaces, a proxy, or
-HTTPS hosting. LAN HTTP supports Demo joining; Normal Spotify admission still
-requires the shared HTTPS address and registered callback described below.
+Open the **Open on this computer** URL printed by the launcher (normally
+**http://127.0.0.1:8000/**), create a Demo room, and invite two friends. It also
+prints a LAN address for devices on the same network. The host taps **Start game**,
+which activates the host speaker before starting. **Resume audio** appears only
+when an active game needs audio recovery. Guests submit guesses on their own screens. Search
+runs when you click Search or press Enter. Demo assigns each player 36 hidden
+songs from the 80 personal recordings; 20 independent decoys supply Nobody rounds.
+Search covers the complete 100-song pack without revealing player assignments. Both creation options remain visible: the unavailable mode is disabled,
+and the backend also rejects it.
 
-Create a Demo room through `POST /api/rooms` with a nickname and character, then
-join using its room code from separate browser sessions. The API sets a
-room-specific identity cookie; keep that cookie when requesting room state or
-issuing commands. See [the API contract](docs/07_API_AND_RUNTIME.md) and the
-interactive request schemas for the complete fields and host-audio lease flow.
+To run the real game, configure the private provider settings described below,
+keep the HTTPS tunnel forwarding to the app's port, then use:
 
-The four-song seed supports admission, lobby, persistence and media-delivery
-checks. It is too small for a complete match: Start requires at least ten songs
-per player, and planning needs distinct songs, an independent decoy pool and
-checked replacements. A Start request with this seed returns
-`insufficient_songs`. Larger isolated test fixtures exercise the full game loop.
-The minimum and selection rules remain in force while the catalog is populated.
+```bash
+bash tools/run_real_game.sh
+# Windows: py -3 tools/launch_game.py real
+```
 
-The frontend enables host audio with a tap, preloads the planned clips and
-reserves, sends automatic check-ins, and displays countdowns, reveals and
-rankings. A three-session ten-round browser run passed with isolated larger
-metadata fixtures. Physical-device audio and synchronization acceptance remain
-pending. Only the active host audio controller receives the private playback
-manifest. Demo familiarity is fictional; it does not import anyone's listening
-history. Normal mode verifies each player's own Spotify account before adding
-them to a room. Missing configuration or failed imports produce explicit errors
-and never silently change to Demo. Its five-account allowance belongs to the
-Spotify application, not to each room; the room also enforces at most five
-players and one identity per Spotify account.
+This launcher loads `.env`, verifies the keys and exact Spotify callback, prints
+the configured HTTPS game URL, and enables Spotify and Demo rooms. Use `--check` on
+either launcher for read-only preflight after dependencies and the pack are
+installed. It installs nothing and starts no server. Use `--port 8001` if another
+server occupies 8000, `--data-dir /path/to/data` for another data location, or
+`--demo-pack /path/to/complete/pack` for an explicit local pack. A launch from an
+arbitrary working directory still resolves project files correctly. See the
+[device launch guide](docs/16_DEVICE_PLAYTEST.md).
 
-## Song guesses
+For other devices on the same Wi-Fi, open the host computer's LAN address (for example `http://192.168.1.80:8000/`). Invite friends uses a reachable origin, detects LAN IPv4 when opened through loopback, or uses `APP_PUBLIC_URL`. Local firewall and guest-network isolation can affect connectivity. Demo works over LAN HTTP with `COOKIE_SECURE=false`. With `COOKIE_SECURE=true`, both modes use HTTPS: the local entry page redirects to the configured HTTPS `APP_PUBLIC_URL`, preserving invitation codes. Direct HTTP session requests are rejected before admission. Spotify on other devices also requires the registered callback in the [device playtest guide](docs/16_DEVICE_PLAYTEST.md).
 
-Type a title or artist and select a result from the loading search list. Guesses
-are not limited to four round choices. Shared fictional catalog metadata is
-searched locally in Demo; other queries use the configured Apple developer
-catalog, or the public iTunes metadata fallback when Apple is not configured.
-Loading, empty, failure and rate-limit states are explicit. Search does not import
-songs or change the four-track Demo playback catalog. Apple catalog search uses
-server credentials; guessing players do not need Apple accounts or Spotify
-catalog authorization. It is rate-limited, not unlimited.
+`/health/live` and `/health/ready` check startup; `/docs` is the interactive API reference. `/ui-lab` contains isolated visual fixtures. Native browser modules and media are served by the same process.
 
-The server signs each selected song for the room, then verifies that selection
-on submission and freezes its metadata in the answer. Scoring uses recording
-identity or a compatible normalized title with a shared structured artist identity.
-ISRC helps locate recordings but does not alone establish a correct guess.
-Apple preview matching adds artist aliases only when the resolved recording's
-credited names match; artist partial credit uses those frozen identities.
-No provider request runs at the answer deadline. Missing featured credits remain
-unavailable rather than being guessed from a display string. See
-[the matching rules](docs/03_GAME_RULES.md) and [the provider checkpoint](docs/13_SPOTIFY_IMPLEMENTATION.md).
+## Configuration
 
-## Configuration and storage
+Configuration uses environment variables. `tools/run_demo.sh` deliberately
+isolates Demo from `.env`; `tools/run_real_game.sh` loads literal `.env` values.
+Direct `python -m backend` does not load `.env` and defaults to Demo; install the
+pinned pack with `tools/setup_demo_pack.py` first. It prints
+Uvicorn's bind address; use `127.0.0.1`, a LAN address, or the configured HTTPS URL
+in the browser. `0.0.0.0` is a bind address, not an invitation address.
 
-| Variable | Default | Purpose |
+| Variable | Default | Meaning |
 |---|---|---|
-| `PORT` | `8000` | HTTP port; binds to `0.0.0.0` |
-| `APP_PUBLIC_URL` | empty | Reachable HTTP(S) origin for invitations; otherwise use the request origin or detect LAN IPv4 for loopback requests |
-| `DATA_DIR` | `./data` | SQLite directory |
-| `COOKIE_SECURE` | `false` | Set `true` when served over HTTPS |
-| `PLAYTEST_MODE` | `false` | Allow two-player games and the same Spotify account in separate player sessions; lobby displays a playtest notice |
-| `SETUP_TIMEOUT_MS` | `60000` | Bounded full-game preload window (10000–120000 ms) |
-| `ROOM_CREATE_LIMIT` | `10` | Room creation attempts per client address per minute |
-| `ROOM_JOIN_LIMIT` | `30` | Join attempts per client address per minute |
-| `SPOTIFY_CLIENT_ID` | empty | Development app for per-player OAuth PKCE imports |
-| `SPOTIFY_REDIRECT_URI` | `http://127.0.0.1:8000/api/music/spotify/callback` | Exact callback registered in the Spotify app; default follows `PORT` |
-| `SPOTIFY_CLIENT_SECRET` | empty | Optional Spotify public-search adapter; not required for the active PKCE/Apple flow |
-| `APPLE_TEAM_ID` | empty | Apple developer token issuer |
-| `APPLE_KEY_ID` | empty | MusicKit signing key identifier |
-| `APPLE_PRIVATE_KEY_PATH` | empty | Absolute path to the private `.p8` key, outside the repository |
-| `APPLE_STOREFRONT` | `es` | Apple catalog storefront |
+| `PORT` | `8000` | Binds to `0.0.0.0`; one Uvicorn worker |
+| `DATA_DIR` | `./data` | Directory containing the single application SQLite file |
+| `APP_PUBLIC_URL` | empty | Reachable HTTP(S) origin for invitations |
+| `COOKIE_SECURE` | `false` | Set true for HTTPS |
+| `GAME_MODE` | `demo` | Launch profile: `demo` allows Demo; `normal` also allows configured Spotify |
+| `DEMO_PACK_DIR` | pinned versioned installation | Explicit local Demo catalog/assets override; launcher verifies it |
+| `PLAYTEST_MODE` | `false` | Explicit two-player/shared-account test mode |
+| `SETUP_TIMEOUT_MS` | `60000` | Full-game preload timeout, 10000-120000 ms |
+| `ROOM_CREATE_LIMIT` / `ROOM_JOIN_LIMIT` | `10` / `30` | Attempts per client address per minute |
+| `SPOTIFY_CLIENT_ID` | empty | Spotify PKCE application ID |
+| `SPOTIFY_REDIRECT_URI` | `http://127.0.0.1:8000/api/music/spotify/callback` | Exact registered callback; default follows PORT |
+| `APPLE_TEAM_ID` / `APPLE_KEY_ID` | empty | Apple developer token identity |
+| `APPLE_PRIVATE_KEY_PATH` | empty | Private MusicKit signing key outside source control |
+| `APPLE_STOREFRONT` | `es` | Apple catalog region |
 
-Configuration is read from the process environment; private files are not
-automatically loaded. Keep keys and secrets outside Git. Normal mode requires
-Spotify client/callback configuration and a readable Apple signing key. The
-PoC's callback `http://127.0.0.1:8765/callback` is different and does not register
-the application's callback. Five real accounts must be approved in the same
-Spotify development app. Five separate devices need a reachable HTTPS game URL
-and its exact callback, rather than the server computer's loopback address.
-When a LAN device opens a server configured with a loopback callback, the UI
-explains that multiplayer Spotify sign-in needs network setup; it never sends
-that device to `127.0.0.1`. A local `localhost` browser can still follow the
-configured loopback address for sign-in on the server computer.
+Normal needs a configured Spotify app, allowed accounts and Apple signing key. Import failure stays visible and never silently changes a room to Demo. OAuth tokens and import receipts are transient; only room-scoped account digests and normalized ownership facts persist. See [provider setup](docs/13_SPOTIFY_IMPLEMENTATION.md).
 
-If Spotify displays **Invalid redirect URI**, register exactly
-`http://127.0.0.1:8000/api/music/spotify/callback` for local testing, or the exact
-HTTPS `SPOTIFY_REDIRECT_URI` for shared-device testing. The redirect URI must
-match the dashboard entry, including its path. An authorization link reaching
-Spotify's login page does not verify the callback registration or allowlist;
-check the round trip after signing in with an approved account.
-Failed imports stay on the music-loading screen with the provider's safe error
-message and available preview counts. Return to sign-in explicitly to retry.
-Server diagnostics record failure codes and, for unexpected exceptions, source
-frames without exception messages, credentials, or personal listening data.
+## Storage and catalog
 
-For Normal mode, fill an ignored `.env` using [.env.example](.env.example), then:
+**`DATA_DIR/whos_on_repeat.sqlite3`** stores all application tables in SQLite WAL mode. Rooms owns membership/listening facts, Game owns frozen games/attempts/answers, and Catalog owns public metadata, verified links and expiring media references. Separate repositories enforce ownership inside this one file.
 
-```bash
-set -a
-source .env
-set +a
-python -m backend
-```
+Startup applies application migrations 001–006 automatically (`PRAGMA user_version=6`); Catalog version 3 is recorded separately in `component_schema_versions`. There is no separate catalog database or legacy-file import path. Public catalog tables contain no live game or listening-history data. The precommit cleanup removed obsolete local rooms/game histories while retaining public provider metadata, verified links and caches.
 
-For a two-device playtest with one Spotify account, set `PLAYTEST_MODE=true`
-before starting the server. Use separate devices or browser sessions and different
-nicknames. Both players still complete Spotify sign-in and preview checks, and
-each receives a separate room credential. Shared songs count both players as
-listeners. The ten-song minimum, audio checks and room capacity still apply.
-The lobby displays a playtest notice. Set the flag back to `false` and restart
-to restore three-player starts and duplicate-account rejection; existing account
-hashes remain available to that rejection check.
+Verified recording/guess mappings are permanent for each provider/storefront/purpose and metadata fingerprint. They change when identity metadata or matching rules change, or a known incorrect edge is rejected. Query caches and preview URLs expire independently. Decoy songs come from Demo's independent 20-song pool or Apple chart candidates in Normal, with known room listeners excluded. Listener ownership is preserved even if preview resolution fails.
 
-SQLite lives at **`DATA_DIR/whos_on_repeat.sqlite3`**. Startup applies versioned
-migrations, seeds the catalog and recovers interrupted games automatically.
-Startup refreshes the shared fixture catalog; existing room songs and frozen
-snapshots stay unchanged and can still reference assets from an earlier catalog.
-Create a new room, or use a fresh `DATA_DIR`, when checking the four-song seed.
-No music credentials, ffmpeg, Dockerfile or manual migration are needed to start
-the Demo app. Searching beyond shared fixtures needs network access to Apple;
-startup remains independent of provider availability. Use **one process / worker / replica**, with
-persistent local storage that supports SQLite WAL.
-
-Only a completed game renews the whole room's 30-day retention. A restart aborts
-unfinished games, retains revealed scores, and returns surviving rooms to the
-lobby. Lobby settings are process-local until Start freezes them; a restart
-restores the last game's settings, or defaults before the first game. Back up a
-running database with SQLite's backup API, rather than copying only its main
-file while WAL writes are active.
-
-Room credentials are random HttpOnly cookies scoped to that room, with only
-SHA-256 digests stored. Room URLs preserve each tab’s room across refresh, while room cookies restore the player; a nickname never recovers
-lost identity. Multiple host tabs must explicitly take over audio ownership.
-Moving the controller during an unrevealed attempt voids that attempt rather
-than replaying the song.
-
-## Structure
-
-| Directory | Responsibility |
-|---|---|
-| `backend/api/` | HTTP routes, request validation, cookies, origin checks and rate limits |
-| `backend/application/` | Command ordering, cross-domain lifecycle transactions and host audio leases |
-| `backend/rooms/` | Admission, membership, familiarity, demo assignment and room snapshots |
-| `backend/game/` | Frozen plans, readiness, phases, scoring, guesses and rankings |
-| `backend/storage/` | SQLite connections and versioned migrations |
-| `backend/core/` | Configuration, shared errors and repository-relative resource paths |
-| `backend/catalog/` | Public metadata search/cache and room-scoped signed selections |
-| `backend/music/` | Spotify PKCE/history, Apple catalog/previews and bounded admission jobs |
-| `frontend/` | Browser composition, API transport, audio, screens and reusable components |
-| `catalog/` | Four temporary song records, bundled clips/cover and their provenance |
-| `tests/` | Python unit/integration tests and isolated metadata fixtures |
-| `tools/` | Optional development and measurement commands |
-
-`backend/app.py` wires the application and owns startup, health and background
-work. Run it through `python -m backend`. Catalog assets live in
-`catalog/assets/` and are served at `/static/demo/`. Browser assets are served
-separately at `/ui/`; catalog media does not belong to presentation code. Runtime packages are in `requirements.txt`;
-tests and measurements add `requirements-dev.txt`. See the
-[codebase map](docs/09_CODEBASE_MAP.md) for module boundaries and change locations.
-
-Browser code groups command/state orchestration in `frontend/application/`, HTTP
-in `frontend/transport/`, playback in `frontend/audio/`, pure display projections
-in `frontend/game/`, and presentation in `frontend/screens/` and
-`frontend/components/`. The isolated lab keeps its fixtures, studio and controller
-in `frontend/lab/`.
-
-Both domains persist through SQLite. Game receives plain snapshot values from
-Rooms and does not query Rooms tables. Submitted empty listener selections mean
-Nobody; absent submissions mean No answer and score zero. Artist partial credit
-uses frozen structured identities. Rankings count revealed attempts only;
-void attempts retain diagnostic answers. Artwork references are optional; the reveal UI displays a music-icon fallback
-when an image is missing or fails. Results show the correct song, actual listeners
-and your own answer feedback. Other players' guesses remain private, including
-from the host; shared standings show scores and ranks.
-
-## Verify
-
-Use Node 24 or newer for the native frontend module tests. No npm setup is needed.
-
-```bash
-python -m pip install -r requirements-dev.txt
-python -m pytest -q --cov=backend.rooms --cov=backend.game --cov-report=term-missing
-node --test tests/frontend/*.test.mjs
-```
-
-Tests use real temporary SQLite databases and injected server clocks. They
-exercise both domains, ten-round games, concurrent final submissions, exact
-deadlines, immutable snapshots, retries, readiness exclusions, replacement
-budgets, host expiry, restart and retention. Catalog integration tests check
-startup and media delivery, frontend serving, signed catalog selections and
-version-1 database upgrades. Frontend module tests exercise receipts, polling,
-clock estimates, submission races, owner-only result fixtures, decoded waveform
-measurements and OAuth callback/import polling recovery. Current evidence and
-remaining acceptance work are recorded in
-[implementation status](docs/08_IMPLEMENTATION_STATUS.md).
-
-A successful automated run does not prove physical audibility, phone-browser
-compatibility, the optional 300 ms all-device drift target, or deployment load
-capacity. Those checks require appropriate devices and a complete browser game. See the
-[architecture](docs/05_ARCHITECTURE.md), [rules](docs/03_GAME_RULES.md),
-[data model](docs/06_DATA_MODEL.md), and [API contract](docs/07_API_AND_RUNTIME.md).
-
-The four audio fixtures are temporary original synthesized compositions; see
-[catalog provenance](catalog/README.md). Real-song population is a separate
-catalog milestone.
-
-The optional local capacity probe uses isolated temporary data and 20 active games:
-
-```bash
-python -m tools.load_demo
-```
-
-It measures the actual ASGI state endpoint for 20 rooms × 10 players, with
-400 requests and 20 workers. It excludes real network and browser delivery,
-so its measurements describe server capacity rather than deployment acceptance.
-
-The optimized catalog keeps public metadata and expiring preview references in
-`DATA_DIR/catalog.sqlite3`, separate from private room listening history. A small
-CC0 starter catalog works immediately; the streaming import tool can expand it
-without per-search provider requests. See [catalog optimization](docs/14_CATALOG_OPTIMIZATION.md)
-for the bulk import command and the additive local search/selection API.
-
-To populate the local public search catalog from the pinned official metadata dump:
+The 64-recording CC0 MusicBrainz starter supports local search immediately. Optional bulk metadata import uses the same database and does not download music:
 
 ```bash
 python tools/setup_catalog.py --info
 python tools/setup_catalog.py --all
+# Or import an already downloaded CSV:
+python tools/import_catalog.py /path/to/canonical.csv.gz \
+  --database /path/to/data/whos_on_repeat.sqlite3 --limit 100000
 ```
 
-Setup requires `zstd` on `PATH`. It downloads the roughly 2.38 GB metadata archive
-once, verifies the published SHA-256, and streams the needed CSV fields into
-`DATA_DIR/catalog.sqlite3` without extracting the roughly 7.70 GB CSV. Downloads
-are resumable and live under `DATA_DIR/catalog-downloads/`; both downloads and
-the generated database are ignored by Git. Without `--all`, import is limited to
-100,000 input rows, but the archive download is still the same size. No audio,
-provider verification, or private listening history is downloaded by this setup.
+Bulk setup needs `zstd` on PATH, downloads the pinned roughly 2.38 GB archive, verifies SHA-256, and streams selected columns without extracting the roughly 7.70 GB CSV. Without `--all`, it imports up to 100,000 input rows; download size stays the same. Downloads and generated data are ignored by Git. Bulk setup is optional and does not run at startup. See [catalog design](docs/14_CATALOG_OPTIMIZATION.md) and [Demo provenance](catalog/README.md).
 
-For the combined device test checkout, run `bash tools/run_playtest.sh` to load
-the existing local provider configuration, enable two-player testing and print
-the shared device URL. See [the device playtest guide](docs/16_DEVICE_PLAYTEST.md).
+## Architecture
+
+A layered monolith, as Assignment 1 requires:
+
+```text
+Browser screens -> browser application -> HTTP transport
+HTTP validation -> RoomCommands / GameCommands -> Coordinator
+                                             -> Rooms / Game services
+                                             -> owned repositories -> SQLite
+Public search / personal import -> provider adapters
+```
+
+`backend/app.py` is the composition root. Named application operations own authorization, command ordering and transaction scope. Rooms exports value snapshots; Game freezes them and never reads live Rooms tables or calls providers while scoring. GameService owns time-driven and command-driven transitions. Scoped room locks remain shared while requests are queued and disappear when idle. Provider I/O runs outside room locks and SQLite transactions.
+
+Browser application readiness belongs to every participant; the audio controller owns host leases, decoding and scheduling. Session generations and cancellation prevent responses from an old room restoring playback state. Signed room-specific song selections keep answer submission offline. Other players' guesses remain private, including from the host. Rankings count revealed attempts; void attempts retain diagnostic answers.
+
+Details: [architecture](docs/05_ARCHITECTURE.md), [schema](docs/06_DATA_MODEL.md), [API](docs/07_API_AND_RUNTIME.md), [code map](docs/09_CODEBASE_MAP.md).
+
+## Verify
+
+Use Node 24+ for native frontend tests. The single root `requirements.txt` includes application and test dependencies. One local command runs isolated unit tests, real SQLite/HTTP integration tests and frontend tests:
+
+```bash
+bash tools/verify.sh
+```
+
+The assignment core-logic coverage command runs **unit tests only** over the Rooms service, Game service, scoring and planning:
+
+```bash
+python -m pytest -q tests/unit \
+  --cov=backend.rooms.service --cov=backend.game.service \
+  --cov=backend.game.scoring --cov=backend.game.selection \
+  --cov-report=term-missing --cov-fail-under=70
+```
+
+Run the commands against the current checkout for test totals and coverage;
+results from earlier packs are historical evidence. Unit coverage measures core
+Rooms/Game service policy, scoring and planning separately from SQLite integration.
+Full backend coverage can be measured with
+`python -m pytest -q --cov=backend --cov-report=term-missing`.
+
+Integration tests cover offline Demo ten-/fifteen-round games, pinned Drive
+installation, Normal imports, exact deadlines, retries, concurrent answers,
+privacy, room expiry and startup recovery. Frontend tests exercise actual
+controllers with deferred transport/decoding, stale leases, readiness,
+scheduling and UI-lab metadata/error handling. Tests use isolated application
+data and avoid live provider credentials. Optional formatting check:
+`uvx ruff format --check backend tests tools`.
+
+See [current verification](docs/08_IMPLEMENTATION_STATUS.md) and the [assignment checklist](docs/17_ASSIGNMENT_REVIEW.md). The generated PDF at `output/pdf/assignment-report.pdf` is a local draft pending author review and is not included in the code checkpoint. Real account onboarding, physical phone playback and timing need device checks; automated results do not establish those outcomes. The optional `python -m tools.load_demo` probe measures ASGI state reads with isolated data and does not establish network capacity.
+
+The pinned Demo pack contains 100 actual, unmodified previews (80 personal songs and 20 Nobody songs), totaling 98.41 MiB. Offline setup checks verified every SHA-256 checksum and full audio decode; all excerpts measure approximately 30 seconds. The original local pack and a fresh anonymous Drive download both completed ten- and fifteen-round HTTP/SQLite games in temporary data without provider keys or network calls during games. Drive installation verifies the pinned ZIP and every extracted file; repeated installation and later launches reuse verified local files offline. This verifies media delivery and game flow, not physical device audio.
+
+## Assignment evidence
+
+[ADR.md](ADR.md) has exactly five decisions with their historical dates and explicit later refinements. [AI_USAGE.md](AI_USAGE.md) records assistant use; explanations labelled drafts need the author's review in their own words. The professor approved the idea with “go for it” (user account; no approval date recorded). The [submission checklist](docs/17_ASSIGNMENT_REVIEW.md) distinguishes verified implementation from remaining author/process evidence. No student-authored Docker, CI, IaC or managed services are required or included.

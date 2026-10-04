@@ -1,7 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createAudioController } from "../../frontend/audio/host.mjs";
+import { createRoundReadiness } from "../../frontend/application/round-readiness.mjs";
+import { createUpcomingReadiness } from "../../frontend/application/upcoming-readiness.mjs";
 import { createModel } from "../../frontend/application/state.mjs";
+import { createRuntime } from "../../frontend/application/runtime.mjs";
+
+function deferred() {
+  let resolve, reject;
+  const promise = new Promise((yes, no) => {
+    resolve = yes;
+    reject = no;
+  });
+  return { promise, resolve, reject };
+}
 
 async function settleUntil(predicate, description) {
   for (let attempt = 0; attempt < 40; attempt++) {
@@ -15,9 +27,17 @@ async function settleUntil(predicate, description) {
   assert.fail(`Did not reach ${description}`);
 }
 
-function audioSession({ failFirstManifest = false } = {}) {
+function audioSession({
+  failFirstManifest = false,
+  interceptRequest,
+  resumeContext,
+  decodeClip,
+  roundPath = (suffix) => `/rounds/round${suffix}`,
+  getState,
+} = {}) {
   const clock = { now: 0 };
-  const state = {
+  let state = {
+    room: { id: "room" },
     me: { id: "host", is_host: true },
     settings: { answer_seconds: 20 },
     game: {
@@ -33,19 +53,28 @@ function audioSession({ failFirstManifest = false } = {}) {
       },
     },
   };
+  const readState = () => getState ? getState() : state;
   const requests = [],
     sources = [],
     notices = [];
+  let renders = 0;
   let fetches = 0,
     decodes = 0;
+  let sessionContext;
   const samples = new Float32Array(4800);
   samples.fill(0.25, 2400);
-  class Context {
+  class Context extends EventTarget {
+    constructor() {
+      super();
+      sessionContext = this;
+    }
     state = "running";
     sampleRate = 48000;
     destination = {};
     currentTime = 10;
-    async resume() {}
+    async resume() {
+      await resumeContext?.(this);
+    }
     createBuffer() {
       return {};
     }
@@ -66,11 +95,14 @@ function audioSession({ failFirstManifest = false } = {}) {
     }
     async decodeAudioData() {
       decodes++;
-      return { duration: 30, getChannelData: () => samples };
+      const buffer = { duration: 30, getChannelData: () => samples };
+      return decodeClip ? decodeClip(buffer) : buffer;
     }
   }
   const api = async (url, options = {}) => {
     requests.push({ url, ...options });
+    const intercepted = interceptRequest?.(url, options);
+    if (intercepted !== undefined) return intercepted;
     if (url.endsWith("/audio-controller")) return { lease_id: "lease" };
     if (url.endsWith("/audio")) {
       const count = requests.filter((request) =>
@@ -104,26 +136,47 @@ function audioSession({ failFirstManifest = false } = {}) {
     {
       api,
       path: (suffix) => suffix,
-      roundPath: (suffix) => `/rounds/round${suffix}`,
+      roundPath: (suffix) => roundPath(suffix, state),
     },
-    () => state,
+    readState,
     () => clock.now,
     "tab",
-    readySent,
-    () => {},
+    () => renders++,
     (message) => notices.push(message),
     environment,
   );
+  const readiness = createRoundReadiness(
+    { api, path: (suffix) => suffix, roundPath: (suffix) => `/rounds/round${suffix}` },
+    readState,
+    readySent,
+    (round) => audio.readiness(round),
+    (message) => notices.push(message),
+  );
+  const upcomingReadiness = createUpcomingReadiness(
+    { api, path: (suffix) => suffix },
+    readState,
+    (round) => audio.readiness(round),
+    (message) => notices.push(message),
+    { now: () => clock.now, browserId: "browser", isVisible: () => true },
+  );
   return {
     audio,
+    api,
+    readiness,
+    upcomingReadiness,
     state,
     clock,
     sources,
+    context: () => sessionContext,
     notices,
     readySent,
+    setState(value) {
+      state = value;
+    },
     requestsFor: (suffix) =>
       requests.filter((request) => request.url.endsWith(suffix)),
     counts: () => ({ fetches, decodes }),
+    renders: () => renders,
   };
 }
 
@@ -185,8 +238,8 @@ test("host retries a failed manifest after backoff, checks clips, then acknowled
   );
 
   session.state.game.phase = "ready";
-  await session.audio.synchronize();
-  await session.audio.synchronize();
+  await session.readiness.synchronize();
+  await session.readiness.synchronize();
   assert.equal(session.requestsFor("/ready").length, 1);
   assert.deepEqual(session.requestsFor("/ready")[0].body, {
     readiness_generation: 3,
@@ -349,5 +402,512 @@ test("submitting an answer keeps shared audio playing until the reveal phase", a
     "reveal closes the shared song source once",
   );
   assert.equal(session.sources.length, 2);
+  assert.deepEqual(session.notices, []);
+});
+
+test("leaving during audio unlock prevents a lease request in the next room", async () => {
+  const resume = deferred();
+  const session = audioSession({ resumeContext: () => resume.promise });
+  const enable = session.audio.enable();
+  session.audio.reset();
+  session.state.room.id = "new-room";
+  resume.resolve();
+  await enable;
+  assert.equal(session.requestsFor("/audio-controller").length, 0);
+  assert.equal(session.audio.status.leaseId, null);
+  assert.equal(session.sources.length, 0);
+});
+
+for (const outcome of ["success", "conflict"]) {
+  test(`a late lease ${outcome} cannot resurrect playback after leaving`, async () => {
+    const lease = deferred();
+    const session = audioSession({
+      interceptRequest: (url) =>
+        url.endsWith("/audio-controller") ? lease.promise : undefined,
+    });
+    const enable = session.audio.enable();
+    await settleUntil(
+      () => session.requestsFor("/audio-controller").length === 1,
+      "lease request",
+    );
+    session.audio.reset();
+    session.setState(null);
+    assert.equal(session.requestsFor("/audio-controller")[0].signal.aborted, true);
+    if (outcome === "success") lease.resolve({ lease_id: "abandoned-lease" });
+    else lease.reject(Object.assign(new Error("Old conflict"), { status: 409 }));
+    await enable;
+    assert.deepEqual(session.audio.status, {
+      unlocked: true, leaseId: null, conflict: false,
+    });
+    assert.deepEqual(session.notices, []);
+  });
+
+  test(`a late renewal ${outcome} cannot replace the lease acquired by takeover`, async () => {
+    const renewal = deferred();
+    let attempts = 0;
+    const session = audioSession({
+      interceptRequest: (url) => {
+        if (!url.endsWith("/audio-controller")) return;
+        attempts++;
+        if (attempts === 2) return renewal.promise;
+        return { lease_id: attempts === 1 ? "original" : "replacement" };
+      },
+    });
+    await session.audio.enable();
+    const renew = session.audio.renewLease();
+    await session.audio.enable(true);
+    if (outcome === "success") renewal.resolve({ lease_id: "stale" });
+    else renewal.reject(Object.assign(new Error("Old conflict"), { status: 409 }));
+    await renew;
+    assert.equal(session.audio.status.leaseId, "replacement");
+    assert.equal(session.audio.status.conflict, false);
+    assert.equal(session.requestsFor("/audio-controller")[2].body.takeover, true);
+    assert.equal(session.requestsFor("/audio-controller")[1].signal.aborted, true);
+    session.audio.reset();
+  });
+
+  test(`a late manifest ${outcome} cannot affect a restarted game with the same ID`, async () => {
+    const abandoned = deferred();
+    let manifests = 0;
+    const session = audioSession({
+      interceptRequest: (url) => {
+        if (url.endsWith("/audio") && ++manifests === 1) return abandoned.promise;
+      },
+    });
+    await session.audio.enable();
+    await session.audio.synchronize();
+    session.audio.reset();
+    await session.audio.enable();
+    await session.audio.synchronize();
+    await settleUntil(
+      () => session.requestsFor("/preload-check").length === 2,
+      "replacement preload",
+    );
+    if (outcome === "success") abandoned.resolve({
+      candidates: [{ candidate_id: "stale", preview_url: "/stale" }],
+    });
+    else abandoned.reject(new Error("Old manifest failed"));
+    await new Promise(setImmediate);
+    assert.equal(session.audio.readiness(session.state.game.round).ready, true);
+    assert.equal(session.requestsFor("/preload-check").length, 2);
+    assert.deepEqual(session.notices, []);
+    assert.deepEqual(session.counts(), { fetches: 1, decodes: 1 });
+    session.audio.reset();
+  });
+}
+
+test("late clip decoding cannot publish checks or audio into a replacement session", async () => {
+  const oldDecode = deferred();
+  let decoding = 0;
+  const session = audioSession({
+    decodeClip: (buffer) => ++decoding === 1 ? oldDecode.promise : buffer,
+  });
+  await session.audio.enable();
+  await session.audio.synchronize();
+  await settleUntil(() => session.counts().decodes === 1, "pending decode");
+  session.audio.reset();
+  await session.audio.enable(true);
+  await session.audio.synchronize();
+  await settleUntil(
+    () => session.requestsFor("/preload-check").length === 2,
+    "new decode checks",
+  );
+  oldDecode.resolve({ duration: 30, getChannelData: () => new Float32Array(100) });
+  await new Promise(setImmediate);
+  assert.equal(session.requestsFor("/preload-check").length, 2);
+  assert.equal(session.audio.readiness(session.state.game.round).ready, true);
+  assert.deepEqual(session.notices, []);
+  session.audio.reset();
+});
+
+test("room identity changes invalidate a lease even without an explicit reset", async () => {
+  const session = audioSession();
+  await session.audio.enable();
+  session.state.room.id = "replacement-room";
+  await session.audio.renewLease();
+  await session.audio.synchronize();
+  assert.equal(session.requestsFor("/audio-controller").length, 1);
+  assert.equal(session.audio.status.leaseId, null);
+  assert.equal(session.requestsFor("/audio").length, 0);
+});
+
+test("guest readiness acknowledges once without consulting host audio", async () => {
+  const session = audioSession();
+  session.state.me.is_host = false;
+  session.state.game.phase = "ready";
+  await session.readiness.synchronize();
+  await session.readiness.synchronize();
+  assert.equal(session.requestsFor("/ready").length, 1);
+  assert.deepEqual(session.requestsFor("/ready")[0].body, {
+    readiness_generation: 3, lease_id: null,
+  });
+  assert.equal(session.requestsFor("/audio-controller").length, 0);
+  assert.equal(session.sources.length, 0);
+});
+
+test("late readiness failure cannot clear a new room acknowledgement with the same round ID", async () => {
+  const abandoned = deferred();
+  let acknowledgements = 0;
+  const session = audioSession({
+    interceptRequest: (url) => {
+      if (url.endsWith("/ready") && ++acknowledgements === 1) return abandoned.promise;
+    },
+  });
+  session.state.me.is_host = false;
+  session.state.game.phase = "ready";
+  const first = session.readiness.synchronize();
+  session.readiness.reset();
+  session.state.room.id = "replacement-room";
+  await session.readiness.synchronize();
+  abandoned.reject(new Error("Previous room offline"));
+  await first;
+  assert.ok(session.readySent.has("round:3"));
+  assert.equal(session.requestsFor("/ready").length, 2);
+  assert.deepEqual(session.notices, []);
+});
+
+test("an older enable cannot overwrite a newer explicit takeover", async () => {
+  const previous = deferred();
+  let leases = 0;
+  const session = audioSession({
+    interceptRequest: (url) => {
+      if (!url.endsWith("/audio-controller")) return;
+      return ++leases === 1 ? previous.promise : { lease_id: "takeover" };
+    },
+  });
+  const first = session.audio.enable();
+  await settleUntil(() => leases === 1, "first lease attempt");
+  await session.audio.enable(true);
+  previous.resolve({ lease_id: "old" });
+  await first;
+  assert.equal(session.audio.status.leaseId, "takeover");
+  assert.equal(session.audio.status.conflict, false);
+  session.audio.reset();
+});
+
+test("late interruption errors stay silent after leaving the room", async () => {
+  const previous = deferred();
+  const session = audioSession({
+    interceptRequest: (url) => url.endsWith("/audio-failure") ? previous.promise : undefined,
+  });
+  await session.audio.enable();
+  await session.audio.synchronize();
+  await settleUntil(
+    () => session.requestsFor("/preload-check").length === 2,
+    "initial preload",
+  );
+  session.state.game.phase = "countdown";
+  await session.audio.synchronize();
+  session.audio.suspend();
+  const report = session.audio.synchronize();
+  assert.equal(session.requestsFor("/audio-failure").length, 1);
+  session.audio.reset();
+  session.setState(null);
+  previous.reject(new Error("Abandoned room failed"));
+  await report;
+  assert.deepEqual(session.notices, []);
+  assert.equal(session.audio.status.leaseId, null);
+});
+
+test("a live lease conflict stops the host source and requires explicit takeover", async () => {
+  let leases = 0;
+  const session = audioSession({
+    interceptRequest: (url) => {
+      if (!url.endsWith("/audio-controller")) return;
+      if (++leases === 2)
+        throw Object.assign(new Error("Other host tab owns audio"), { status: 409 });
+    },
+  });
+  await session.audio.enable();
+  await session.audio.synchronize();
+  await settleUntil(
+    () => session.requestsFor("/preload-check").length === 2,
+    "initial preload",
+  );
+  session.state.game.phase = "countdown";
+  await session.audio.synchronize();
+  const source = session.sources[1];
+  await assert.rejects(session.audio.renewLease(), { status: 409 });
+  assert.deepEqual(source.stops, [[31], []]);
+  assert.deepEqual(session.audio.status, {
+    unlocked: true, leaseId: null, conflict: true,
+  });
+  assert.equal(session.audio.readiness(session.state.game.round).ready, false);
+  session.audio.reset();
+});
+
+test("an old playback poll cannot report its suspended audio against a replacement room", async () => {
+  const previousReport = deferred();
+  let failures = 0;
+  let canResume = true;
+  const session = audioSession({
+    resumeContext: (context) => {
+      context.state = canResume ? "running" : "suspended";
+    },
+    roundPath: (suffix, state) =>
+      `/rooms/${state.room.id}/games/${state.game.id}/rounds/${state.game.round.id}${suffix}`,
+    interceptRequest: (url) => {
+      if (url.endsWith("/audio-failure") && ++failures === 1)
+        return previousReport.promise;
+    },
+  });
+  await session.audio.enable();
+  await session.audio.synchronize();
+  await settleUntil(
+    () => session.requestsFor("/preload-check").length === 2,
+    "initial preload",
+  );
+  session.state.game.phase = "answering";
+  session.context().state = "suspended";
+  const oldPoll = session.audio.synchronize();
+  assert.equal(session.requestsFor("/audio-failure").length, 1);
+
+  session.audio.reset();
+  const replacement = structuredClone(session.state);
+  replacement.room.id = "new-room";
+  replacement.game.id = "new-game";
+  replacement.game.phase = "ready";
+  replacement.game.round.id = "new-round";
+  replacement.game.round.readiness_generation = 9;
+  session.setState(replacement);
+  canResume = false;
+  await assert.rejects(session.audio.enable(), /Host speaker couldn’t start/);
+  previousReport.resolve({ accepted: true });
+  await oldPoll;
+
+  assert.equal(session.requestsFor("/audio-failure").length, 1);
+  assert.equal(session.audio.status.leaseId, null);
+  assert.deepEqual(session.notices, []);
+  session.audio.reset();
+});
+
+test("a delayed ready acknowledgement cannot block polling or host countdown scheduling", async () => {
+  const readyReply = deferred();
+  const model = createModel({ getItem() {}, setItem() {}, removeItem() {} }, "room");
+  const session = audioSession({
+    getState: () => model.ui.state,
+    interceptRequest: (url) => url.endsWith("/ready") ? readyReply.promise : undefined,
+  });
+  model.applySnapshot(session.state, "room");
+  await session.audio.enable();
+  await session.audio.synchronize();
+  await settleUntil(
+    () => session.requestsFor("/preload-check").length === 2,
+    "initial preload",
+  );
+
+  const ready = structuredClone(session.state);
+  ready.game.phase = "ready";
+  ready.game.state_version = 1;
+  const countdown = structuredClone(ready);
+  countdown.game.status = "playing";
+  countdown.game.phase = "countdown";
+  countdown.game.state_version = 2;
+  const snapshots = [ready, countdown];
+  const timers = new Map();
+  let reads = 0;
+  let nextTimer = 0;
+  const runtime = createRuntime(
+    model,
+    {
+      path: (suffix) => suffix,
+      api: async (url) => {
+        if (url === "/state") {
+          reads++;
+          return snapshots.shift();
+        }
+        return { accepted: true };
+      },
+    },
+    session.audio,
+    session.readiness,
+    () => {},
+    (message) => session.notices.push(message),
+    () => assert.fail("The room must remain connected"),
+    (callback, delay) => {
+      const id = ++nextTimer;
+      timers.set(id, { callback, delay });
+      return id;
+    },
+    (id) => timers.delete(id),
+  );
+  runtime.start();
+  await new Promise(setImmediate);
+  assert.equal(session.requestsFor("/ready").length, 1);
+  const poll = [...timers.values()].find(({ delay }) => delay === 500);
+  assert.ok(poll, "The next state read is scheduled while ready POST is pending");
+  poll.callback();
+  await new Promise(setImmediate);
+  assert.equal(reads, 2);
+  assert.equal(model.ui.state.game.phase, "countdown");
+  assert.deepEqual(session.sources[1].starts, [[11]]);
+  assert.equal(session.requestsFor("/ready").length, 1);
+
+  readyReply.resolve({ accepted: true });
+  await new Promise(setImmediate);
+  assert.equal(model.ui.disconnected, false);
+  assert.deepEqual(session.notices, []);
+  runtime.stop();
+  session.audio.reset();
+});
+
+test("decoded upcoming audio is ready during results only while its context is running", async (t) => {
+  const session = audioSession();
+  t.after(() => session.audio.reset());
+  await session.audio.enable();
+  await session.audio.synchronize();
+  await settleUntil(() => session.requestsFor("/preload-check").length === 2 &&
+    session.audio.readiness(session.state.game.round).ready, "decoded preparation");
+  session.state.game.phase = "reveal";
+  const upcoming = { id: "next", audio_candidate_id: "two" };
+  assert.equal(session.audio.readiness(upcoming).ready, true);
+  const fetched = session.counts().fetches;
+  const started = session.sources.filter((source) => source.starts.length).length;
+  await session.audio.synchronize();
+  assert.equal(session.counts().fetches, fetched);
+  assert.equal(session.sources.filter((source) => source.starts.length).length, started);
+  session.context().state = "suspended";
+  assert.equal(session.audio.readiness(upcoming).ready, false);
+});
+
+for (const state of ["suspended", "interrupted", "closed"]) {
+  test(`${state} host audio blocks current and upcoming acknowledgements until enabled again`, async (t) => {
+    const session = audioSession({
+      resumeContext: (context) => { context.state = "running"; },
+    });
+    t.after(() => {
+      session.upcomingReadiness.reset();
+      session.audio.reset();
+    });
+    await session.audio.enable();
+    await session.audio.synchronize();
+    await settleUntil(
+      () => session.audio.readiness(session.state.game.round).ready,
+      "decoded host audio",
+    );
+    const originalContext = session.context();
+    const before = session.renders();
+    originalContext.state = state;
+    originalContext.dispatchEvent(new Event("statechange"));
+    assert.equal(session.renders(), before + 1, "audio state changes refresh the UI");
+    assert.equal(session.audio.status.unlocked, false);
+    assert.equal(session.audio.readiness(session.state.game.round).ready, false);
+
+    session.state.game.phase = "ready";
+    await session.readiness.synchronize();
+    await session.audio.synchronize();
+    assert.equal(session.readySent.size, 0);
+    session.state.game.phase = "leaderboard";
+    session.state.game.upcoming_round = {
+      id: "next", readiness_generation: 4, audio_candidate_id: "two",
+    };
+    await session.upcomingReadiness.synchronize();
+    assert.equal(session.requestsFor("/ready").length, 0);
+    assert.equal(session.requestsFor("/audio-failure").length, 0);
+    assert.equal(session.sources.length, 1, "only the gesture unlock source exists");
+
+    await session.audio.enable();
+    await session.audio.synchronize();
+    await settleUntil(
+      () => session.audio.readiness(session.state.game.upcoming_round).ready,
+      "recovered host audio",
+    );
+    assert.equal(session.audio.status.unlocked, true);
+    await session.upcomingReadiness.synchronize();
+    session.state.game.phase = "ready";
+    await session.readiness.synchronize();
+    await session.readiness.synchronize();
+    assert.deepEqual(session.requestsFor("/ready").map((request) => request.url), [
+      "/games/game/preparations/next/ready", "/rounds/round/ready",
+    ]);
+    if (state === "closed") {
+      assert.notEqual(session.context(), originalContext);
+      const recoveredRenders = session.renders();
+      originalContext.dispatchEvent(new Event("statechange"));
+      assert.equal(session.renders(), recoveredRenders, "replaced contexts are detached");
+    } else assert.equal(session.context(), originalContext);
+  });
+}
+
+test("a resolved resume that leaves audio suspended cannot acquire a speaker lease", async (t) => {
+  const session = audioSession({
+    resumeContext: (context) => { context.state = "suspended"; },
+  });
+  t.after(() => session.audio.reset());
+  await assert.rejects(session.audio.enable(), /Host speaker couldn’t start/);
+  assert.equal(session.audio.status.unlocked, false);
+  assert.equal(session.audio.status.leaseId, null);
+  assert.equal(session.requestsFor("/audio-controller").length, 0);
+  assert.equal(session.sources.length, 0);
+});
+
+test("suspension during lease acquisition is reflected when enable completes", async (t) => {
+  const lease = deferred();
+  const session = audioSession({
+    interceptRequest: (url) => url.endsWith("/audio-controller") ? lease.promise : undefined,
+  });
+  t.after(() => session.audio.reset());
+  const enable = session.audio.enable();
+  await settleUntil(() => session.requestsFor("/audio-controller").length === 1, "lease acquisition");
+  session.context().state = "suspended";
+  lease.resolve({ lease_id: "lease" });
+  await enable;
+  assert.equal(session.audio.status.leaseId, "lease");
+  assert.equal(session.audio.status.unlocked, false);
+  await session.audio.synchronize();
+  await settleUntil(() => session.requestsFor("/preload-check").length === 2, "decoded clips");
+  session.state.game.phase = "ready";
+  await session.readiness.synchronize();
+  assert.equal(session.requestsFor("/ready").length, 0);
+});
+
+test("suspension after acknowledging readiness still reports one playback failure", async (t) => {
+  const session = audioSession();
+  t.after(() => session.audio.reset());
+  await session.audio.enable();
+  await session.audio.synchronize();
+  await settleUntil(() => session.audio.readiness(session.state.game.round).ready, "decoded host audio");
+  session.state.game.phase = "ready";
+  await session.readiness.synchronize();
+  assert.equal(session.requestsFor("/ready").length, 1);
+  session.context().state = "suspended";
+  session.state.game.phase = "countdown";
+  await session.audio.synchronize();
+  await session.audio.synchronize();
+  assert.equal(session.requestsFor("/audio-failure").length, 1);
+  assert.equal(session.sources.at(-1).starts.length, 0, "suspended audio never starts the song");
+});
+
+test("stopping and restoring polling aborts an upcoming request and checks in again", async (t) => {
+  const pending = deferred();
+  let preparationRequests = 0;
+  const session = audioSession({
+    interceptRequest: (url) => url.includes("/preparations/") && ++preparationRequests === 1
+      ? pending.promise : undefined,
+  });
+  session.state.me.is_host = false;
+  session.state.game.status = "playing";
+  session.state.game.phase = "reveal";
+  session.state.game.upcoming_round = { id: "next", round_number: 2, readiness_generation: 1 };
+  const model = { ui: { roomId: "room", state: session.state }, applySnapshot: () => true };
+  const runtime = createRuntime(
+    model, { path: (suffix) => suffix, api: async () => session.state },
+    { synchronize: async () => {}, renewLease: async () => {} },
+    session.readiness, () => {}, (message) => session.notices.push(message),
+    () => assert.fail("The room must stay connected"), () => 1, () => {},
+  );
+  t.after(() => runtime.stop());
+  runtime.start();
+  await new Promise(setImmediate);
+  const requests = () => session.requestsFor("/ready");
+  assert.equal(requests().length, 1);
+  runtime.stop();
+  assert.equal(requests()[0].signal.aborted, true);
+  runtime.start();
+  await new Promise(setImmediate);
+  assert.equal(requests().length, 2, "A frozen reply cannot block a restored page");
+  assert.equal(requests()[1].signal.aborted, false);
+  pending.reject(new Error("Cancelled old page"));
+  await new Promise(setImmediate);
   assert.deepEqual(session.notices, []);
 });

@@ -1,6 +1,7 @@
 import { createModel, safeStorage } from "./application/state.mjs";
 import { createTransport, requestId } from "./transport/client.mjs";
 import { createAudioController } from "./audio/host.mjs";
+import { createRoundReadiness } from "./application/round-readiness.mjs";
 import { createRuntime } from "./application/runtime.mjs";
 import { createActions } from "./application/actions.mjs";
 import { createMusicAdmission } from "./application/music-admission.mjs";
@@ -14,6 +15,7 @@ import { createHistoryScreen } from "./screens/history.mjs";
 import { element, text } from "./dom.mjs";
 import { createScreenHost } from "./application/screen-host.mjs";
 import { createSiteHeader } from "./components/site-header.mjs";
+import { createLaunchConfig, modeAvailable, modeReason } from "./application/launch-config.mjs";
 
 let browserStorage;
 try {
@@ -43,6 +45,7 @@ const transport = createTransport(
 let toastTimer,
   action,
   audio,
+  readiness,
   musicAdmission,
   runtime,
   frame,
@@ -58,6 +61,7 @@ function emit(name, payload) {
 }
 function forgetRoom() {
   audio.reset();
+  readiness.reset();
   model.forgetRoom();
   const url = new URL(location.href);
   url.searchParams.delete("room");
@@ -89,12 +93,19 @@ const screens = createScreenHost(root, {
     () => emit("retry-import"),
     () => emit("back-to-sign-in"),
   ),
-  restoring: () => ({
-    element: element(
-      '<section class="entry-loading"><repeat-character color="coral" mood="idle"></repeat-character><h1>Back to your room…</h1></section>',
-    ),
-    update() {},
-  }),
+  restoring: () => {
+    const node = element(
+      '<section class="entry-loading"><repeat-character color="coral" mood="idle"></repeat-character><h1>Back to your room…</h1><p role="status"></p><button class="button button-primary" type="button" hidden>Try again</button></section>',
+    );
+    node.querySelector("button").addEventListener("click", () => emit("retry-launch"));
+    return {
+      element: node,
+      update({ ui }) {
+        text(node.querySelector("p"), ui.launchError || "");
+        node.querySelector("button").hidden = ui.launchStatus !== "error";
+      },
+    };
+  },
   history: () =>
     createHistoryScreen(() => {
       ui.historyOpen = false;
@@ -131,13 +142,28 @@ audio = createAudioController(
   () => ui.state,
   transport.now,
   requestId(),
-  model.readySent,
   render,
   notice,
 );
-runtime = createRuntime(model, transport, audio, render, notice, forgetRoom);
+readiness = createRoundReadiness(
+  transport,
+  () => ui.state,
+  model.readySent,
+  (round) => audio.readiness(round),
+  notice,
+);
+runtime = createRuntime(
+  model,
+  transport,
+  audio,
+  readiness,
+  render,
+  notice,
+  forgetRoom,
+);
 async function admitted(receipt) {
   audio.reset();
+  readiness.reset();
   model.rememberRoom(receipt);
   await transport.api(transport.path("/heartbeat"), { method: "POST", body: {} });
   await runtime.refresh({ fresh: true });
@@ -153,6 +179,19 @@ musicAdmission = createMusicAdmission({
   render,
   admitted,
 });
+const launchConfig = createLaunchConfig({ ui, api: transport.api, render });
+async function initialize() {
+  if (!await launchConfig.load()) return;
+  runtime.start();
+  if (params.has("spotify")) {
+    if (modeAvailable(ui, "normal"))
+      await musicAdmission.resume(params.get("spotify"));
+    else {
+      ui.error = { message: modeReason(ui, "normal") };
+      render();
+    }
+  }
+}
 action = createActions({
   model,
   transport,
@@ -163,6 +202,7 @@ action = createActions({
   forgetRoom,
   musicAdmission,
   admitted,
+  retryLaunch: initialize,
 });
 root.addEventListener("player-select", (event) => {
   const { id } = event.detail;
@@ -201,9 +241,10 @@ function tick(timestamp) {
 }
 document.addEventListener("visibilitychange", () => {
   syncFrame();
+  if (document.hidden) readiness.reset();
   if (!document.hidden) {
     screens.tick(transport.now());
-    void runtime.refresh({ fresh: true });
+    if (ui.launchStatus === "ready") void runtime.refresh({ fresh: true });
   }
 });
 window.addEventListener("pagehide", () => {
@@ -215,11 +256,10 @@ window.addEventListener("pagehide", () => {
 });
 window.addEventListener("pageshow", (event) => {
   if (event.persisted) {
-    runtime.start();
-    if (ui.musicImport) void musicAdmission.resume();
+    if (ui.launchStatus === "ready") runtime.start();
+    if (ui.musicImport && modeAvailable(ui, "normal")) void musicAdmission.resume();
     syncFrame();
   }
 });
 render();
-runtime.start();
-if (params.has("spotify")) void musicAdmission.resume(params.get("spotify"));
+void initialize();

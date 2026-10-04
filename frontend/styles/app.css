@@ -92,7 +92,6 @@ svg {
   gap: 60px;
   align-items: center;
 }
-.site-nav button,
 .site-nav a {
   border: 0;
   background: none;
@@ -102,11 +101,9 @@ svg {
   text-decoration: none;
   position: relative;
 }
-.site-nav .active,
 .site-nav [aria-current="page"] {
   color: var(--ink);
 }
-.site-nav .active:after,
 .site-nav [aria-current="page"]:after {
   content: "";
   position: absolute;
@@ -119,48 +116,6 @@ svg {
 }
 .profile-menu {
   position: relative;
-}
-.profile-button {
-  border: 0;
-  background: white;
-  border-radius: 40px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 5px 14px 5px 5px;
-  box-shadow: var(--shadow);
-  font-weight: 800;
-  font-size: 18px;
-}
-.profile-button repeat-character {
-  width: 48px;
-  height: 48px;
-  border-radius: 100%;
-  background: var(--pink-soft);
-}
-.profile-dropdown {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 12px);
-  min-width: 200px;
-  padding: 10px;
-  background: white;
-  border: 1px solid var(--line);
-  box-shadow: 0 12px 40px #24202012;
-  border-radius: 20px;
-  z-index: 20;
-}
-.profile-dropdown button {
-  display: block;
-  width: 100%;
-  border: 0;
-  background: none;
-  text-align: left;
-  padding: 10px 14px;
-  border-radius: 10px;
-}
-.profile-dropdown button:hover {
-  background: var(--wash);
 }
 .main-view {
   max-width: 1536px;
@@ -449,51 +404,52 @@ svg {
   border-color: var(--muted);
 }
 .lobby-footer {
-  max-width: 960px;
+  max-width: 860px;
   margin: 0 auto;
   text-align: center;
 }
 .settings-bar {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
-  gap: 24px;
-  padding: 14px 22px;
-  background: var(--wash);
-  border-radius: 24px;
-  margin-bottom: 14px;
+  gap: 28px;
+  padding: 0 0 18px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 18px;
 }
 .settings-bar > label {
   display: flex;
   align-items: center;
-  gap: 12px;
-  color: #626579;
-  font-size: 14px;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
 }
-.settings-bar > label > span {
-  font-size: 24px;
-  color: #25293b;
-}
 .settings-bar select {
   border: 0;
-  background: white;
-  border-radius: 24px;
-  padding: 9px 25px 9px 16px;
+  background: var(--wash);
+  border-radius: 12px;
+  padding: 10px 12px;
   font-weight: 800;
-  min-height: 40px;
+  min-height: 44px;
   cursor: pointer;
 }
 .extra-settings {
   position: relative;
-  color: #626579;
-  font-size: 14px;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
 }
 .extra-settings summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
   cursor: pointer;
   list-style: none;
   white-space: nowrap;
+  padding: 12px 0;
 }
 .extra-settings summary::-webkit-details-marker {
   display: none;
@@ -526,24 +482,34 @@ svg {
 }
 .lobby-buttons {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: center;
   gap: 16px;
 }
-.start-game {
-  min-width: 310px;
+.lobby-host-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
 }
-.invite-friends {
-  min-width: 215px;
+.lobby-buttons .button {
+  min-height: 48px;
+  padding: 11px 20px;
+  font-size: 15px;
+}
+.leave-room {
+  color: var(--muted);
+  border-color: var(--line);
+}
+.start-game {
+  min-width: 190px;
 }
 .start-hint {
   font-size: 14px;
   line-height: 1.5;
   color: var(--muted);
-  margin: 12px auto 0;
+  margin: 14px auto 0;
   max-width: 650px;
-}
-.host-audio-controls:has(button) {
-  margin-top: 12px;
 }
 .round-meta {
   display: flex;
@@ -584,6 +550,10 @@ svg {
   aspect-ratio: 440 / 370;
   position: relative;
   margin: 0 auto;
+}
+.round-art {
+  position: absolute;
+  inset: 0;
 }
 .round-timer {
   position: absolute;
@@ -645,7 +615,41 @@ svg {
   opacity: 0;
 }
 .is-preparing .round-title {
-  font-size: 32px;
+  font-size: clamp(26px, 3vw, 34px);
+}
+.is-preparing .round-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  max-width: 400px;
+  aspect-ratio: auto;
+  padding-top: 18px;
+}
+.is-preparing .round-heading {
+  position: static;
+  width: 100%;
+  padding-inline: 12px;
+}
+.is-preparing .round-subtitle {
+  max-width: 34ch;
+  margin: 8px auto 0;
+  min-height: 0;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.is-preparing .round-art {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  aspect-ratio: 440 / 315;
+}
+.is-preparing .round-character {
+  width: 50%;
+  left: 25%;
+  bottom: 0;
 }
 .round-controls {
   margin-top: 12px;
@@ -756,27 +760,9 @@ svg {
   flex: 1;
   font-weight: 800;
 }
-.entry-tabs button[aria-selected="true"] {
-  background: white;
-  box-shadow: var(--shadow);
-}
 .info-screen {
   max-width: 760px;
   padding-bottom: 40px;
-}
-.info-screen h2 {
-  font-size: 25px;
-  margin-top: 32px;
-}
-.error-banner {
-  background: #fff0ea;
-  color: #8c4236;
-  border-radius: 20px;
-  padding: 14px 20px;
-  max-width: 740px;
-  margin: 16px auto;
-  font-size: 15px;
-  line-height: 1.45;
 }
 @keyframes note-float {
   0%,
@@ -867,7 +853,6 @@ svg {
   }
   .settings-bar {
     gap: 16px;
-    padding-inline: 16px;
   }
 }
 @media (max-width: 850px) {
@@ -880,13 +865,6 @@ svg {
   }
   .site-brand {
     font-size: 25px;
-  }
-  .profile-button {
-    font-size: 16px;
-  }
-  .profile-button repeat-character {
-    width: 39px;
-    height: 39px;
   }
   .main-view {
     padding: 10px 22px 30px;
@@ -957,15 +935,9 @@ svg {
     gap: 40px;
     font-size: 14px;
   }
-  .site-nav button,
   .site-nav a {
     padding-top: 5px;
     padding-bottom: 8px;
-  }
-  .profile-button {
-    font-size: 14px;
-    gap: 7px;
-    padding-right: 10px;
   }
   .main-view {
     padding: 5px 16px 28px;
@@ -1035,20 +1007,27 @@ svg {
   }
   .settings-bar {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 12px;
-    padding: 18px;
+    padding: 0 0 14px;
     text-align: left;
   }
   .settings-bar > label {
-    justify-content: space-between;
-    font-size: 14px;
-  }
-  .settings-bar > label > span {
-    display: none;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 6px;
   }
   .settings-bar select {
-    min-width: 135px;
+    min-width: 0;
+    width: 100%;
+  }
+  .extra-settings {
+    grid-column: 1 / -1;
+    width: 100%;
+    margin-left: 0;
+  }
+  .extra-settings summary {
+    padding: 4px 0 8px;
   }
   .extra-settings-panel {
     left: 0;
@@ -1056,13 +1035,23 @@ svg {
     min-width: 0;
   }
   .lobby-buttons {
-    gap: 10px;
-    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: wrap;
+    gap: 12px;
   }
-  .start-game,
-  .invite-friends {
+  .lobby-host-actions {
+    width: 100%;
+    order: -1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+  }
+  .start-game {
     min-width: 0;
     width: 100%;
+  }
+  .leave-room {
+    margin-inline: auto;
   }
   .start-hint {
     font-size: 13px;
@@ -1199,16 +1188,34 @@ svg {
   background: var(--wash);
   border-color: var(--ink);
 }
+.entry-mode-options label:has(input:disabled) {
+  color: #777;
+  background: #eee;
+  border-color: #ddd;
+  cursor: not-allowed;
+}
+.entry-mode-options small {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+.entry-mode-options small:empty {
+  display: none;
+}
 .entry-mode-options input {
   accent-color: var(--ink);
 }
 .entry-form .mode-label,
-.entry-form .form-error {
+.entry-form .form-error,
+.entry-form .launch-status {
   margin: 0;
   font-size: 14px;
   line-height: 1.5;
 }
-.entry-form .form-error:empty {
+.entry-form .form-error:empty,
+.entry-form .launch-status:empty {
   display: none;
 }
 .canonical-address {

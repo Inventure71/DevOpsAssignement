@@ -7,8 +7,14 @@ from typing import Iterator
 
 from backend.core.paths import MIGRATIONS_DIR
 
-MIGRATIONS = ("001_initial.sql", "002_song_selections.sql", "003_blob_colors.sql", "004_music_admission.sql",
-              "005_playtest.sql")
+MIGRATIONS = (
+    "001_initial.sql",
+    "002_song_selections.sql",
+    "003_blob_colors.sql",
+    "004_music_admission.sql",
+    "005_playtest.sql",
+    "006_round_preparation.sql",
+)
 
 
 class Database:
@@ -43,8 +49,11 @@ class Database:
         sql = (MIGRATIONS_DIR / filename).read_text()
         try:
             # executescript commits earlier transactions; BEGIN belongs in the script.
-            conn.executescript("BEGIN IMMEDIATE;\n" + sql +
-                               f"\nPRAGMA user_version = {target};\nCOMMIT;")
+            conn.executescript(
+                "BEGIN IMMEDIATE;\n"
+                + sql
+                + f"\nPRAGMA user_version = {target};\nCOMMIT;"
+            )
         except BaseException:
             if conn.in_transaction:
                 conn.rollback()

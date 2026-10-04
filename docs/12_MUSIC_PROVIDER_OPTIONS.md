@@ -1,3 +1,8 @@
+> Historical checkpoint/research document. Current architecture, complete
+> offline Demo and storage/setup are described in [README](../README.md),
+> [architecture](05_ARCHITECTURE.md) and [implementation status](08_IMPLEMENTATION_STATUS.md).
+> Four-song references below describe the earlier development seed.
+
 # 12 — Music provider options and tradeoffs
 
 Researched **2026-10-02** for Who's On Repeat. This comparison preserves the

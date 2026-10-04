@@ -2,7 +2,7 @@ import "./character.mjs";
 import { text } from "../dom.mjs";
 
 // One revealed player and the local player's listener guess about them.
-export class ListenerResult extends HTMLElement {
+class ListenerResult extends HTMLElement {
   connectedCallback() {
     if (this.firstElementChild) return;
     this.innerHTML = `<article class="listener-result"><repeat-character class="listener-character"></repeat-character><div class="listener-feedback"><h3 class="listener-name"></h3><span class="result-badge selection-badge"></span><span class="result-badge listener-verdict"></span><span class="listener-actual"></span></div></article>`;

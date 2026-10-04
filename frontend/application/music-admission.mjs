@@ -67,10 +67,7 @@ export function createMusicAdmission({
         ui.musicImport = { status: "failed", error: ui.error };
         clearCallback();
       } else if (failures >= 3) {
-        ui.musicImport = {
-          status: "interrupted",
-          message: "Connection interrupted. Check your connection and retry.",
-        };
+        ui.musicImport = { status: "interrupted" };
       } else {
         ui.musicImport = { status: "processing", reconnecting: true };
         timer = schedule(() => void poll(epoch), 1500);

@@ -216,6 +216,7 @@ test("concurrent forced refreshes still perform one state read at a time", async
       },
     },
     { synchronize: async () => {} },
+    { synchronize: async () => {} },
     () => {},
     () => {},
     () => {},
@@ -232,7 +233,7 @@ function runtimeHarness() {
   const m = model();
   const requests = { state: [], heartbeat: [] };
   const timers = new Map();
-  const effects = { render: 0, synchronize: 0, renew: 0, forget: 0, notice: 0 };
+  const effects = { render: 0, synchronize: 0, readiness: 0, renew: 0, forget: 0, notice: 0 };
   let timerId = 0;
   const runtime = createRuntime(
     m,
@@ -248,6 +249,7 @@ function runtimeHarness() {
       synchronize: async () => effects.synchronize++,
       renewLease: async () => effects.renew++,
     },
+    { synchronize: async () => effects.readiness++, reset() {} },
     () => effects.render++,
     () => effects.notice++,
     () => effects.forget++,
@@ -277,6 +279,7 @@ test("runtime restart keeps one poll and heartbeat while older requests finish",
   assert.deepEqual(effects, {
     render: 0,
     synchronize: 0,
+    readiness: 0,
     renew: 0,
     forget: 0,
     notice: 0,
@@ -290,6 +293,7 @@ test("runtime restart keeps one poll and heartbeat while older requests finish",
   assert.deepEqual(effects, {
     render: 1,
     synchronize: 1,
+    readiness: 1,
     renew: 1,
     forget: 0,
     notice: 0,
@@ -323,6 +327,7 @@ test("stopping runtime discards pending errors and prevents timer renewal", asyn
   assert.deepEqual(effects, {
     render: 0,
     synchronize: 0,
+    readiness: 0,
     renew: 0,
     forget: 0,
     notice: 0,
@@ -404,7 +409,7 @@ test("host preloading deduplicates source URLs and publishes real waveform level
   const checks = [];
   const sources = [];
   const samples = new Float32Array(4800).fill(0.4);
-  class Context {
+  class Context extends EventTarget {
     state = "running";
     sampleRate = 48000;
     destination = {};
@@ -458,7 +463,6 @@ test("host preloading deduplicates source URLs and publishes real waveform level
     () => state,
     () => 2000,
     "tab",
-    new Set(),
     () => {},
     (message) => assert.fail(message),
     environment,

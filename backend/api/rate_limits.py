@@ -1,4 +1,5 @@
 """Bound room creation and joining per client address in this server process."""
+
 import threading
 from collections import defaultdict, deque
 
@@ -7,7 +8,7 @@ from backend.core.errors import DomainError
 
 class AdmissionLimits:
     def __init__(self, create_limit=10, join_limit=30):
-        self.limits = {'create': create_limit, 'join': join_limit}
+        self.limits = {"create": create_limit, "join": join_limit}
         self.windows = defaultdict(deque)
         self.lock = threading.Lock()
 
@@ -21,5 +22,7 @@ class AdmissionLimits:
             while events and events[0] <= now - 60_000:
                 events.popleft()
             if len(events) >= self.limits[kind]:
-                raise DomainError('rate_limited', 'Too many attempts. Try again in a minute.', 429)
+                raise DomainError(
+                    "rate_limited", "Too many attempts. Try again in a minute.", 429
+                )
             events.append(now)

@@ -11,7 +11,7 @@ const format = (milliseconds) =>
   `${Math.floor(milliseconds / 60000)}:${String(Math.floor(milliseconds / 1000) % 60).padStart(2, "0")}`;
 // Audio decoding and scheduling belong to the caller; this element only draws
 // measured samples and the authoritative timeline. No private clocks or fetches.
-export class MusicWaveform extends HTMLElement {
+class MusicWaveform extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });

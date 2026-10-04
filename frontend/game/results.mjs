@@ -66,8 +66,6 @@ export function roundResult(state) {
   ).length;
   return {
     song: reveal.song,
-    answer,
-    submitted,
     players,
     points: submitted ? (answer.points ?? 0) : 0,
     songVerdict: verdict(match === "correct"),

@@ -17,12 +17,15 @@ def _key(song: Mapping[str, Any]) -> str:
 
 
 def _artist_keys(song: Mapping[str, Any]) -> set[str]:
-    return {str(key) for artist in song.get('artists', [])
-            for key in [artist['artist_key'], *artist.get('aliases', [])]}
+    return {
+        str(key)
+        for artist in song.get("artists", [])
+        for key in [artist["artist_key"], *artist.get("aliases", [])]
+    }
 
 
 def _title(song: Mapping[str, Any]) -> str:
-    return recording_title(song.get('title', ''))
+    return recording_title(song.get("title", ""))
 
 
 def _listeners(song: Mapping[str, Any]) -> set[str]:
@@ -32,15 +35,18 @@ def _listeners(song: Mapping[str, Any]) -> set[str]:
     }
 
 
-def classify_song_guess(song: Mapping[str, Any], chosen: Mapping[str, Any] | None) -> str:
+def classify_song_guess(
+    song: Mapping[str, Any], chosen: Mapping[str, Any] | None
+) -> str:
     """Classify frozen song facts independently of listener points or timing."""
     if chosen is None:
         return "unanswered"
     if not isinstance(chosen, Mapping):
         raise ValueError("Invalid song selection")
     same_artist = bool(_artist_keys(song) & _artist_keys(chosen))
-    if ((bool(_key(song)) and _key(chosen) == _key(song)) or
-            (same_artist and bool(_title(song)) and _title(chosen) == _title(song))):
+    if (bool(_key(song)) and _key(chosen) == _key(song)) or (
+        same_artist and bool(_title(song)) and _title(chosen) == _title(song)
+    ):
         return "correct"
     return "artist" if same_artist else "wrong"
 
@@ -60,8 +66,12 @@ def score_answer(
     """
     if answer_ms <= 0:
         raise ValueError("answer_ms must be positive")
-    multipliers = {"easy": Fraction(1), "medium": Fraction(3, 2),
-                   "hard": Fraction(2), "decoy": Fraction(1)}
+    multipliers = {
+        "easy": Fraction(1),
+        "medium": Fraction(3, 2),
+        "hard": Fraction(2),
+        "decoy": Fraction(1),
+    }
     if difficulty not in multipliers:
         raise ValueError("Unknown difficulty")
     song_match = classify_song_guess(song, chosen)

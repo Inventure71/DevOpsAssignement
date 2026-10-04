@@ -1,3 +1,8 @@
+> Historical checkpoint/research document. Current architecture, complete
+> offline Demo and storage/setup are described in [README](../README.md),
+> [architecture](05_ARCHITECTURE.md) and [implementation status](08_IMPLEMENTATION_STATUS.md).
+> Four-song references below describe the earlier development seed.
+
 # Privacy and code organization cleanup
 
 ## Goal and constraints

@@ -1,3 +1,196 @@
+# Single-pack cleanup checkpoint - 2026-10-04
+
+Demo now requires the pinned 100-song Drive pack: 80 personal tracks and 20
+Nobody tracks, with 36 assigned songs per player. The canonical public metadata
+matches the installed pack. The only runtime mount is `/static/demo/local/`;
+retired synthetic/festival recordings, generators and pack-selection fallback
+paths have been removed. The UI lab requests its sample from `/api/demo/preview`.
+
+Both launch profiles install missing default music before starting the server.
+A failed download or invalid pack stops launch with setup instructions. `--check`
+remains read-only and requires an installed valid pack; `--demo-pack` selects an
+explicit prepared directory. `--bundled-demo` no longer exists. Teacher setup
+needs internet once or the pinned ZIP supplied with `--archive`; gameplay then
+uses local music without API keys, a Google account or ffmpeg.
+
+At the user's request, local pre-release room/game history was cleared and old
+media moved outside the checkout. Verified provider links and public catalog
+cache remain intact. Separate catalog imports and pre-release catalog upgrade
+paths are retired; ordinary current-game recovery and versioned application
+schema creation remain. Automated tests generate explicit temporary transport
+audio, so source tests require neither private acquisition tools nor Drive.
+
+An isolated copy of public source, without private acquisition tools, local media
+or application data, passed **267 unit + 259 integration = 526 Python tests**
+and **174 frontend tests**. Unit core line coverage is **90.32%** against the
+70% requirement. Its dependencies were supplied from the existing `.venv`; this
+was not a new package download or Windows hardware check. Runtime/tool/test Ruff
+lint, formatting and whitespace checks passed.
+
+The same source copy installed the actual pinned ZIP with `--archive`, verified
+all 104 inventory entries offline and passed Demo launcher preflight with usable
+loopback/LAN URLs. Preflight created no application data. Real-pack ten- and
+fifteen-round HTTP/SQLite games passed with separate client cookie jars and
+isolated game data. This verifies transport and game flow, not physical speakers.
+The checkout has exactly 100 audio files, all inside the ignored managed pack;
+no existing audio or ignored artifact is tracked or eligible for source addition.
+No staging, commit, branch or remote mutation is included in this cleanup.
+
+The following sections are historical checkpoint evidence. Their earlier packs,
+compatibility paths and test counts describe those dates, not current behavior.
+
+# Drive installer checkpoint - 2026-10-04
+
+The user's uploaded 98.02 MiB ZIP is anonymously downloadable. The public source
+pins the Drive file ID, exact byte count, ZIP SHA-256 and manifest SHA-256 in
+`catalog/demo_pack_source.json`. The portable launcher installs it once before
+starting the server when no playable local pack exists; `--bundled-demo` skips
+Drive and `--check` stays read-only. A failed optional download prints a note and
+falls back to bundled music. The standalone `tools/setup_demo_pack.py` command
+also supports an already downloaded ZIP and a full offline integrity check.
+
+Download, shared catalog validation and immutable installation have separate
+modules. Bounded transfers, allowed redirects, unsafe ZIP paths/links, inventory
+hashes, partial files, corrupt installs and concurrent locks are checked. Install
+publishes an entirely verified version directory atomically, preserving the
+existing author pack and older media. Malformed HTTP responses use the same
+recoverable fallback as other transport failures. No provider credentials,
+Google account or media encoder is needed by the installer.
+
+Live validation downloaded the actual Drive ZIP anonymously into a temporary
+project, verified all 104 entries and ran ten- and fifteen-round HTTP/SQLite
+matches with its original audio. Offline reruns made no download requests. A
+clean public source copy, with dependencies supplied and private acquisition
+scripts/keys/music absent, passed **297 unit + 257 integration = 554 Python
+tests**, **153 frontend tests**, and **90.32% core unit line coverage**. These
+checks do not establish Windows hardware or physical speaker acceptance.
+Existing application databases, server processes, Drive permissions and Git
+state were not mutated. Changes remain unstaged on `test/optimized-game`.
+
+Earlier checkpoint evidence follows.
+
+# Private acquisition and upload package - 2026-10-04
+
+The Apple acquisition script, media helper and fifteen dedicated unit tests are
+Git-ignored at the user's request. The public application and tests do not import
+these private tools. Verification from a clean source copy with dependencies
+supplied and private tools absent passed **262 unit + 220 integration = 482 Python
+tests**, **127 frontend tests**, with **91% unit core coverage**. The local author's
+497-test Python count includes the fifteen private preparation tests.
+
+`catalog/local/drive-upload/whos-on-repeat-demo-100.zip` is an ignored, self-contained
+package with exactly 100 previews and the catalog, provenance, credits and checksum
+manifest. It excludes the old clips, private credentials, acquisition code, setup
+receipts and history. Every archive entry was checked against its SHA-256 hash.
+At this earlier checkpoint, the Drive installer was pending the uploaded file
+link. No upload or Git mutation occurred; the completed installer is described above.
+
+Earlier preparation evidence follows.
+
+# Local Apple-preview checkpoint - 2026-10-04
+
+Optional `tools/setup_apple_demo.py` resolves the explicit 100-song request list,
+prepares original previews under ignored `catalog/local`, and publishes only a
+complete pack. Eighty songs populate simulated libraries (36 per player); twenty
+separate songs supply Nobody rounds. Per-song receipts permit resumed/offline
+reuse. SHA-256 filenames preserve older frozen-game URLs, and previous metadata
+and attribution are retained. Startup never invokes the preparation tool.
+The standard Apple terms restrict saving/rehosting; this checkpoint makes no
+claim of an educational exemption or redistribution permission. No cloud upload
+or Git mutation occurred.
+
+All 100 actual previews passed full ffmpeg decode, duration and checksum checks;
+lengths are 29.977-30.023 seconds and current media totals 98.41 MiB. Ten- and
+fifteen-round HTTP/SQLite games passed using the downloaded pack and temporary
+application data. The current suite passes **277 unit + 220 integration = 497
+Python tests**, **127 frontend tests**, with **91% unit core coverage**. Native
+browser/device speaker acceptance for this new pack was not performed; the main
+server was left stopped. Existing application data was untouched.
+
+Earlier launch and refinement evidence follows.
+
+# Current refinement checkpoint - 2026-10-04
+
+Latest launch refinement: `run_demo.sh` is the teacher's key-free setup/run path;
+`run_real_game.sh` additionally enables configured Spotify, while retaining Demo.
+Both use the portable Python setup entry, verify requirements/assets and print
+usable browser URLs. Demo ignores private provider and tunnel configuration,
+uses local catalog searches even for misses, and defaults to `data/demo`.
+`GET /api/config` controls available options; server commands enforce the same
+Spotify restriction independently of the UI. Insecure real-game entries redirect
+to the configured HTTPS origin and preserve invitations.
+
+Current verification: **277 unit + 218 integration = 495 Python tests**, **127
+frontend tests**, **91% unit-only core coverage**. All 109 Python source/test/tool
+files pass formatting checks. A fresh copied project without `.env`, `.venv` or
+downloaded clips installed the root manifest and ran bundled Demo; 11 additional
+checks under that fresh environment covered complete ten-/fifteen-round matches,
+invitations and session boundaries. Native browser checks verified disabled
+Spotify under Demo and both enabled choices under the real launch. An independent
+LAN cookie jar reached and joined the printed invite. Physical teacher hardware,
+Windows execution and device speaker acceptance remain separate manual checks.
+The existing server/game was preserved; all new runtime checks used other ports
+and temporary data. Changes remain uncommitted on `test/optimized-game`.
+
+Unused-code cleanup removed Spotify public search/app-token credentials, its
+implicit decoy fallback, the Apple resolve wrapper, unused importer counters and
+media identity field, obsolete frontend selectors/model fields and inspection
+hooks. Five tests for the retired Spotify search feature were removed; personal
+PKCE import, failure details, verified links, signed-selection expiry, standings
+and the room-revision snapshot remain intact. Seven unreferenced local clips were
+pruned after checking catalog JSON and all local databases, with recovery copies
+outside the repository. Both the prepared 21-clip pack and bundled 120-clip pack
+validate. Current counts include the Apple Demo setup tests already in the
+workspace. Backend/tool/unit lint, JavaScript/shell syntax and whitespace checks
+pass; this cleanup did not start or stop servers or perform Git mutations.
+
+Earlier refinement evidence follows:
+
+The entries below preserve earlier evidence and limitations at those dates.
+Current implementation uses one process, one root manifest and one SQLite file.
+The complete offline Demo has 120 original bundled recordings (96 personal,
+24 independent Nobody decoys); default 10-round and maximum 15-round games
+pass real HTTP/SQLite tests with three player sessions and signed local search.
+Each player gets 36 hidden songs. All 120 MP3s were decoded with ffmpeg and
+last 30.000-30.096 seconds, totaling 10,960,608 audio bytes.
+
+Named application operations own HTTP workflows. GameService owns transitions
+and its repository owns score writes. Per-room locks release idle entries while
+retaining queued callers. Catalog transport is injected, and public search accepts
+authorized public Demo metadata without direct Rooms SQL. Browser readiness
+is independent of host playback. Session cancellation/generation fences stop
+old leases, decoding and errors from reaching a replacement room.
+
+Unit-only core policy verification: 183 tests passed, 91% line coverage across
+Rooms service (93%), Game service (88%), scoring (96%) and planning (95%).
+Clean-environment full Python suite: **387 passed in 55.64 s**, **94% backend
+line coverage**. The latest frontend suite contains **115 passing tests**.
+Browser: three independent cookie origins joined the real bundled Demo and
+completed two ten-round games. The host decoded/reported all 40 planned
+clips/reserves; the second run used the latest frontend and advanced inter-round
+server time, then submitted signed local-search guesses through the actual UI.
+Nobody rounds awarded listener points and all three sessions showed identical
+final ranks/scores. This is software/browser behavior, not phone audibility.
+Native snapshot automation failed, so DOM/state inspection and focused native
+interactions were used; no rendered gameplay screenshot claim is made.
+
+All 96 Python files pass the Ruff format check; formatting changed no ASTs.
+Backend/tool undefined-name and unused-import checks pass. New migration tests
+reject unknown component versions and roll back invalid rows rather than silently
+marking a lossy import complete. Six direct dependencies installed successfully.
+The standard local verification command ran unit, integration and Node checks.
+The five-page PDF report was rendered and inspected, with no clipping or overlap.
+Existing private application data was inspected read-only, not migrated or
+reconciled during verification. All browser/testing storage was temporary.
+A fresh temporary Python environment installed the single requirements.txt
+successfully. No source changes were committed or pushed in this refinement.
+
+The professor approved the app idea with “go for it”, according to the user.
+No approval date was supplied. Personal SDLC explanation and the author's
+AI log explanations require review; physical phone audio remains pending.
+
+---
+
 # 08 — Implementation Status
 
 Updated 2026-10-02. Backend [PR #1](https://github.com/Inventure71/DevOpsAssignement/pull/1)

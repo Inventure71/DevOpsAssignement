@@ -45,10 +45,10 @@ export function musicPreparation(progress = {}) {
 
 export function roundPreparation(game, players, now, isHost) {
   if (game.phase === "setup") return {
-    title: "Getting the music ready",
+    title: "Getting ready",
     message: isHost
-      ? "Keep this screen open. The game will start when everyone is ready."
-      : "Your host is getting the music ready. Hang tight…",
+      ? "Keep this screen open."
+      : "Your host is preparing the music.",
   };
   if (game.phase !== "ready") return null;
   const names = players
@@ -56,9 +56,11 @@ export function roundPreparation(game, players, now, isHost) {
     .map((player) => player.nickname);
   const timedOut = now >= game.round.readiness_deadline_at_ms;
   return {
-    title: timedOut ? "Waiting for everyone" : "Almost ready",
+    title: timedOut ? "Waiting for players" : "Almost ready",
     message: timedOut
-      ? isHost ? "Someone hasn’t connected yet. Retry or continue without them." : "Your host will get the game going shortly."
-      : names.length ? `Waiting for ${names.join(", ")}…` : "Getting everyone ready…",
+      ? isHost ? "Retry or continue without them." : "Waiting for your host."
+      : names.length > 2
+        ? `Waiting for ${names.length} players…`
+        : names.length ? `Waiting for ${names.join(" and ")}…` : "Starting soon…",
   };
 }

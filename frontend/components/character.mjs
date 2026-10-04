@@ -34,11 +34,10 @@ function motionPreferenceChanged() {
 document.addEventListener("visibilitychange", motionPreferenceChanged);
 preference.addEventListener("change", motionPreferenceChanged);
 motionPreferenceChanged();
-export const blobMotionStats = () => hub.stats;
 
 const style = `
-  :host{display:inline-block;width:120px;flex:none;vertical-align:middle;contain:layout style}
-  svg{display:block;width:100%;height:auto;overflow:visible;pointer-events:none}
+  :host{display:inline-block;width:120px;flex:none;vertical-align:middle;contain:layout style;-webkit-user-select:none;user-select:none}
+  svg{display:block;width:100%;height:auto;overflow:visible;pointer-events:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
   .eye-glint{opacity:0}
   :host([mood=idle]) .eye-glint,:host([mood=submitted]) .eye-glint,:host(:not([mood])) .eye-glint{opacity:.9}
   .eyes-closed,.eyes-happy,.sad-brows{opacity:0}
@@ -51,7 +50,7 @@ const style = `
   @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 `;
 const spring = () => ({ value: 0, velocity: 0 });
-export class RepeatCharacter extends HTMLElement {
+class RepeatCharacter extends HTMLElement {
   static observedAttributes = ["color", "mood"];
   constructor() {
     super();
@@ -127,6 +126,20 @@ export class RepeatCharacter extends HTMLElement {
       this._look.y = 0;
     });
     this.addEventListener("pointerdown", () => this.react("poke"));
+    this.addEventListener("selectstart", (event) => event.preventDefault());
+    this.addEventListener("mousedown", (event) => {
+      if (event.button !== 0) return;
+      // Repeated pokes must not begin a page selection. An enclosing control
+      // still needs its default mouse action to receive keyboard focus.
+      const control = event.composedPath().some(
+        (node) =>
+          node.matches?.(
+            "button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled)",
+          ) ||
+          (node.matches?.("[tabindex]:not(:disabled)") && node.tabIndex >= 0),
+      );
+      if (!control) event.preventDefault();
+    });
     this._updateColor();
     this._paint(clock(), 0, true);
   }
@@ -178,7 +191,6 @@ export class RepeatCharacter extends HTMLElement {
       !document.hidden &&
       !preference.matches &&
       !this._small;
-    this.toggleAttribute("data-paused", !moving);
     if (moving && !this._unsubscribe) this._unsubscribe = hub.add(this._frame);
     if (!moving && this._unsubscribe) {
       this._unsubscribe();

@@ -12,11 +12,10 @@ function ready() {
       })),
     },
     {},
-    { unlocked: true, leaseId: "lease" },
   ];
 }
 
-test("only the host with enough songs, players, shared audio and a ready connection can start", () => {
+test("lobby start eligibility requires the host, enough songs and players, and a ready connection", () => {
   assert.equal(startReadiness(...ready()).canStart, true);
   for (const alter of [
     ([state]) => {
@@ -27,12 +26,6 @@ test("only the host with enough songs, players, shared audio and a ready connect
     },
     ([state]) => {
       state.players[1].song_count = 9;
-    },
-    ([, , audio]) => {
-      audio.unlocked = false;
-    },
-    ([, , audio]) => {
-      audio.leaseId = null;
     },
     ([, ui]) => {
       ui.disconnected = true;
@@ -50,33 +43,31 @@ test("only the host with enough songs, players, shared audio and a ready connect
 });
 
 test("readiness explains named shortages and pending start rather than claiming readiness", () => {
-  const [state, ui, audio] = ready();
+  const [state, ui] = ready();
   state.players[1].song_count = 4;
-  assert.match(startReadiness(state, ui, audio).reason, /B has fewer/);
+  assert.match(startReadiness(state, ui).reason, /B has fewer/);
   state.players[2].song_count = 6;
-  assert.match(startReadiness(state, ui, audio).reason, /B, C have fewer/);
+  assert.match(startReadiness(state, ui).reason, /B, C have fewer/);
   state.players.forEach((player) => {
     player.song_count = 10;
   });
   ui.pending = "start";
-  assert.deepEqual(startReadiness(state, ui, audio), {
+  assert.deepEqual(startReadiness(state, ui), {
     canStart: false,
+    blocker: "pending",
     reason: "Starting…",
   });
 });
 
-test("two-player playtests use the server minimum and still require songs and shared audio", () => {
-  const [state, ui, audio] = ready();
+test("two-player playtests use the server minimum and still require songs", () => {
+  const [state, ui] = ready();
   state.room = { minimum_players: 2, playtest: true };
   state.players.pop();
-  assert.equal(startReadiness(state, ui, audio).canStart, true);
-  audio.unlocked = false;
-  assert.match(startReadiness(state, ui, audio).reason, /Enable shared audio/);
-  audio.unlocked = true;
+  assert.equal(startReadiness(state, ui).canStart, true);
   state.players[1].song_count = 9;
-  assert.match(startReadiness(state, ui, audio).reason, /10 songs/);
+  assert.match(startReadiness(state, ui).reason, /10 songs/);
   state.players.pop();
-  assert.equal(startReadiness(state, ui, audio).reason, "At least 2 players are needed to start.");
+  assert.equal(startReadiness(state, ui).reason, "At least 2 players are needed to start.");
   state.room.minimum_players = 3;
-  assert.equal(startReadiness(state, ui, audio).reason, "At least 3 players are needed to start.");
+  assert.equal(startReadiness(state, ui).reason, "At least 3 players are needed to start.");
 });

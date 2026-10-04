@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
-<rect width="400" height="400" fill="#141723"/>
-<circle cx="200" cy="174" r="125" fill="#cc5c5c"/>
-<circle cx="200" cy="174" r="91" fill="none" stroke="#ffffff" stroke-width="2" opacity=".6"/>
-<path d="M70 230 Q135 60 200 230 T330 230" fill="none" stroke="#fff" stroke-width="8"/>
-<text x="200" y="342" text-anchor="middle" fill="#fff" font-family="sans-serif" font-size="23">FAKE SONG</text>
-<text x="200" y="373" text-anchor="middle" fill="#aaa" font-family="sans-serif" font-size="12" letter-spacing="3">TEMPORARY TEST COVER</text>
-</svg>

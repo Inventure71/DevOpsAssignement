@@ -123,11 +123,15 @@ The drawing never fetches or schedules audio and has no playback controls or ico
 column. Submission does not stop, dim or freeze the drawing. Production rounds
 retain shared host audio until closure. `../audio/lab.mjs` owns the isolated lab clip;
 the Listening/Submitted scene controller schedules it after a three-second countdown.
-The normal first interaction unlocks browser audio permission when necessary;
+Selecting Listening or Submitted unlocks browser audio permission when necessary;
 there is no Play button. Add `&waveform=line` to preview the alternative drawing.
 Other scene navigation/hidden pages stop preview playback. Switching from an
 active Listening fixture to Submitted keeps its current source and timeline.
-The bundled audio is the current fake-song fixture.
+The lab obtains its song metadata and audio URL once from `/api/demo/preview`,
+using the installed Demo pack. Alternate guesses are metadata-only display samples.
+Preview playback starts from a scene click; startup never starts audio. If the pack
+is unavailable, Characters and Lobby remain usable and music scenes explain how
+to install it and reload.
 
 `ListenerResult.data` receives one display projection from `roundResult(state)`:
 the frozen identity/color, local selected status, actual collection membership,

@@ -1,3 +1,8 @@
+> Historical checkpoint/research document. Current architecture, complete
+> offline Demo and storage/setup are described in [README](../README.md),
+> [architecture](05_ARCHITECTURE.md) and [implementation status](08_IMPLEMENTATION_STATUS.md).
+> Four-song references below describe the earlier development seed.
+
 # Game UI polish
 
 The blob characters, existing layouts, room identity, invite links, scoring, host
@@ -41,6 +46,12 @@ application owns room paths and transport; the component owns UI lifecycle. It
 never computes scores, stores credentials, or infers recording identity.
 
 ## Preparation and recovery
+
+Lobby eligibility checks players, songs and connection state. Clicking Start game
+activates the host's audio in the gesture stack and obtains a speaker lease before
+posting the start command. Failed activation leaves the host in the lobby to retry
+with the same button. Active rounds expose Resume audio only when recovery is
+needed; another tab's audio lease requires an explicit recovery/takeover action.
 
 `frontend/game/preparation.mjs` translates import and round preparation states
 into product copy. Screens use that model; backend diagnostics remain available

@@ -3,6 +3,7 @@ export function createRuntime(
   model,
   transport,
   audio,
+  readiness,
   render,
   notice,
   forgetRoom,
@@ -14,6 +15,16 @@ export function createRuntime(
     inflight = null,
     pollTimer = null,
     beatTimer = null;
+
+  async function runEffect(effect, epoch, room) {
+    if (epoch !== generation || room !== model.ui.roomId) return;
+    try {
+      await effect();
+    } catch (error) {
+      if (epoch === generation && room === model.ui.roomId) notice(error.message);
+    }
+  }
+
   async function read(epoch) {
     if (!model.ui.roomId) return;
     const room = model.ui.roomId;
@@ -22,11 +33,14 @@ export function createRuntime(
       if (epoch !== generation) return;
       if (model.applySnapshot(state, room)) {
         render();
-        await audio.synchronize();
+        // The controllers deduplicate their own round work. Network replies to
+        // readiness/failure reports must never hold up countdown state reads.
+        void runEffect(() => audio.synchronize(), epoch, room);
+        void runEffect(() => readiness.synchronize(), epoch, room);
       }
     } catch (error) {
       if (epoch !== generation || room !== model.ui.roomId) return;
-      if ([401, 404, 410].includes(error.status)) {
+      if ([401, 404, 410].includes(error.status) || error.code === "mode_unavailable") {
         forgetRoom();
         notice(error.message);
       } else {
@@ -85,6 +99,7 @@ export function createRuntime(
     stop() {
       running = false;
       generation++;
+      readiness.reset();
       cancel(pollTimer);
       cancel(beatTimer);
     },

@@ -11,7 +11,7 @@ const STATUS_LABELS = {
 
 const style = `
   :host { display: block; width: 148px; max-width: 100%; color: var(--ink, #161616); font-family: inherit; --selection-color: #a173ed; container-type: inline-size; }
-  button { box-sizing: border-box; position: relative; display: flex; flex-direction: column; align-items: center; width: 100%; padding: 7px 10px 10px; border: 0; border-radius: 24px; color: inherit; background: transparent; font: inherit; -webkit-tap-highlight-color: transparent; }
+  button { box-sizing: border-box; position: relative; display: flex; flex-direction: column; align-items: center; width: 100%; padding: 7px 10px 10px; border: 0; border-radius: 24px; color: inherit; background: transparent; font: inherit; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
   button:not(:disabled) { cursor: pointer; }
   button:disabled { opacity: 1; }
   button:focus-visible { outline: 3px solid var(--selection-color); outline-offset: 5px; }
@@ -54,7 +54,7 @@ const style = `
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 `;
 
-export class PlayerCard extends HTMLElement {
+class PlayerCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });

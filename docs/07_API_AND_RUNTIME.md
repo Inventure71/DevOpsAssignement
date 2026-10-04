@@ -1,10 +1,10 @@
 # 07 — API and Runtime Contract
 
-Updated 2026-10-02. Accepted gameplay decisions and API/runtime contracts.
-Demo endpoints and Normal Spotify PKCE/import admission are implemented, with
-Apple developer catalog search/previews. Five-account Spotify and physical-device
-acceptance remain separate from automated API verification.
-See [implementation status](08_IMPLEMENTATION_STATUS.md) for test evidence. Read alongside [03_GAME_RULES.md](03_GAME_RULES.md),
+Updated 2026-10-04. Current gameplay and API/runtime contracts. Complete offline
+Demo and Normal Spotify PKCE/import admission are implemented, with Apple catalog
+search/previews and durable public metadata verification. Physical-device and
+real-account acceptance remain separate from automated HTTP verification.
+Read alongside [03_GAME_RULES.md](03_GAME_RULES.md),
 [05_ARCHITECTURE.md](05_ARCHITECTURE.md) and
 [06_DATA_MODEL.md](06_DATA_MODEL.md).
 
@@ -14,11 +14,21 @@ The host is a player and the sole room admin. Everyone uses their own browser
 for guesses, reveals and rankings. The host device plays the shared audio;
 there is no required presenter display or host transfer in v1.
 
-Choose `normal` or `demo` at room creation, before players join. Normal admission
+The launch selects a `GAME_MODE` profile: `demo` allows only Demo; `normal` also
+allows configured Spotify. Demo is always available. `GET /api/config` exposes
+that profile and enabled/reason values for both creation options. The browser
+shows both but disables unavailable Spotify; application commands also reject
+Spotify creation, joins and restored sessions under the Demo-only launch with
+`mode_unavailable` (409).
+Demo uses local HTTP without provider settings; Normal uses configured shared
+HTTPS and rejects insecure session requests before admission.
+
+Choose the available room type before players join. Normal admission
 requires verified personal music authorization for every player, including the
 host. The server validates authorization rather than accepting a browser's
 `music_connected=true` claim. Demo bypasses that authorization and assigns
-hidden songs from seeded SQLite fixtures. A normal import failure never silently
+36 personal songs per player from the pinned 80-song personal pool; 20 independent
+decoys supply Nobody rounds. The complete Demo catalog contains 100 recordings. A normal import failure never silently
 switches mode. Mode cannot change under admitted players in v1; create a new room
 for a different mode.
 
@@ -72,13 +82,15 @@ increasing `state_version`, phase and applicable deadlines. Clients ignore older
 poll responses. Domain internals and provider credentials are not API models.
 
 The service exposes `/docs` and `/openapi.json` for API discovery, serves catalog
-assets at `/static/demo`, and serves the new frontend at `/` with its assets at
-`/ui`. The four-song seed permits lobby checks; Start still returns
-`insufficient_songs` until at least ten songs per player and candidate planning
-rules are satisfied. Public catalog search does not add songs to that game pool.
+assets at `/static/demo/local`, and serves the frontend at `/` with its assets at
+`/ui`. After one-time pinned pack installation, Demo supports default ten-round
+and optional fifteen-round matches offline without provider credentials. Start still requires at
+least ten songs per player; public search does not add songs to a game pool.
 
 | Method and path | Access | Effect |
 |---|---|---|
+| `GET /api/config` | Entry browser | Launch profile and enabled/reason values for Demo and Spotify; no secrets |
+| `GET /api/demo/preview` | Public metadata | One active Demo catalog sample for the UI lab; title, artist, local preview URL and optional artwork; no player listening evidence |
 | `POST /api/rooms` | Demo admission | Create Demo room with host nickname/character; issue host cookie. Normal requires the Spotify admission flow below |
 | `GET /api/room-codes/{code}` | Code holder | Resolve room ID/mode/capacity/join availability; no hidden pool or host privileges |
 | `GET /api/music/spotify/config` | Entry browser | Configuration availability, minimum/maximum players, playtest flag, canonical application URL, search provider and `requires_shared_url` for LAN browsers facing a loopback callback; no secrets |
@@ -89,17 +101,19 @@ rules are satisfied. Public catalog search does not add songs to that game pool.
 | `POST /api/rooms/{room_id}/join` | Demo admission or an existing member's room cookie | Join Demo lobby or restore existing identity; new Normal identities receive `music_sign_in_required` |
 | `GET /api/rooms/{room_id}/state` | Member | Current public phase plus caller-specific submission/admin state |
 | `GET /api/rooms/{room_id}/song-search?q=...` | Member | Search shared Demo/configured Apple catalog metadata; return signed selections without room-pool/listener data |
+| `POST /api/rooms/{room_id}/song-selection` | Member | Resolve a signed bulk metadata reference into a verified provider selection; cache successful public identity links |
 | `POST /api/rooms/{room_id}/heartbeat` | Member | Update presence after enforcing expiry |
 | `PATCH /api/rooms/{room_id}/player` | Member, lobby only | Update own nickname/character |
 | `PATCH /api/rooms/{room_id}/settings` | Host, lobby only | Validate settings and advance room revision |
 | `POST /api/rooms/{room_id}/start` | Host | Idempotently freeze roster/settings and create preparation |
 | `POST /api/rooms/{room_id}/games/{game_id}/end` | Host | Abort the game with partial rankings, keeping host/room membership for another game |
 | `POST /api/rooms/{room_id}/games/{game_id}/preload-check` | Active host controller, setup only | Report loading/decoding outcomes for server-issued candidates before freezing the final plan |
+| `POST /api/rooms/{room_id}/games/{game_id}/preparations/{preparation_id}/ready` | Starting player | Renewable upcoming ACK during results; browser ID/generation required, active host lease required for host |
 | `POST /api/rooms/{room_id}/games/{game_id}/rounds/{round_id}/ready` | Starting player | Automatic ACK scoped to the current readiness generation |
 | `POST /api/rooms/{room_id}/games/{game_id}/rounds/{round_id}/answers` | Starting player | Immutable final submission |
 | `POST /api/rooms/{room_id}/games/{game_id}/rounds/{round_id}/retry` | Host | New readiness generation for the same unstarted attempt |
 | `POST /api/rooms/{room_id}/games/{game_id}/rounds/{round_id}/continue` | Host | Exclude specified unready non-host players from barrier only |
-| `POST /api/rooms/{room_id}/audio-controller` | Host | Claim/renew/release one host-tab playback lease |
+| `POST /api/rooms/{room_id}/audio-controller` | Host | Claim/renew one host-tab playback lease; explicit takeover replaces its owner |
 | `GET /api/rooms/{room_id}/games/{game_id}/audio` | Active host controller | Private setup/current playback references; no listener maps |
 | `POST /api/rooms/{room_id}/games/{game_id}/rounds/{round_id}/audio-failure` | Active host controller | Report current unclosed playback failure; void/replace as allowed |
 | `POST /api/rooms/{room_id}/leave` | Member | Host aborts immediately; non-host departure preserves frozen game identity |
@@ -144,7 +158,7 @@ attempts. Shared submission status and ranking totals do not disclose their
 underlying answer rows. Nicknames and characters come from the frozen
 roster during games. Listening/Submitted describes answer state, not proof of
 audible listening; show connectivity separately. Missing submissions become
-No answer at closure. The frontend must use a bundled placeholder for
+No answer at closure. The frontend must use the inline music-icon fallback for
 missing or failed covers.
 
 Only the active host audio tab receives full planned/reserve audio references
@@ -187,11 +201,24 @@ returns the room to the lobby and names all players whose ACKs are missing.
 
 ## 6. Automatic readiness and synchronization
 
-An ACK is sent by browser code, not a manual button. It identifies `round_id` and
+An ACK is sent by `application/round-readiness.mjs`, not a manual button. Guests
+acknowledge current state independently of the host audio adapter. Host readiness
+also needs the decoded clip, running audio context and active lease. Session/generation cancellation
+prevents stale responses from updating a later room or readiness window.
+An ACK identifies `round_id` and
 `readiness_generation`; repeated identical ACKs succeed, stale generations fail.
 ACKs confirm current round data is prepared; host ACK additionally needs a valid
 audio lease and local audio readiness. State versions order display responses,
 but do not scope ACK validity: one player's ACK must not invalidate another's.
+
+During reveal and leaderboard, visible browsers renew `upcoming_round` check-ins
+every two seconds through `application/upcoming-readiness.mjs`. The guest
+projection contains only its ID, round number and readiness generation; the host
+also receives the candidate ID. Promotion carries only acknowledgements no older
+than five seconds from connected players, with a matching current audio lease for
+the host. When all required participants are prepared, leaderboard ends directly
+in the three-second countdown. A late request for a consumed preparation returns
+409; it cannot acknowledge a promoted round or start playback early.
 
 Initially every starting player is required. For later rounds, a ten-second
 window starts only with the host present; wait for host return under the agreed
@@ -267,9 +294,10 @@ display facts and listener selection; reveal adds their own correctness and poin
 ### Public song search
 
 `GET /api/rooms/{room_id}/song-search?q=...` authenticates the room member before
-searching. A normalized query contains 2–100 characters. Browser input is
-debounced rather than issuing one request per keystroke. A successful response
-has this shape:
+searching. A normalized query contains 2–100 characters. Browser Search/Enter
+explicitly sends a query; typing alone sends no requests. The client uses
+`local=true`, preferring the shared metadata index before a provider fallback.
+A successful selectable response has this shape:
 
 ```json
 {
@@ -280,7 +308,7 @@ has this shape:
 ```
 
 Matching shared Demo fixtures return `source: "catalog"` and work offline.
-Normal never substitutes fictional fixture suggestions. Other queries use the
+Normal never substitutes Demo fixture suggestions. Other queries use the
 configured Apple developer catalog, requesting up to 20 songs with structured
 artist relationships. Without Apple configuration, Demo retains public iTunes
 Search with `media=music`, `entity=song` and at most 20 results. Results are
@@ -289,15 +317,27 @@ Responses contain signed metadata, never provider preview URLs; the search path
 does not download audio. See [Apple catalog search](https://developer.apple.com/documentation/applemusicapi/search-for-catalog-resources)
 and the [public Search API](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/Searching.html).
 
-The process shares a five-minute, 128-query cache and coalesces identical
-in-flight lookups. Configured Apple catalog search has a local 60-request/minute
-protective budget; this is not a published provider quota. Public iTunes fallback
-has 18/minute, below its documented approximate 20/minute rate. External I/O has
+The process shares a five-minute, 128-query memory cache and coalesces identical
+in-flight lookups. Successful provider query coverage is also persisted for a day;
+empty coverage expires sooner. Public metadata and permanent verified links
+survive process restarts. Configured Apple catalog search has a local
+60-request/minute protective budget; public iTunes fallback has 18/minute.
+These local budgets are implementation safeguards, not guaranteed provider quotas. External I/O has
 a four-second timeout and bounded response size. Provider failures are cached
 for ten seconds; auth/unavailability errors remain explicit and Apple HTTP 429
 returns `apple_rate_limited`. Local exhausted budget returns `song_search_busy`
 (429). Successful empty results remain a distinct 200 response. Search runs
 outside the room command lock and outside write transactions.
+
+Bulk MusicBrainz metadata can return `resolve_required: true`. Selecting it calls
+`POST /api/rooms/{room_id}/song-selection` with its signed token. Positive matching
+stores every supported target in the provider/storefront scope, separately for
+guessing and recording resolution. Unchanged successful verification has no
+time-based expiry; fingerprints and matching-rule version control validity.
+Temporary preview URLs expire separately. Answers reject unresolved references;
+submission and closure never wait for a provider. Public search receives permitted
+Demo fixture values through `RoomCommands`, with no SQL access to private Rooms
+or listener tables.
 
 Each token authenticates normalized song facts, room ID and a twenty-minute
 expiry using the process's in-memory signing secret. The browser cannot replace
@@ -363,22 +403,28 @@ expiry/rate limits and infrastructure failure consistently.
 ## 9. Process, database and operations
 
 Run one worker and one replica, binding `0.0.0.0` on `PORT`. Persist SQLite under
-`DATA_DIR` on a compatible durable local volume. Validate the chosen Azure storage
-and restore behavior; WAL is not a blanket solution for network-mounted storage.
+`DATA_DIR/whos_on_repeat.sqlite3`, the single active database path, on compatible
+local storage. Assignment 1 uses a local process; any future Azure deployment
+must separately validate volume and restore behavior. WAL is not a blanket
+solution for network-mounted storage.
 Enable foreign keys and a busy timeout per connection. Database connections/
 transactions execute outside the async event loop. Serialize room mutations;
 never hold SQLite transactions or room locks during provider calls.
 
-FastAPI lifespan applies schema migrations 1 through 3, preserving old option-answer
-history as frozen song facts and translating character IDs into blob colors,
-then initializes the demo fixture seed and
-startup recovery before readiness succeeds. A one-second presence/deadline task
+FastAPI lifespan applies application migrations 1 through 6, preserving retained
+answer facts, character values and account constraints. Catalog schema version 3
+is tracked separately in `component_schema_versions`, preserving the application's
+`PRAGMA user_version=6`. Startup validates the installed Demo pack and initializes
+the Demo seed, recovery and public catalog before readiness succeeds. There is no
+separate-catalog import path. The launcher installs a missing pinned pack before
+starting the process; runtime startup never downloads Demo music. A one-second presence/deadline task
 advances phases without browser requests; a periodic task enforces whole-room
 retention. Requests also reject expired rooms/deadlines. Cancel/await tasks and
 close resources on shutdown. This is in-process orchestration, not another worker.
-Use [FastAPI lifespan](https://fastapi.tiangolo.com/advanced/events/) for these
-startup/shutdown boundaries. The [SQLite WAL contract](https://www.sqlite.org/wal.html)
-explains why storage compatibility and consistent backup matter.
+`GameService` owns timed transitions; application coordination invokes them and
+reconciles room state. Scoped `RoomLocks` retains entries only while holders or
+waiters exist. Requests pass through injected `RoomCommands`/`GameCommands`,
+leaving HTTP concerned with transport values rather than SQL/workflows.
 
 On restart, reconcile preparing/playing games in a local transaction: void any
 interrupted unclosed attempt, preserve revealed results, abort with server-restart
@@ -394,7 +440,10 @@ private guesses, song/listener pools or private playback URLs. Collect round
 preparation/ACK/start, audio failure and SQLite contention timings. Back up through
 a SQLite-consistent method including active WAL contents; verify a restore.
 Operational thresholds/configuration and provider adapters still need deployment
-validation. No new hosted service is required for demo.
+validation. `requirements.txt` is the single root dependency manifest for runtime
+and verification; native browser modules require no npm build. Startup accepts
+environment configuration without a required `.env` file or manual migrations.
+No authored Docker/CI workflow or hosted service is required for Assignment 1.
 
 ## 10. Verification contract
 
@@ -419,7 +468,8 @@ three-second countdown. Measure all required clients under stated network/device
 conditions; missed ACKs fail the target and trigger the ten-second recovery
 limit. Publishing a timestamp alone is not proof every client received it.
 Client traces record received start times for validation; scoring remains server
-owned. Timing/coverage targets are planned acceptance gates, not passed results.
+owned. Network timing needs measured device evidence; automated coverage results
+are recorded separately in the README.
 
 Provider adapter, admission and browser integration are implemented against
 this contract. Live five-account authorization, preview coverage and browser
@@ -455,7 +505,8 @@ See `backend/catalog/` for metadata search/cache and signed selections,
 `backend/api/schemas.py` for strict request models,
 `backend/api/routes.py` for HTTP handlers, and `backend/game/views.py` for public
 projections. Origin checks, room cookies and rate limits live in separate
-`backend/api/` modules; cross-domain commands enter `backend/application/coordinator.py`.
+`backend/api/` modules; HTTP calls named use cases in
+`backend/application/commands.py`, which enter coordinator ordering/transactions.
 Normal accepts only an imported account verified by the server's Spotify
 adapter. A browser cannot submit fabricated song ownership or authorization
 proof. Physical audio and readiness/load targets remain separate acceptance gates.

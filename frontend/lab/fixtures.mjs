@@ -8,24 +8,13 @@ export const LAB_SCENES = Object.freeze([
   "reveal",
   "leaderboard",
 ]);
-export const LAB_SONGS = Object.freeze([
+// Metadata-only samples keep rendering tests independent of installed music.
+const SAMPLE_SONGS = Object.freeze([
   Object.freeze({
-    token: "lab-song-001",
-    title: "Fake Song 1",
-    artist: "Fake Artist 1",
-    artwork_url: null,
+    token: "sample-song", title: "Sample song", artist: "Sample artist", artwork_url: null,
   }),
   Object.freeze({
-    token: "lab-power",
-    title: "POWER",
-    artist: "Kanye West",
-    artwork_url: null,
-  }),
-  Object.freeze({
-    token: "lab-dreams",
-    title: "Dreams",
-    artist: "Fleetwood Mac",
-    artwork_url: null,
+    token: "sample-other", title: "Another sample song", artist: "Another sample artist", artwork_url: null,
   }),
 ]);
 const NAMES = [
@@ -84,7 +73,9 @@ export function createLabUi() {
 }
 
 /** Fixture data follows the same owner-only reveal contract as the server. */
-export function createRoundFixture({ scene, state, ui, now, levels, params }) {
+export function createRoundFixture({
+  scene, state, ui, now, levels, params, songs = SAMPLE_SONGS,
+}) {
   const game = {
     id: "lab-game",
     status: "playing",
@@ -108,7 +99,7 @@ export function createRoundFixture({ scene, state, ui, now, levels, params }) {
   };
   if (scene === "submitted") {
     game.round.my_answer = {
-      song_guess: LAB_SONGS[0],
+      song_guess: songs[0],
       who_player_ids: [...ui.listeners],
     };
     game.round.submitted_player_ids.push("lab-0", "lab-1", "lab-7");
@@ -126,7 +117,7 @@ export function createRoundFixture({ scene, state, ui, now, levels, params }) {
   const own = {
     player_id: state.me.id,
     status: "submitted",
-    song_guess: LAB_SONGS[params.has("wrong-answer") ? 1 : 0],
+    song_guess: songs[params.has("wrong-answer") ? 1 : 0],
     who_player_ids: ["lab-1", "lab-4"],
     points: 100,
     song_match: params.has("wrong-answer") ? "wrong" : "correct",
@@ -141,7 +132,7 @@ export function createRoundFixture({ scene, state, ui, now, levels, params }) {
     });
   else if (params.has("artist-only"))
     Object.assign(own, {
-      song_guess: { ...LAB_SONGS[0], title: "Another track" },
+      song_guess: { ...songs[0], title: "Another track" },
       song_match: "artist",
       points: 50,
     });
@@ -149,10 +140,10 @@ export function createRoundFixture({ scene, state, ui, now, levels, params }) {
     own.who_player_ids = [];
   game.round.reveal = {
     song: {
-      ...LAB_SONGS[0],
+      ...songs[0],
       artwork_url: params.has("broken-artwork")
         ? "/ui/missing-lab-cover.png"
-        : "/static/demo/covers/act-01.svg",
+        : songs[0].artwork_url,
     },
     listener_ids: params.has("nobody") ? [] : [...LISTENERS],
     my_answer: own,

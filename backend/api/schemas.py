@@ -1,20 +1,21 @@
 """Strict JSON request contracts; domain services receive plain values."""
+
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class Body(BaseModel):
-    model_config = ConfigDict(extra='forbid', strict=True)
+    model_config = ConfigDict(extra="forbid", strict=True)
 
 
 class Identity(Body):
     nickname: Annotated[str, Field(min_length=1, max_length=24)]
-    character_id: str = 'coral'
+    character_id: str = "coral"
 
 
 class Create(Identity):
-    mode: Literal['demo', 'normal'] = 'demo'
+    mode: Literal["demo", "normal"] = "demo"
 
 
 class MusicAdmission(Identity):
@@ -24,7 +25,7 @@ class MusicAdmission(Identity):
 class Settings(Body):
     round_count: Literal[5, 10, 15] = 10
     answer_seconds: Literal[10, 20, 30] = 20
-    difficulty: Literal['easy', 'mixed', 'hard'] = 'mixed'
+    difficulty: Literal["easy", "mixed", "hard"] = "mixed"
     decoys_enabled: bool = True
 
 
@@ -41,12 +42,22 @@ class Preload(Command):
     lease_id: str
     candidate_id: str
     ok: bool
-    waveform: Annotated[list[Annotated[float, Field(ge=0, le=1)]], Field(min_length=8, max_length=64)] | None = None
+    waveform: (
+        Annotated[
+            list[Annotated[float, Field(ge=0, le=1)]],
+            Field(min_length=8, max_length=64),
+        ]
+        | None
+    ) = None
 
 
 class Ready(Body):
     readiness_generation: Annotated[int, Field(ge=1)]
     lease_id: str | None = None
+
+
+class UpcomingReady(Ready):
+    browser_id: Annotated[str, Field(min_length=1, max_length=128)]
 
 
 class Recovery(Command):
@@ -59,11 +70,13 @@ class Continue(Recovery):
 
 class Failure(Recovery):
     lease_id: str
-    reason: Annotated[str, Field(max_length=100)] = 'audio_failed'
+    reason: Annotated[str, Field(max_length=100)] = "audio_failed"
 
 
 class Answer(Body):
-    song_guess_token: Annotated[str, Field(min_length=1, max_length=12000)] | None = None
+    song_guess_token: Annotated[str, Field(min_length=1, max_length=12000)] | None = (
+        None
+    )
     who_player_ids: Annotated[list[str], Field(max_length=10)] = []
 
 

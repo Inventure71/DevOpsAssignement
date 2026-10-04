@@ -12,11 +12,13 @@ export function createRoundScreen(emit) {
   element.innerHTML = `
     <div class="round-meta"><span class="round-label"></span><span class="round-connection" role="status"></span></div>
     <div class="round-layout"><div class="round-players round-players-left" aria-label="Players"></div>
-      <div class="round-center"><div class="round-stage"><round-countdown class="round-timer"></round-countdown>
-        <div class="round-heading"><h1 class="round-title"></h1><p class="round-subtitle"></p></div>
+      <div class="round-center"><div class="round-stage">
+        <div class="round-heading"><h1 class="round-title"></h1><p class="round-subtitle" role="status"></p></div>
+        <div class="round-art"><round-countdown class="round-timer"></round-countdown>
         <repeat-character class="round-character" color="coral" mood="listening"></repeat-character>
         <svg class="round-note round-note-one" viewBox="0 0 32 48" aria-hidden="true" focusable="false"><path d="M16 39V5l12 7v8l-12-7" fill="none" stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="9" cy="39" rx="8" ry="6" fill="currentColor"/></svg>
         <svg class="round-note round-note-two" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path d="M16 38V10l24-5v28M16 17l24-5" fill="none" stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="9" cy="38" rx="8" ry="6" fill="currentColor"/><ellipse cx="33" cy="33" rx="8" ry="6" fill="currentColor"/></svg>
+        </div>
       </div><div class="round-controls"><music-waveform class="round-waveform"></music-waveform>
         <div class="round-song-field"><song-search></song-search></div>
         <button class="button button-primary submit-guess" type="button">Submit guess <span aria-hidden="true">→</span></button>
@@ -63,10 +65,11 @@ export function createRoundScreen(emit) {
     element.classList.toggle("is-preparing", game.phase !== "answering");
     find(".round-label").textContent = round
       ? `Round ${round.round_number} / ${game.playable_rounds}`
-      : "Getting ready";
+      : "";
     find(".round-connection").textContent = ui.disconnected
       ? "Reconnecting…"
       : "";
+    find(".round-meta").hidden = !round && !ui.disconnected;
     if (sprite.getAttribute("color") !== state.me.character_id)
       sprite.setAttribute("color", state.me.character_id);
     const mood = submitted
@@ -101,7 +104,6 @@ export function createRoundScreen(emit) {
     waveform.data = {
       startsAt: round?.starts_at_ms,
       deadline: round?.deadline_at_ms,
-      submitted,
       now: vm.now,
       levels: round?.waveform,
     };
@@ -114,6 +116,8 @@ export function createRoundScreen(emit) {
       game.phase === "answering" && !submitted && selected.size === 0
         ? "No players selected means nobody."
         : "";
+    for (const selector of [".round-selection-hint", ".round-empty-selection"])
+      find(selector).hidden = !find(selector).textContent;
     const midpoint = Math.ceil(state.players.length / 2);
     syncKeyedGroups(
       [
@@ -165,8 +169,8 @@ export function createRoundScreen(emit) {
         button.type = "button";
         button.className = "button button-outline";
         button.textContent = vm.audio.conflict
-          ? "Use audio in this tab"
-          : "Enable shared audio";
+          ? "Resume audio here"
+          : "Resume audio";
         button.addEventListener("click", () =>
           emit(vm.audio.conflict ? "takeover-audio" : "enable-audio"),
         );
@@ -193,6 +197,8 @@ export function createRoundScreen(emit) {
         (button.dataset.action === "continue-ready" &&
           missing.includes(vm.state.me.id));
     });
+    find(".round-controls").hidden =
+      !["answering", "countdown"].includes(game.phase) && !controls.childElementCount;
   }
   function tick(now) {
     if (!model?.state?.game) return;
@@ -232,6 +238,7 @@ export function createRoundScreen(emit) {
       lastTitle = title;
     }
     if (subtitle.textContent !== detail) subtitle.textContent = detail;
+    subtitle.hidden = !detail;
     ring.tick(now);
     waveform.tick?.(now);
   }
