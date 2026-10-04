@@ -1,0 +1,1538 @@
+[
+  {
+    "id": "apple-1714502827",
+    "pool_kind": "personal",
+    "isrc": "GBAHT2301246",
+    "title": "Houdini",
+    "artist": "Dua Lipa",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:1031397873",
+        "name": "Dua Lipa"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1714502827-10994f4693691279.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1538003843",
+    "pool_kind": "personal",
+    "isrc": "GBAHT1901299",
+    "title": "Levitating",
+    "artist": "Dua Lipa",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:1031397873",
+        "name": "Dua Lipa"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1538003843-8ccff07fc990a245.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1572833126",
+    "pool_kind": "personal",
+    "isrc": "GBAHT1901121",
+    "title": "Don't Start Now",
+    "artist": "Dua Lipa",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:1031397873",
+        "name": "Dua Lipa"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1572833126-eb46ee15b4985d3a.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1228739609",
+    "pool_kind": "personal",
+    "isrc": "GBAHT1600310",
+    "title": "New Rules",
+    "artist": "Dua Lipa",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:1031397873",
+        "name": "Dua Lipa"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1228739609-d38dc78c5503de23.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1538003644",
+    "pool_kind": "personal",
+    "isrc": "GBAHT1901298",
+    "title": "Physical",
+    "artist": "Dua Lipa",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:1031397873",
+        "name": "Dua Lipa"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1538003644-3b1befdda9509572.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1488408568",
+    "pool_kind": "personal",
+    "isrc": "USUG11904206",
+    "title": "Blinding Lights",
+    "artist": "The Weeknd",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:479756766",
+        "name": "The Weeknd"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1488408568-32ce1088dca74d38.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1615128029",
+    "pool_kind": "personal",
+    "isrc": "USUG12000658",
+    "title": "Save Your Tears",
+    "artist": "The Weeknd",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:479756766",
+        "name": "The Weeknd"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1615128029-fc5a8b0fba5acf71.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1440870375",
+    "pool_kind": "personal",
+    "isrc": "USUG11600977",
+    "title": "Starboy (feat. Daft Punk)",
+    "artist": "The Weeknd",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:479756766",
+        "name": "The Weeknd"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1440870375-a55a63c3206fadb2.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1440858495",
+    "pool_kind": "personal",
+    "isrc": "USUG11500738",
+    "title": "The Hills",
+    "artist": "The Weeknd",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:479756766",
+        "name": "The Weeknd"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1440858495-2c0ec55103832aa7.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1440858500",
+    "pool_kind": "personal",
+    "isrc": "USUG11500741",
+    "title": "Can't Feel My Face",
+    "artist": "The Weeknd",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:479756766",
+        "name": "The Weeknd"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1440858500-dc3b4b1761b6fec2.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1650841515",
+    "pool_kind": "personal",
+    "isrc": "USUG12205736",
+    "title": "Anti-Hero",
+    "artist": "Taylor Swift",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:159260351",
+        "name": "Taylor Swift"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1650841515-001cc018a78e2e66.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1445888385",
+    "pool_kind": "personal",
+    "isrc": "USCJY1431309",
+    "title": "Blank Space",
+    "artist": "Taylor Swift",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:159260351",
+        "name": "Taylor Swift"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1445888385-38ac74ba37d1d162.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1445888394",
+    "pool_kind": "personal",
+    "isrc": "USCJY1431349",
+    "title": "Shake It Off",
+    "artist": "Taylor Swift",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:159260351",
+        "name": "Taylor Swift"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1445888394-d62d48e002cfb13a.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1468058171",
+    "pool_kind": "personal",
+    "isrc": "USUG11901472",
+    "title": "Cruel Summer",
+    "artist": "Taylor Swift",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:159260351",
+        "name": "Taylor Swift"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1468058171-5f6347a4f23c24eb.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1440748753",
+    "pool_kind": "personal",
+    "isrc": "USCJY0803447",
+    "title": "Love Story",
+    "artist": "Taylor Swift",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:159260351",
+        "name": "Taylor Swift"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1440748753-e04173c211abd98d.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1450695739",
+    "pool_kind": "personal",
+    "isrc": "USUM71900764",
+    "title": "bad guy",
+    "artist": "Billie Eilish",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:1065981054",
+        "name": "Billie Eilish"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1450695739-5e0228be738ed479.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1739659142",
+    "pool_kind": "personal",
+    "isrc": "USUM72401994",
+    "title": "BIRDS OF A FEATHER",
+    "artist": "Billie Eilish",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:1065981054",
+        "name": "Billie Eilish"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1739659142-e9c0d06a98744e6e.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1381916691",
+    "pool_kind": "personal",
+    "isrc": "USUM71804190",
+    "title": "lovely",
+    "artist": "Billie Eilish & Khalid",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:1065981054",
+        "name": "Billie Eilish"
+      },
+      {
+        "artist_key": "demo:apple:artist:82842423",
+        "name": "Khalid"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1381916691-ee7acb5c5346d3b7.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1564530710",
+    "pool_kind": "personal",
+    "isrc": "USUM72106987",
+    "title": "Happier Than Ever",
+    "artist": "Billie Eilish",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:1065981054",
+        "name": "Billie Eilish"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1564530710-4df2e3c0d035090a.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1615585008",
+    "pool_kind": "personal",
+    "isrc": "USSM12200612",
+    "title": "As It Was",
+    "artist": "Harry Styles",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:471260289",
+        "name": "Harry Styles"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1615585008-8f5bcca848c9ff65.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1485802967",
+    "pool_kind": "personal",
+    "isrc": "USSM11912587",
+    "title": "Watermelon Sugar",
+    "artist": "Harry Styles",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:471260289",
+        "name": "Harry Styles"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1485802967-5c026f35d0538fa7.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1485802970",
+    "pool_kind": "personal",
+    "isrc": "USSM11912588",
+    "title": "Adore You",
+    "artist": "Harry Styles",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:471260289",
+        "name": "Harry Styles"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1485802970-b5717561f7801d71.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1560735856",
+    "pool_kind": "personal",
+    "isrc": "USUG12101253",
+    "title": "good 4 u",
+    "artist": "Olivia Rodrigo",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:979458609",
+        "name": "Olivia Rodrigo"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1560735856-3cbae522373c181d.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1545042666",
+    "pool_kind": "personal",
+    "isrc": "USUG12004750",
+    "title": "drivers license",
+    "artist": "Olivia Rodrigo",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:979458609",
+        "name": "Olivia Rodrigo"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1545042666-3a67166984c4d840.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1736995376",
+    "pool_kind": "personal",
+    "isrc": "USUG12304091",
+    "title": "vampire",
+    "artist": "Olivia Rodrigo",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:979458609",
+        "name": "Olivia Rodrigo"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1736995376-41b7e749e7c03fea.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1750307362",
+    "pool_kind": "personal",
+    "isrc": "USUM72403305",
+    "title": "Espresso",
+    "artist": "Sabrina Carpenter",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:390647681",
+        "name": "Sabrina Carpenter"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1750307362-ea85a89b74bcaa99.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1795512584",
+    "pool_kind": "personal",
+    "isrc": "USUM72404101",
+    "title": "Please Please Please",
+    "artist": "Sabrina Carpenter",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:390647681",
+        "name": "Sabrina Carpenter"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1795512584-1d6ea9745b841345.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1676555853",
+    "pool_kind": "personal",
+    "isrc": "USUM72301876",
+    "title": "Feather",
+    "artist": "Sabrina Carpenter",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:390647681",
+        "name": "Sabrina Carpenter"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1676555853-b7c1097564bf504e.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1193701392",
+    "pool_kind": "personal",
+    "isrc": "GBAHS1700003",
+    "title": "Shape of You",
+    "artist": "Ed Sheeran",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:183313439",
+        "name": "Ed Sheeran"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1193701392-8322c588a7833d97.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1193701400",
+    "pool_kind": "personal",
+    "isrc": "GBAHS1700007",
+    "title": "Perfect",
+    "artist": "Ed Sheeran",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:183313439",
+        "name": "Ed Sheeran"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1193701400-3e2652d55ad990a6.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1581087532",
+    "pool_kind": "personal",
+    "isrc": "GBAHS2100318",
+    "title": "Bad Habits",
+    "artist": "Ed Sheeran",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:183313439",
+        "name": "Ed Sheeran"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1581087532-e8aa8aaf6a944f74.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1841435044",
+    "pool_kind": "personal",
+    "isrc": "USAT21001269",
+    "title": "Just the Way You Are",
+    "artist": "Bruno Mars",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:278873078",
+        "name": "Bruno Mars"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1841435044-cbbf1121dc3c5639.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-573962551",
+    "pool_kind": "personal",
+    "isrc": "USAT21204492",
+    "title": "Locked Out of Heaven",
+    "artist": "Bruno Mars",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:278873078",
+        "name": "Bruno Mars"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-573962551-6ecc2f679596e0cc.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1592448819",
+    "pool_kind": "personal",
+    "isrc": "USAT21602948",
+    "title": "That's What I Like",
+    "artist": "Bruno Mars",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:278873078",
+        "name": "Bruno Mars"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1592448819-8a1c62c115be2ef9.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1441154437",
+    "pool_kind": "personal",
+    "isrc": "USUM70736771",
+    "title": "Umbrella (feat. JA\u0178-Z)",
+    "artist": "Rihanna",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:63346553",
+        "name": "Rihanna"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1441154437-2978f9cb103de701.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1443232440",
+    "pool_kind": "personal",
+    "isrc": "USUM71211793",
+    "title": "Diamonds",
+    "artist": "Rihanna",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:63346553",
+        "name": "Rihanna"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1443232440-ce76ede52caccaae.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1443062143",
+    "pool_kind": "personal",
+    "isrc": "USUM71115507",
+    "title": "We Found Love (feat. Calvin Harris)",
+    "artist": "Rihanna",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:63346553",
+        "name": "Rihanna"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1443062143-53094f7f1e74d187.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1440818665",
+    "pool_kind": "personal",
+    "isrc": "USUM70824409",
+    "title": "Poker Face",
+    "artist": "Lady Gaga",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:277293880",
+        "name": "Lady Gaga"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1440818665-a2b180d8b745ff27.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1476727670",
+    "pool_kind": "personal",
+    "isrc": "USUM70918596",
+    "title": "Bad Romance",
+    "artist": "Lady Gaga",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:277293880",
+        "name": "Lady Gaga"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1476727670-12450d3f3420ca49.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1440818653",
+    "pool_kind": "personal",
+    "isrc": "USUM70807646",
+    "title": "Just Dance (feat. Colby O'Donis)",
+    "artist": "Lady Gaga",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:277293880",
+        "name": "Lady Gaga"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1440818653-58a76bc32be94eba.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1013032034",
+    "pool_kind": "personal",
+    "isrc": "USCA21001262",
+    "title": "Firework",
+    "artist": "Katy Perry",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:64387566",
+        "name": "Katy Perry"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1013032034-308cb54b33574ee5.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1440818897",
+    "pool_kind": "personal",
+    "isrc": "USUM71308669",
+    "title": "Roar",
+    "artist": "Katy Perry",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:64387566",
+        "name": "Katy Perry"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1440818897-c629980e1c02d8bf.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-413623677",
+    "pool_kind": "personal",
+    "isrc": "GBBKS1000335",
+    "title": "Rolling In the Deep",
+    "artist": "Adele",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:262836961",
+        "name": "Adele"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-413623677-0a092e97335e48b1.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-403037927",
+    "pool_kind": "personal",
+    "isrc": "GBBKS1000351",
+    "title": "Someone Like You",
+    "artist": "Adele",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:262836961",
+        "name": "Adele"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-403037927-979ddb8bbe07dcf7.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1122773680",
+    "pool_kind": "personal",
+    "isrc": "GBAYE1600217",
+    "title": "Viva La Vida",
+    "artist": "Coldplay",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:471744",
+        "name": "Coldplay"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1122773680-a97ff54361310a58.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1122782283",
+    "pool_kind": "personal",
+    "isrc": "GBAYE1600170",
+    "title": "Yellow",
+    "artist": "Coldplay",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:471744",
+        "name": "Coldplay"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1122782283-ea6a77fd9e66b624.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-829910927",
+    "pool_kind": "personal",
+    "isrc": "GBAYE1400226",
+    "title": "A Sky Full of Stars",
+    "artist": "Coldplay",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:471744",
+        "name": "Coldplay"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-829910927-c6bae6ac069ddb3e.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1411628233",
+    "pool_kind": "personal",
+    "isrc": "USUM71700626",
+    "title": "Believer",
+    "artist": "Imagine Dragons",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:358714030",
+        "name": "Imagine Dragons"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1411628233-e944ecdda5f23d37.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1442283001",
+    "pool_kind": "personal",
+    "isrc": "USUM71704167",
+    "title": "Thunder",
+    "artist": "Imagine Dragons",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:358714030",
+        "name": "Imagine Dragons"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1442283001-a88fe4430532892f.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1440860488",
+    "pool_kind": "personal",
+    "isrc": "USUM71201074",
+    "title": "Radioactive",
+    "artist": "Imagine Dragons",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:358714030",
+        "name": "Imagine Dragons"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1440860488-9ebb8bb7dc950aed.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-663097965",
+    "pool_kind": "personal",
+    "isrc": "GBCEL1300362",
+    "title": "Do I Wanna Know?",
+    "artist": "Arctic Monkeys",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:62820413",
+        "name": "Arctic Monkeys"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-663097965-d3ab0d7eda527ea2.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-663098065",
+    "pool_kind": "personal",
+    "isrc": "GBCEL1300373",
+    "title": "I Wanna Be Yours",
+    "artist": "Arctic Monkeys",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:62820413",
+        "name": "Arctic Monkeys"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-663098065-5e873cd2e336cd89.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-617154366",
+    "pool_kind": "personal",
+    "isrc": "USQX91300108",
+    "title": "Get Lucky",
+    "artist": "Daft Punk, Pharrell Williams & Nile Rodgers",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:5468295",
+        "name": "Daft Punk"
+      },
+      {
+        "artist_key": "demo:apple:artist:1361068",
+        "name": "Pharrell Williams"
+      },
+      {
+        "artist_key": "demo:apple:artist:722791",
+        "name": "Nile Rodgers"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-617154366-ade5ff8f40a7a3c8.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-697195462",
+    "pool_kind": "personal",
+    "isrc": "GBDUW0000053",
+    "title": "One More Time",
+    "artist": "Daft Punk",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:5468295",
+        "name": "Daft Punk"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-697195462-63973ee0961c6c8d.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1530325787",
+    "pool_kind": "personal",
+    "isrc": "SEUM71301326",
+    "title": "Wake Me Up",
+    "artist": "Avicii",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:298496035",
+        "name": "Avicii"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1530325787-624256acff1f04c5.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1440787349",
+    "pool_kind": "personal",
+    "isrc": "SEUM71100961",
+    "title": "Levels",
+    "artist": "Avicii",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:298496035",
+        "name": "Avicii"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1440787349-4ff3a5671d6e7ac4.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-726390516",
+    "pool_kind": "personal",
+    "isrc": "GB28K1100036",
+    "title": "Titanium (feat. Sia)",
+    "artist": "David Guetta",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:5557599",
+        "name": "David Guetta"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-726390516-0c31948cf2a463ef.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1030798233",
+    "pool_kind": "personal",
+    "isrc": "USSD11000300",
+    "title": "Waka Waka (This Time for Africa) [feat. Freshlyground]",
+    "artist": "Shakira",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:889327",
+        "name": "Shakira"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1030798233-756083656bfea4c0.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1817217063",
+    "pool_kind": "personal",
+    "isrc": "USSM10600677",
+    "title": "Hips Don't Lie (feat. Wyclef Jean)",
+    "artist": "Shakira",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:889327",
+        "name": "Shakira"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1817217063-021782a666399565.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1622045635",
+    "pool_kind": "personal",
+    "isrc": "QM6MZ2214878",
+    "title": "Tit\u00ed Me Pregunt\u00f3",
+    "artist": "Bad Bunny",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:1126808565",
+        "name": "Bad Bunny"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1622045635-a5281038cbd0dcde.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1542103620",
+    "pool_kind": "personal",
+    "isrc": "QMFME2004132",
+    "title": "D\u00c1KITI",
+    "artist": "Bad Bunny & JHAYCO",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:1126808565",
+        "name": "Bad Bunny"
+      },
+      {
+        "artist_key": "demo:apple:artist:1275242928",
+        "name": "JHAYCO"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1542103620-fadf5bb5cde4f671.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1622045634",
+    "pool_kind": "personal",
+    "isrc": "QM6MZ2214877",
+    "title": "Me Porto Bonito",
+    "artist": "Bad Bunny & Chencho Corleone",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:1126808565",
+        "name": "Bad Bunny"
+      },
+      {
+        "artist_key": "demo:apple:artist:1055034875",
+        "name": "Chencho Corleone"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1622045634-aa25b87b78e19283.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1696344967",
+    "pool_kind": "personal",
+    "isrc": "USUM71921183",
+    "title": "Tusa",
+    "artist": "KAROL G & Nicki Minaj",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:290814601",
+        "name": "KAROL G"
+      },
+      {
+        "artist_key": "demo:apple:artist:278464538",
+        "name": "Nicki Minaj"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1696344967-141c323b98bd02c2.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1619425410",
+    "pool_kind": "personal",
+    "isrc": "USUM72205906",
+    "title": "PROVENZA",
+    "artist": "KAROL G",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:290814601",
+        "name": "KAROL G"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1619425410-5249748e29dc5e2d.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1567154924",
+    "pool_kind": "personal",
+    "isrc": "USSD12100202",
+    "title": "Todo De Ti",
+    "artist": "Rauw Alejandro",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:1107186883",
+        "name": "Rauw Alejandro"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1567154924-2b3815b05655ad78.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1447401620",
+    "pool_kind": "personal",
+    "isrc": "USUM71607007",
+    "title": "Despacito",
+    "artist": "Luis Fonsi & Daddy Yankee",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:102834",
+        "name": "Luis Fonsi"
+      },
+      {
+        "artist_key": "demo:apple:artist:25514958",
+        "name": "Daddy Yankee"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1447401620-8c53979631542fa3.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1636782444",
+    "pool_kind": "personal",
+    "isrc": "USSM12207207",
+    "title": "DESPECH\u00c1",
+    "artist": "ROSAL\u00cdA",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:313845115",
+        "name": "ROSAL\u00cdA"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1636782444-097835ea9e4ab7da.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1632746802",
+    "pool_kind": "personal",
+    "isrc": "UYB282201028",
+    "title": "Quevedo: Bzrp Music Sessions, Vol. 52/66",
+    "artist": "Bizarrap & Quevedo",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:1239658213",
+        "name": "Bizarrap"
+      },
+      {
+        "artist_key": "demo:apple:artist:377761784",
+        "name": "Quevedo"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1632746802-63bfde4ed44d0787.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1320781379",
+    "pool_kind": "personal",
+    "isrc": "ITB001700846",
+    "title": "Beggin'",
+    "artist": "M\u00e5neskin",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:1312874741",
+        "name": "M\u00e5neskin"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1320781379-e14ba2438e2ff12c.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1477887285",
+    "pool_kind": "personal",
+    "isrc": "USUM71915699",
+    "title": "Circles",
+    "artist": "Post Malone",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:966309175",
+        "name": "Post Malone"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1477887285-bc3f4cc3af6324e4.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1445949267",
+    "pool_kind": "personal",
+    "isrc": "USUM71814888",
+    "title": "Sunflower (Spider-Man: Into the Spider-Verse)",
+    "artist": "Post Malone & Swae Lee",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:966309175",
+        "name": "Post Malone"
+      },
+      {
+        "artist_key": "demo:apple:artist:922547500",
+        "name": "Swae Lee"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1445949267-1bab1d8faddddbab.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1597024424",
+    "pool_kind": "personal",
+    "isrc": "QM7282022872",
+    "title": "Dynamite",
+    "artist": "BTS",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:883131348",
+        "name": "BTS"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1597024424-c4f80cfff2ad41e2.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1551479993",
+    "pool_kind": "personal",
+    "isrc": "KRA401800096",
+    "title": "DDU-DU DDU-DU",
+    "artist": "BLACKPINK",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:1141774019",
+        "name": "BLACKPINK"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1551479993-6a43e6f6167d69bb.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1422648513",
+    "pool_kind": "personal",
+    "isrc": "SEAYD7601020",
+    "title": "Dancing Queen",
+    "artist": "ABBA",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:372976",
+        "name": "ABBA"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1422648513-a348e99fef51834a.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1440817183",
+    "pool_kind": "personal",
+    "isrc": "SEAYD7901120",
+    "title": "Gimme! Gimme! Gimme! (A Man After Midnight)",
+    "artist": "ABBA",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:372976",
+        "name": "ABBA"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1440817183-07b0d358e2cc5a5b.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-6781079518",
+    "pool_kind": "personal",
+    "isrc": "GBUM71029610",
+    "title": "Don't Stop Me Now",
+    "artist": "Queen",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:3296287",
+        "name": "Queen"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-6781079518-d3ae7fc54bb9c4fa.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-6781027645",
+    "pool_kind": "personal",
+    "isrc": "GBUM71029604",
+    "title": "Bohemian Rhapsody",
+    "artist": "Queen",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:3296287",
+        "name": "Queen"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-6781027645-02de443f686f3358.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-6781081101",
+    "pool_kind": "personal",
+    "isrc": "GBUM71029618",
+    "title": "We Will Rock You",
+    "artist": "Queen",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:3296287",
+        "name": "Queen"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-6781081101-a4ee0de8546757fd.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-6781080935",
+    "pool_kind": "personal",
+    "isrc": "GBUM71029605",
+    "title": "Another One Bites The Dust",
+    "artist": "Queen",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:3296287",
+        "name": "Queen"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-6781080935-c18a38cfbb1124ce.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-6781027364",
+    "pool_kind": "personal",
+    "isrc": "GBUM71029613",
+    "title": "Somebody To Love",
+    "artist": "Queen",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:3296287",
+        "name": "Queen"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-6781027364-1c6e0b8229e73fee.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-273048789",
+    "pool_kind": "decoy",
+    "isrc": "USSM19902991",
+    "title": "Billie Jean",
+    "artist": "Michael Jackson",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:32940",
+        "name": "Michael Jackson"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-273048789-3022d41b4130349c.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-269573303",
+    "pool_kind": "decoy",
+    "isrc": "USSM19902989",
+    "title": "Thriller",
+    "artist": "Michael Jackson",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:32940",
+        "name": "Michael Jackson"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-269573303-6167ba83e3930c8a.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-380907765",
+    "pool_kind": "decoy",
+    "isrc": "USWB11001072",
+    "title": "Take On Me",
+    "artist": "a-ha",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:166566",
+        "name": "a-ha"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-380907765-b3931ab38256d011.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1440813515",
+    "pool_kind": "decoy",
+    "isrc": "GBF088590110",
+    "title": "Everybody Wants to Rule the World",
+    "artist": "Tears for Fears",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:45218",
+        "name": "Tears for Fears"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1440813515-6908953fe9b0fe81.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-207057617",
+    "pool_kind": "decoy",
+    "isrc": "GBARL0300589",
+    "title": "Sweet Dreams (Are Made of This)",
+    "artist": "Eurythmics",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:395777",
+        "name": "Eurythmics"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-207057617-5492c94ee692e750.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1794889306",
+    "pool_kind": "decoy",
+    "isrc": "USPR38619998",
+    "title": "Livin' On A Prayer",
+    "artist": "Bon Jovi",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:122782",
+        "name": "Bon Jovi"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1794889306-0c14f12421d5a4e2.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-160024096",
+    "pool_kind": "decoy",
+    "isrc": "USSM18100116",
+    "title": "Don't Stop Believin'",
+    "artist": "Journey",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:486597",
+        "name": "Journey"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-160024096-6ec37ebb216db238.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1586895442",
+    "pool_kind": "decoy",
+    "isrc": "USGF19942501",
+    "title": "Smells Like Teen Spirit",
+    "artist": "Nirvana",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:112018",
+        "name": "Nirvana"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1586895442-03221429b145af49.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1517447333",
+    "pool_kind": "decoy",
+    "isrc": "GBAAW9500189",
+    "title": "Wonderwall",
+    "artist": "Oasis",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:512633",
+        "name": "Oasis"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1517447333-bd711908f0aedd95.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1526194192",
+    "pool_kind": "decoy",
+    "isrc": "USIR20400274",
+    "title": "Mr. Brightside",
+    "artist": "The Killers",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:6483093",
+        "name": "The Killers"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1526194192-8fd140c5434e4e2b.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-947701035",
+    "pool_kind": "decoy",
+    "isrc": "USWB11403543",
+    "title": "Californication",
+    "artist": "Red Hot Chili Peppers",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:889780",
+        "name": "Red Hot Chili Peppers"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-947701035-d2e60636f771eda1.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-264025629",
+    "pool_kind": "decoy",
+    "isrc": "USJI10301005",
+    "title": "Toxic",
+    "artist": "Britney Spears",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:217005",
+        "name": "Britney Spears"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-264025629-37cc3c2faa3589a3.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1444221569",
+    "pool_kind": "decoy",
+    "isrc": "USIR10211559",
+    "title": "Lose Yourself",
+    "artist": "Eminem",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:111051",
+        "name": "Eminem"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1444221569-3b7b0bfbc362ea9d.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1774796999",
+    "pool_kind": "decoy",
+    "isrc": "USAR10300924",
+    "title": "Hey Ya!",
+    "artist": "OutKast",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:289550",
+        "name": "OutKast"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1774796999-8622e82b8310f158.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1390803123",
+    "pool_kind": "decoy",
+    "isrc": "USUM71100061",
+    "title": "Party Rock Anthem (feat. Lauren Bennett & GoonRock)",
+    "artist": "LMFAO",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:284482668",
+        "name": "LMFAO"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1390803123-9c506f7f86322f8e.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-956024318",
+    "pool_kind": "decoy",
+    "isrc": "GBARL1401524",
+    "title": "Uptown Funk (feat. Bruno Mars)",
+    "artist": "Mark Ronson",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:14400049",
+        "name": "Mark Ronson"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-956024318-75ef48a65200a68f.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1452862511",
+    "pool_kind": "decoy",
+    "isrc": "USUM71210283",
+    "title": "Gangnam Style",
+    "artist": "PSY",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:554290495",
+        "name": "PSY"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1452862511-b97148649266231c.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1559523359",
+    "pool_kind": "decoy",
+    "isrc": "GBARL9300135",
+    "title": "Never Gonna Give You Up",
+    "artist": "Rick Astley",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:669771",
+        "name": "Rick Astley"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1559523359-f446f712d5341e84.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1440769310",
+    "pool_kind": "decoy",
+    "isrc": "USUM70965169",
+    "title": "I Gotta Feeling",
+    "artist": "Black Eyed Peas",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:360391",
+        "name": "Black Eyed Peas"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1440769310-c265609a0e4ce98d.m4a",
+    "artwork_url": null
+  },
+  {
+    "id": "apple-1440855997",
+    "pool_kind": "decoy",
+    "isrc": "USUM71109132",
+    "title": "Moves Like Jagger (feat. Christina Aguilera)",
+    "artist": "Maroon 5",
+    "artists": [
+      {
+        "artist_key": "demo:apple:artist:1798556",
+        "name": "Maroon 5"
+      }
+    ],
+    "preview_url": "/static/demo/local/clips/apple-1440855997-9ec78d61846f657b.m4a",
+    "artwork_url": null
+  }
+]

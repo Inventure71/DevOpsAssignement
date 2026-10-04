@@ -1,13 +1,60 @@
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.nox/
 .coverage
+.coverage.*
 htmlcov/
+/coverage.xml
+/junit.xml
+/pytest-report.xml
+
+# Generated build/publish outputs; keep application source versionable
+build/
+dist/
+/output/
+/artifacts/
+/publish/
+/release/
+/releases/
+.eggs/
+*.egg-info/
+*.egg
+*.whl
+*.zip
+*.tar
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+*.tgz
+
+# Browser/test recordings, traces, screenshots and reports
+.playwright-cli/
+/test-results/
+/playwright-report/
+/blob-report/
 
 # App data (SQLite lives here)
 data/
+
+# Public catalog setup artifacts, including custom DATA_DIR locations
+catalog-downloads/
+catalog/local/
+# Author-only Apple acquisition tooling; the Drive installer is public.
+tools/setup_apple_demo.py
+tools/apple_demo_media.py
+tests/unit/test_apple_demo_setup.py
+catalog.sqlite3
+catalog.sqlite3-*
+whos_on_repeat.sqlite3
+whos_on_repeat.sqlite3-*
+canonical_musicbrainz_data.csv*
 
 # Secrets: never commit keys
 .env
@@ -24,3 +71,6 @@ notes/
 
 # Proof-of-concept throwaway code (never committed)
 poc/
+
+
+tmp/

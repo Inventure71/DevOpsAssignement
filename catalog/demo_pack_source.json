@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "pack": "whos-on-repeat-demo-100",
+  "file_id": "1nmv-F4OettnXqMj5JZNp_WzO1XZSCpOp",
+  "bytes": 102785177,
+  "sha256": "24455f95611e3fe8f761d398445d0118f41689566733c9fe517780a03490c2e6",
+  "manifest_sha256": "dbcde46a93cac65963b8151e264dfe2b0ee8b825abd5f420097a080256470ae1",
+  "song_count": 100,
+  "pools": {"personal": 80, "decoy": 20}
+}

@@ -1,0 +1,474 @@
+/* Cross-screen utilities and supporting pages. Sprite styles stay encapsulated. */
+[hidden] {
+  display: none !important;
+}
+svg {
+  display: block;
+}
+.skip-link {
+  position: fixed;
+  top: -100px;
+  left: 16px;
+  z-index: 100;
+  background: #fff;
+  padding: 10px 20px;
+  border: 2px solid var(--ink);
+  border-radius: 15px;
+}
+.skip-link:focus {
+  top: 16px;
+}
+.profile-menu {
+  position: relative;
+}
+.profile-toggle {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  background: #fff;
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 18px 7px 6px;
+  font: 800 17px var(--font);
+  cursor: pointer;
+  box-shadow: 0 6px 24px #22222204;
+}
+.profile-toggle repeat-character {
+  width: 43px;
+  height: 43px;
+  display: block;
+  border-radius: 50%;
+  background: #f1eaff;
+}
+.profile-actions {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  z-index: 30;
+  min-width: 185px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 15px 40px #17171713;
+}
+.profile-actions button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  border-radius: 10px;
+  padding: 12px;
+  font: 700 15px var(--font);
+  cursor: pointer;
+}
+.profile-actions button:hover {
+  background: var(--pink-soft);
+}
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 14px 23px;
+  border: 1px solid var(--line);
+  background: #242129;
+  color: #fff;
+  border-radius: 20px;
+  box-shadow: 0 10px 40px #17171719;
+  max-width: min(90vw, 600px);
+  z-index: 90;
+  font-size: 15px;
+  line-height: 1.4;
+  text-align: center;
+  animation: toast-in 0.22s ease-out;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+.button svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.field-group {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+}
+.field-group label {
+  font-size: 14px;
+  font-weight: 800;
+}
+.field-group input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 15px 18px;
+  font: 700 18px var(--font);
+  background: #fff;
+}
+.field-group input:focus {
+  outline: 3px solid #ffb8b24f;
+  border-color: var(--pink);
+}
+.form-error {
+  font-size: 14px;
+  color: #9b3b35;
+  min-height: 20px;
+}
+.entry-tabs {
+  display: flex;
+  gap: 5px;
+  padding: 5px;
+  background: var(--wash);
+  border-radius: 999px;
+}
+.entry-tabs button {
+  flex: 1;
+  border: 0;
+  padding: 12px;
+  border-radius: 999px;
+  font: 800 15px var(--font);
+  cursor: pointer;
+  background: transparent;
+  color: var(--muted);
+}
+.entry-tabs button[aria-pressed="true"] {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 2px 10px #22222206;
+}
+.entry-art {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 440px;
+  max-width: 100%;
+  min-height: 320px;
+}
+.entry-art repeat-character {
+  width: 150px;
+  flex: none;
+  position: relative;
+}
+.entry-art repeat-character:nth-child(2) {
+  width: 220px;
+  margin: 0 -32px;
+  z-index: 1;
+}
+.mode-label {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+.entry-loading {
+  text-align: center;
+  padding: 60px;
+}
+.entry-loading repeat-character {
+  display: block;
+  margin: 0 auto 25px;
+  width: 220px;
+}
+.info-screen {
+  max-width: 800px;
+  padding: 70px 20px;
+  margin: auto;
+}
+.info-screen h1 {
+  font-size: clamp(32px, 5vw, 52px);
+  margin: 0 0 25px;
+}
+.info-screen p {
+  font-size: 18px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.info-screen ol {
+  font-size: 18px;
+  line-height: 1.9;
+  padding-left: 25px;
+}
+.info-screen .button {
+  margin-top: 30px;
+}
+.artwork-fallback {
+  width: 200px;
+  height: 200px;
+  border-radius: 25px;
+  background: var(--pink-soft);
+  display: grid;
+  place-items: center;
+  margin: auto;
+}
+.artwork-fallback svg {
+  width: 70px;
+  height: 70px;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lab-nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.lab-nav button {
+  border: 0;
+  background: var(--wash);
+  padding: 9px 15px;
+  border-radius: 999px;
+  cursor: pointer;
+  font: 800 13px var(--font);
+}
+.lab-nav button[aria-pressed="true"] {
+  background: #171717;
+  color: #fff;
+}
+.character-lab {
+  text-align: center;
+  max-width: 1100px;
+  margin: 40px auto;
+}
+.character-lab h1 {
+  font-size: 45px;
+  margin: 10px;
+}
+.character-lab p {
+  color: var(--muted);
+}
+.lab-mood {
+  display: inline-flex;
+  gap: 15px;
+  align-items: center;
+  margin: 15px 0;
+}
+.lab-mood select {
+  font: 700 15px var(--font);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px;
+}
+.blob-studio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  margin: 12px 0 30px;
+}
+.studio-character {
+  width: 300px;
+  max-width: 45%;
+}
+.studio-controls {
+  max-width: 300px;
+}
+.studio-reactions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+.studio-reactions .button {
+  min-height: 42px;
+  padding: 10px 16px;
+}
+.specimen-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 25px;
+}
+.specimen-grid figure {
+  min-width: 0;
+  margin: 0;
+  padding: 15px;
+}
+.specimen-grid repeat-character {
+  display: block;
+  width: 150px;
+  height: 150px;
+  max-width: 100%;
+  margin: auto;
+}
+.specimen-grid figcaption {
+  font-weight: 800;
+}
+.history-screen {
+  max-width: 850px;
+  margin: 40px auto;
+  padding: 0 18px;
+}
+.history-game {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
+}
+.history-game h2 {
+  font-size: 20px;
+}
+.history-game ol {
+  color: var(--muted);
+  line-height: 1.8;
+}
+.muted {
+  color: var(--muted);
+}
+.button[disabled] {
+  cursor: default;
+}
+.main-view:focus {
+  outline: 0;
+}
+@media (max-width: 700px) {
+  .blob-studio {
+    flex-direction: column;
+    gap: 0;
+  }
+  .studio-character {
+    width: 260px;
+    max-width: 100%;
+  }
+  .entry-art {
+    min-height: 200px;
+  }
+  .entry-art repeat-character {
+    width: 100px;
+  }
+  .entry-art repeat-character:nth-child(2) {
+    width: 160px;
+    margin: 0 -25px;
+  }
+  .specimen-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+  .specimen-grid repeat-character {
+    height: 150px;
+  }
+  .character-lab h1 {
+    font-size: 31px;
+  }
+  .lab-nav {
+    justify-content: center;
+  }
+  .profile-toggle {
+    font-size: 14px;
+    padding-right: 12px;
+    gap: 7px;
+  }
+  .profile-toggle repeat-character {
+    width: 34px;
+    height: 34px;
+  }
+}
+/* Entry form details. Content stays responsive without truncation. */
+.entry-art repeat-character {
+  width: 30%;
+}
+.entry-art repeat-character:nth-child(2) {
+  width: 46%;
+  margin: 0 -5%;
+  z-index: 1;
+}
+.entry-code-field input {
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+.entry-submit {
+  width: 100%;
+  margin-top: 2px;
+}
+.entry-welcome h1 {
+  max-width: 550px;
+}
+.entry-welcome > p {
+  max-width: 460px;
+  font-size: 19px;
+}
+@media (max-width: 650px) {
+  .entry-welcome h1 {
+    font-size: 38px;
+  }
+  .entry-welcome > p {
+    font-size: 17px;
+  }
+  .entry-art repeat-character {
+    width: 30%;
+  }
+  .entry-art repeat-character:nth-child(2) {
+    width: 46%;
+    margin: 0 -5%;
+  }
+  .entry-art {
+    min-height: 170px;
+  }
+  .artwork-fallback {
+    width: 180px;
+    height: 180px;
+  }
+}
+/* On phones choose players before reaching the final submit action. */
+@media (max-width: 650px) {
+  .round-layout {
+    gap: 12px 8px;
+  }
+  .round-center,
+  .round-controls {
+    display: contents;
+  }
+  .round-stage {
+    order: 0;
+    width: 100%;
+    max-width: 290px;
+  }
+  .round-waveform {
+    order: 1;
+    width: 100%;
+  }
+  .round-song-field {
+    order: 2;
+    width: 100%;
+  }
+  .round-selection-hint {
+    order: 3;
+    width: 100%;
+    text-align: center;
+  }
+  .round-players player-card {
+    order: 4;
+    width: calc((100% - 24px) / 4);
+    max-width: 115px;
+  }
+  .round-empty-selection {
+    order: 5;
+    width: 100%;
+    text-align: center;
+  }
+  .submit-guess {
+    order: 6;
+    width: 100%;
+    position: sticky;
+    bottom: 12px;
+    z-index: 5;
+    box-shadow: 0 6px 22px #15151522;
+  }
+  .round-recovery {
+    order: 7;
+    width: 100%;
+  }
+}

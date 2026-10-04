@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#fffdf9" />
+    <title>Who's On Repeat</title>
+    <link rel="icon" type="image/svg+xml" href="/ui/assets/favicon.svg" />
+    <link
+      rel="preload"
+      href="/ui/assets/nunito.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="stylesheet" href="/ui/styles/tokens.css" />
+    <link rel="stylesheet" href="/ui/styles/app.css" />
+    <link rel="stylesheet" href="/ui/styles/components.css" />
+    <link rel="stylesheet" href="/ui/styles/results.css" />
+    <script type="module" src="/ui/app.mjs"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to game</a>
+    <header class="site-header">
+      <a class="site-brand" href="/" aria-label="Who's On Repeat home"
+        >who’s<br />on repeat<span>?</span></a
+      >
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/" data-page="play" aria-current="page">Play</a>
+        <a href="/?page=how" data-page="how">How it works</a>
+        <a href="/?page=about" data-page="about">About</a>
+      </nav>
+      <div class="profile-menu" id="profile" hidden>
+        <button
+          id="profile-toggle"
+          class="profile-toggle"
+          aria-expanded="false"
+          aria-controls="profile-actions"
+        >
+          <repeat-character
+            id="profile-character"
+            color="coral"
+            mood="idle"
+          ></repeat-character
+          ><span id="profile-name"></span><span aria-hidden="true">⌄</span>
+        </button>
+        <div id="profile-actions" class="profile-actions" hidden>
+          <button data-action="show-history">Room history</button
+          ><button data-action="end-game" id="end-game-button" hidden>
+            End game</button
+          ><button data-action="leave">Leave room</button>
+        </div>
+      </div>
+    </header>
+    <main id="main" class="main-view" tabindex="-1"></main>
+    <div
+      id="notice"
+      class="toast"
+      role="status"
+      aria-live="polite"
+      hidden
+    ></div>
+    <noscript
+      >This game needs JavaScript to join a room and submit guesses.</noscript
+    >
+  </body>
+</html>
