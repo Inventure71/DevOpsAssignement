@@ -1,4 +1,4 @@
-"""Build invitations with a reachable origin rather than the host's loopback URL."""
+"""Build invitations using a reachable origin."""
 
 import ipaddress
 import socket
@@ -16,7 +16,7 @@ def is_local_only(host: str | None) -> bool:
 
 
 def discover_lan_host() -> str | None:
-    """Ask the routing table for the outbound IPv4 address; no packets are sent."""
+    """Read the outbound IPv4 address from the routing table."""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as connection:
             connection.connect(("192.0.2.1", 9))

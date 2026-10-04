@@ -7,6 +7,7 @@ import pytest
 from backend.rooms.demo import seed_demo
 from backend.rooms.service import RoomsService
 from backend.storage.database import Database
+from tests.support.demo import prepared_demo_import
 
 
 def song(number, **changes):
@@ -58,9 +59,18 @@ def test_duplicate_recordings_are_normalized_before_assignment_size(database, tm
         assert {
             row[0] for row in conn.execute("SELECT preview_url FROM demo_catalog")
         } == {entries[0]["preview_url"]}
-        host = rooms.create(conn, "Host", "coral", "demo", 1000)
+        host = rooms.create(
+            conn, "Host", "coral", "demo", 1000, imported=prepared_demo_import(conn)
+        )
         room_id = host["room"]["id"]
-        rooms.join(conn, room_id, "Guest", "sage", 1001)
+        rooms.join(
+            conn,
+            room_id,
+            "Guest",
+            "sage",
+            1001,
+            imported=prepared_demo_import(conn, include_decoys=False),
+        )
         assert [
             player["song_count"]
             for player in rooms.lobby(conn, room_id, 1002)["players"]
@@ -91,9 +101,18 @@ def test_absent_blank_and_null_isrcs_keep_distinct_demo_identities(database, tmp
         assert all(
             row[0] is None for row in conn.execute("SELECT isrc FROM demo_catalog")
         )
-        host = rooms.create(conn, "Host", "coral", "demo", 1000)
+        host = rooms.create(
+            conn, "Host", "coral", "demo", 1000, imported=prepared_demo_import(conn)
+        )
         room_id = host["room"]["id"]
-        rooms.join(conn, room_id, "Guest", "sage", 1001)
+        rooms.join(
+            conn,
+            room_id,
+            "Guest",
+            "sage",
+            1001,
+            imported=prepared_demo_import(conn, include_decoys=False),
+        )
         assert [
             player["song_count"]
             for player in rooms.lobby(conn, room_id, 1002)["players"]
@@ -108,7 +127,9 @@ def test_duplicate_decoys_only_supply_one_unowned_recording(database, tmp_path):
     with database.transaction() as conn:
         seed(conn, tmp_path, [song(1), decoy, decoy | {"id": "duplicate-decoy"}])
         rooms = RoomsService()
-        host = rooms.create(conn, "Host", "coral", "demo", 1000)
+        host = rooms.create(
+            conn, "Host", "coral", "demo", 1000, imported=prepared_demo_import(conn)
+        )
         snapshot = rooms.snapshot(conn, host["room"]["id"])
         assert len(snapshot["songs"]) == 2
         assert [
@@ -141,7 +162,9 @@ def test_invalid_identity_keeps_old_catalog_and_room_assignments(
     with database.transaction() as conn:
         seed(conn, tmp_path, [song(0)])
         rooms = RoomsService()
-        old = rooms.create(conn, "Old Host", "coral", "demo", 1000)
+        old = rooms.create(
+            conn, "Old Host", "coral", "demo", 1000, imported=prepared_demo_import(conn)
+        )
         old_snapshot = rooms.snapshot(conn, old["room"]["id"])
         old_catalog = [tuple(row) for row in conn.execute("SELECT * FROM demo_catalog")]
         duplicate = song(1, id="duplicate", isrc="  usaa10000001  ") | changes
@@ -151,7 +174,9 @@ def test_invalid_identity_keeps_old_catalog_and_room_assignments(
             tuple(row) for row in conn.execute("SELECT * FROM demo_catalog")
         ] == old_catalog
         assert rooms.snapshot(conn, old["room"]["id"]) == old_snapshot
-        new = rooms.create(conn, "New Host", "sage", "demo", 1001)
+        new = rooms.create(
+            conn, "New Host", "sage", "demo", 1001, imported=prepared_demo_import(conn)
+        )
         assert (
             rooms.lobby(conn, new["room"]["id"], 1002)["players"][0]["song_count"] == 1
         )

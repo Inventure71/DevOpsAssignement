@@ -1,8 +1,9 @@
 """Persist verified imports without exposing personal listening evidence in views."""
 
-import json
-import secrets
 import hashlib
+import json
+import re
+import secrets
 
 from backend.catalog.identity import normalized_words, recording_title
 from backend.core.errors import DomainError
@@ -10,6 +11,11 @@ from backend.core.errors import DomainError
 
 def identity(song):
     return "isrc:" + song["isrc"] if song.get("isrc") else song["song_key"]
+
+
+def store_observations(conn, room_id, player_id, songs):
+    """Store listening ownership with unchecked preview URLs removed."""
+    store(conn, room_id, player_id, [song | {"preview_url": None} for song in songs])
 
 
 def store(conn, room_id, player_id, songs, *, decoys=False):
@@ -96,16 +102,47 @@ def _compatible(existing, song):
     ) and bool(source_names & stored_names)
 
 
-def validate_import(imported):
+def validate_import(imported, mode):
+    provider, evidence = imported.get("provider"), imported.get("evidence")
+    canonical_provider = isinstance(provider, str) and re.fullmatch(
+        r"[a-z][a-z0-9_-]*", provider
+    )
+    matches = (
+        provider == "demo" and evidence == "simulated"
+        if mode == "demo"
+        else canonical_provider and provider != "demo" and evidence == "personal"
+    )
+    if not matches:
+        raise DomainError(
+            "music_source_mismatch",
+            "The music source does not match this room mode.",
+            409,
+        )
+    personal = imported["evidence"] == "personal"
+    account_id = imported.get("account_id")
+    if (personal and (not isinstance(account_id, str) or not account_id)) or (
+        not personal and account_id is not None
+    ):
+        raise DomainError(
+            "invalid_music_import", "The verified source identity is incomplete.", 503
+        )
     songs = imported.get("songs", [])
-    if not imported.get("account_id") or len({identity(s) for s in songs}) < 10:
+    minimum = 10 if personal else 1
+    if len({identity(s) for s in songs}) < minimum:
         raise DomainError(
             "music_import_insufficient",
-            "At least ten playable songs are needed to join.",
+            "The import has too few playable songs to join.",
             409,
         )
     for song in [*songs, *imported.get("decoys", [])]:
         if not song.get("preview_url") or not song.get("artists"):
             raise DomainError(
                 "invalid_music_import", "The verified import is incomplete.", 503
+            )
+    for song in [*songs, *imported.get("observed_songs", [])]:
+        if song.get("familiarity") not in {"easy", "medium", "hard"} or not song.get(
+            "artists"
+        ):
+            raise DomainError(
+                "invalid_music_import", "The listening evidence is incomplete.", 503
             )

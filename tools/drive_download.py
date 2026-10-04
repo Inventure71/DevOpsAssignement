@@ -40,7 +40,7 @@ class DriveRedirects(HTTPRedirectHandler):
 
 
 class ConfirmationForm(HTMLParser):
-    """Read only Google's bounded download-confirmation form, never page scripts."""
+    """Parse a bounded Google download-confirmation form."""
 
     def __init__(self):
         super().__init__()

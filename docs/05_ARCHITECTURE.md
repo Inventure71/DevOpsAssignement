@@ -1,93 +1,97 @@
 # 05 — Architecture
 
-Current implementation, updated 2026-10-04. Assignment 1 requires a monolithic application: one process, one SQLite path and one root dependency manifest. The internal design is layered and organized around two business domains, **Rooms** and **Game**. These are modules in one deployment, not microservices. See [the data model](06_DATA_MODEL.md), [API contract](07_API_AND_RUNTIME.md) and [codebase map](09_CODEBASE_MAP.md) for their concrete boundaries.
-
-Server readiness and playable-music availability are separate boundaries.
-Lifespan initializes SQLite and the public catalog without downloading media.
-An absent Demo pack disables Demo admission and media access; configured Normal
-admission can still work. An existing invalid pack is rejected before seeding.
-The assessment launcher prepares the verified pack before starting the process.
+The application is a modular monolith: one Python process, two business domains (**Rooms** and **Game**), and one SQLite database. The browser uses native JavaScript modules. See the [data model](06_DATA_MODEL.md), [API contract](07_API_AND_RUNTIME.md) and [codebase map](09_CODEBASE_MAP.md).
 
 ## Responsibilities and dependencies
 
-| Layer/component | Owns | Does not own |
-|---|---|---|
-| HTTP presentation (`backend/api/`) | Strict request schemas, cookies, Origin checks, rate limits and response mapping | SQL, score formulas or multi-domain workflows |
-| Application use cases (`RoomCommands`, `GameCommands`) | Named commands/queries, authorization context, token validation and domain orchestration | Provider transport or domain scoring |
-| Application coordination (`Coordinator`) | Serialized room turns, acceptance time, transaction boundaries, due transitions and Rooms/Game lifecycle reconciliation | Song matching, score arithmetic or provider calls |
-| Rooms domain | Admission, browser identity, roster, presence, private song memberships/familiarity and snapshot export | Selecting game rounds or scoring answers |
-| Game domain | Frozen roster/song facts, full candidate plan, readiness, timed transitions, answer finality, scoring and rankings | Live Rooms SQL or music-provider credentials |
-| Public catalog | Metadata indexing, query/preview caches, permanent verified links and signed selections | Personal listening evidence or hidden game-pool filtering |
-| Music adapters | Spotify authorization/history, Apple catalog/previews and media validation | Room membership, game state or scoring |
-| Browser application | Session drafts, transport, screen lifecycle and participant readiness | Server authority or recomputed scores |
-| Host audio adapter | Audio unlock, active-tab lease, preload/decode, waveform extraction and playback scheduling | Guest readiness or admission |
+| Component | Responsibility |
+|---|---|
+| HTTP (`backend/api/`) | Request validation, cookies, Origin checks, rate limits and response mapping |
+| `RoomCommands` / `GameCommands` | Authorized use cases, signed selections and domain orchestration |
+| `Coordinator` | Room command ordering, server acceptance time, transactions and lifecycle reconciliation |
+| Rooms | Admission, identity, presence, private listening pools and snapshot export |
+| Game | Frozen roster and songs, candidate planning, readiness, timed phases, scoring and rankings |
+| Public catalog | Metadata search, query/preview caches, verified identity links and signed selections |
+| Music adapters | Listening evidence, provider authorization and verified preview resolution |
+| Browser application | Session state, transport, screen lifecycle and automatic readiness |
+| Host audio | Audio unlock, tab lease, preload/decode, waveform extraction and scheduled playback |
 
 ```mermaid
 flowchart TD
-    Browser[Browser screens and components] --> HTTP[HTTP routes and schemas]
+    Browser[Browser] --> HTTP[HTTP routes and schemas]
     HTTP --> Commands[RoomCommands and GameCommands]
-    Commands --> Coordinator[Coordinator: ordering and transactions]
+    Commands --> Coordinator[Coordinator]
     Coordinator --> Rooms[RoomsService]
-    Coordinator --> Game[GameService: commands and timed transitions]
-    Rooms --> RoomRepo[Injected Rooms repository]
+    Coordinator --> Game[GameService]
+    Rooms --> RoomRepo[Rooms repository]
     Game --> GameRepo[Game repository]
     Commands --> Search[Public search and signed selections]
     Search --> Catalog[CatalogStore and VerifiedLinks]
-    Search --> Provider[Injected public-search adapter]
-    Admission[Music admission jobs] --> Handler[Application admission handler]
+    Search --> Provider[Public-search adapter]
+    Admission[MusicAdmissions] --> Auth[SpotifyAuthorization]
+    Admission --> Importer[MusicImporter]
+    Sources[Spotify or Demo listening adapter] --> Importer
+    Importer --> Resolver[Apple or local preview resolver]
+    Importer --> Handler[MusicAdmissionHandler]
     Handler --> Coordinator
-    Admission --> Music[Spotify and Apple adapters]
-    RoomRepo --> SQLite[(One SQLite file)]
+    RoomRepo --> SQLite[(SQLite)]
     GameRepo --> SQLite
     Catalog --> SQLite
-    Provider --> External[Optional external music APIs]
-    Music --> External
+    Provider --> External[Music APIs]
+    Resolver --> External
+    Auth --> External
 ```
 
-`backend/app.py:create_app` is the backend composition root. It constructs the configuration, coordinator, provider adapters, catalog store, importer, admission jobs and named command objects, then injects them into HTTP routers. `RoomsService` accepts its repository dependency. Scoring and selection receive plain frozen values, with clock/random dependencies supplied where needed. The current persistence API still passes SQLite connections into services for shared local transactions; replacing persistence would require adapting that transaction boundary, not merely swapping a network URL.
-
-Repositories own table queries. HTTP handlers do not open database connections. `GameService` owns both gameplay commands and clock-driven transitions; the former separate `phases.py` controller has been removed. Its repository owns score updates. The application calls `GameService.advance` and reconciles a finished game's room state within the same transaction.
+`backend/app.py:create_app` constructs and injects these components. Repositories own SQL; services receive connections so one application transaction can span Rooms and Game. Selection and scoring use frozen values with injected clock/random dependencies.
 
 ## Command ordering and room lifecycle
 
-A protected command acquires the room's turn, captures server acceptance time, authenticates the credential and checks due transitions. Due transitions commit before an invalid incoming command can be rejected, preserving deadline closure. The requested operation then runs in a short read or write context. Requests with no due transition can use the read path; different rooms have independent command locks, although SQLite still serializes writes.
+Each protected operation acquires its room lock, captures server acceptance time, authenticates the player and applies due transitions. Due transitions commit before a stale or invalid command is rejected, so requests cannot postpone deadline closure. The operation then uses a short read or write context. Different rooms have independent locks; SQLite serializes writes.
 
-`RoomLocks` counts both holders and queued waiters. They share one reentrant lock for a room; the registry entry is removed only when its reference count reaches zero. Failed requests for arbitrary room IDs therefore do not retain permanent entries, and a queued command cannot acquire a replacement lock while an older holder still runs. Cleanup uses this same ordering boundary.
+`RoomLocks` keeps one reentrant lock while a room has holders or queued waiters, then removes the idle entry. Cleanup uses the same lock. Provider requests run outside room locks and database transactions.
 
-Room admission and imports remain independent of an active match. Start freezes roster, settings, song facts and listener familiarity, then marks the room as playing in one transaction. Game uses these values throughout the match. Changing or reseeding a catalog does not rewrite room song copies or frozen results. New identities can join again only after the room returns to its lobby.
+Start freezes the roster, settings, song facts and familiarity, and marks the room playing atomically. Game uses that snapshot throughout the match. Catalog reseeding leaves room copies and historical results intact. New identities join only in the lobby.
 
 ## Music admission and the public catalog
 
-Normal mode imports each player's Spotify top/recent observations using that player's authorization; Apple resolves usable previews and supplies independent chart decoys. The importer preserves observed listener membership even when a preview is unavailable. Admission needs at least ten playable personal songs; listener facts describe the bounded imported observations, not lifetime history. Provider work finishes outside room locks and database transactions. The atomic admission handler then revalidates receipt, lobby, nickname, capacity and account constraints before storing the normalized import.
+`MusicSource` returns `ListeningData(provider, evidence, songs, account_id)`. Spotify supplies personal top/recent observations; Demo supplies simulated assignments. `MusicImporter` resolves checked previews and independent decoys. `MusicAdmissionHandler` delivers the result into Rooms, rechecking lobby state, nickname, capacity and account constraints before committing.
 
-Demo uses the pinned 100-song Drive pack: 80 personal recordings and 20 decoys. Each participant receives 36 personal songs with simulated familiarity; decoys have no listeners. First setup installs the verified pack before server startup; the default ten-round and optional fifteen-round loops then work offline without credentials. Canonical metadata and the source pin are committed, while installed media stays under ignored `catalog/local/packs/`. There is no alternate synthetic or festival catalog. [Catalog provenance](../catalog/README.md) explains setup, validation and the private acquisition boundary.
+Rooms validates evidence against room mode and hashes personal account identity with the room and provider. Checked songs provide playable media; observations preserve ownership with their preview URLs stripped. A compatible later import can attach checked audio while keeping earlier listeners. Spotify is the implemented personal connector. Apple supplies public search, preview matching and chart decoys; Apple personal listening is planned.
 
-Public search receives permitted Demo metadata values from the application layer. Demo searches only these local catalog entries, including misses; it never falls through to an external metadata provider. `LaunchMode` owns the process's configured profile and gates Spotify admissions and authenticated room use; Demo is available under either profile. The browser receives enabled modes from `/api/config` before allowing admission. `SongSearch` contains no queries against Rooms or listener tables; provider HTTP transport is injected from `backend/music/`. Browser Search/Enter first uses shared local metadata, persistent query results and verified provider mappings. A bulk metadata result may require explicit provider verification before it can become an answer. `CatalogSelections` receives only token, lookup, result and verified-link dependencies, rather than inspecting a search object's internals. Answer submission and scoring use signed facts without provider calls.
+Demo metadata and media come from a pinned pack. Installation and attribution are documented in [catalog setup](../catalog/README.md). Startup validates an installed pack; an absent pack leaves Demo disabled while configured Real admission remains available. The launcher prepares missing media before starting the server.
 
-Positive links are scoped by provider/storefront and purpose (`guess` or `recording`), saved in both directions and retained across games and restarts. Identity fingerprints include the matching-rule version. A changed identity, explicit rejection or matching-rule change requires fresh verification; elapsed time alone does not expire a successful match. Temporary preview references and query results have separate expiries. No public table stores player IDs, listener maps or OAuth tokens.
+Public search uses shared metadata independently of hidden room pools. The application supplies permitted Demo values; the catalog has no access to private listener tables. Bulk metadata selections may require provider verification before signing. Submission and scoring use authenticated frozen facts without provider calls.
+
+Verified links are scoped by provider/storefront and purpose (`guess` or `recording`) and stored in both directions. Fingerprints include the matching-rule version. Positive links survive restarts until identity changes or explicit rejection; query results and temporary preview references expire separately.
+
+Game's `guess_title` allows recognized release suffixes for song guesses. Catalog's `recording_title` retains those distinctions for playback and listener ownership. The exact matching and scoring rules are in [Game Rules](03_GAME_RULES.md#4-scoring).
+
+## Pattern rationale and course connection
+
+The listening adapters translate provider data into the common `MusicSource` interface (**Adapter**). Injecting the selected source provides **Strategy** composition. `MusicImporter` provides a narrow **Facade** over source reads, preview checks and decoy resolution. `PreviewResolver` caches and controls expensive resolution, similar to a caching **Proxy**; it also enriches recording facts, which extends its role beyond that pattern.
+
+These boundaries follow the course's Software Design Patterns slides 19–31 (Adapter, Proxy, Facade), 39–42 (Strategy), and SOLID slides 3/15: source reading, authorization and membership delivery have separate responsibilities. A new personal connector implements the source and authorization contracts and is wired at the composition root. [Source contract tests](../tests/integration/test_music_source_contract.py), [source units](../tests/unit/test_music_sources.py) and [connection lifecycle tests](../tests/integration/test_music_connection_lifecycle.py) cover those boundaries.
 
 ## Browser readiness and host audio
 
-`frontend/app.mjs` composes transport, application state/actions, runtime, readiness, screen lifecycle and host audio. Screens render server projections and emit intent. Reusable components retain stable DOM/SVG nodes across polling; pure timing/result helpers do not calculate authoritative points.
+`frontend/app.mjs` composes state, actions, transport, polling, readiness, audio and screens. Screens render server projections and emit commands. Stable DOM/SVG nodes preserve controls across polls; result helpers display server scores.
 
-`application/round-readiness.mjs` acknowledges the current round/attempt generation for every participant. Guest readiness needs current state; host readiness also requires a decoded clip, running audio context and valid audio lease. Readiness has its own cancellation and generation guards. `audio/host.mjs` handles only host playback, with session fences around asynchronous lease, manifest and decode operations. Resetting or changing room invalidates pending work, so an old response cannot restore a stale lease or publish a late error into a new session.
+Music admission handles connection drafts, polling, cancellation and session delivery. Authorization strategies validate provider redirects. Provider choices come from server capabilities. The [music connection contract](07_API_AND_RUNTIME.md#12-real-music-connection-runtime) defines delivery and acknowledgement races.
 
-One host device currently plays audio for the room. Other devices guess and see results. All-device audio is deferred: automatic readiness acknowledgements do not establish audible playback or timing synchronization across speakers.
+Current-round readiness is automatic for every participant. Guests need current state; the host also needs a decoded clip, running audio context and active lease. Audio and readiness work are fenced by session and generation so delayed responses cannot update a later room. One host device plays the shared audio; the other devices submit guesses and see results.
 
 ## Phase and failure ownership
 
-The normal loop is `setup` (at least 5 s) → `ready` → `countdown` (3 s) → `answering` (10/20/30 s, or all starting players submit) → `reveal` (5 s) → `leaderboard` (5 s) → next `countdown` when prepared, otherwise `ready`. The final leaderboard remains visible.
+`GameService` owns commands and timed transitions. The coordinator calls `advance` and reconciles room state in the same transaction. The loop is setup → ready → countdown → answering → reveal → leaderboard. [Game Rules](03_GAME_RULES.md#1-game-and-round-flow) defines timers and recovery.
 
-Audio for the full candidate plan is decoded during initial setup. As soon as a round closes, Game stages the next playable candidate in a separate `game_round_preparations` row without changing the current scored attempt. During reveal and leaderboard, `application/upcoming-readiness.mjs` renews visible participants' technical check-ins every two seconds. Guests receive only the preparation identity; the host also receives the candidate ID needed to check its decoded buffer. At promotion, acknowledgements must be no older than five seconds, belong to connected players, and match the active audio lease for the host. Fresh acknowledgements carry into the next attempt and allow its normal three-second countdown immediately. Missing preparation retains the ten-second ready window and existing retry/exclusion recovery. Preparation never starts audio or exposes upcoming answers.
+The full candidate plan is decoded during setup. At closure, Game stages the next candidate separately in `game_round_preparations`. Browsers prepare during reveal and leaderboard; promotion carries fresh participant check-ins into the next round. Complete preparation enters the normal countdown, while missing check-ins use the ready gate. The [readiness contract](07_API_AND_RUNTIME.md#6-automatic-readiness-and-synchronization) defines freshness and host-lease checks.
 
-Game builds each original slot plus up to three distinct checked substitutes. An unclosed playback failure voids its attempt and uses a checked reserve; revealed attempts are final. Exhausted original slots are skipped. The game aborts when cumulative skips exceed 30% of the original requested count, keeping that denominator unchanged. Missing answers score zero; submitted Nobody is a real answer. Initial missing readiness aborts preparation, while later missing readiness allows host Retry or explicit barrier exclusions without deleting players' score or answer eligibility.
-
-Host presence is independent of its audio lease. An interrupted current round can close; the next readiness window waits for the host. Host expiry or explicit leave aborts with labelled partial results. Restart recovery aborts interrupted games, preserves revealed scores and restores surviving rooms to lobby. These rules remain in Game/Rooms, coordinated atomically by the application.
+Host presence and audio ownership are separate. Leave, expiry and restart abort interrupted games with partial rankings; revealed scores remain final. Rooms owns presence, Game owns results, and coordination joins their lifecycle atomically.
 
 ## Storage, runtime and verification
 
-Both business domains and the public catalog use `DATA_DIR/whos_on_repeat.sqlite3`. Rooms and Game own separate table groups; public catalog tables have no private-membership foreign keys. The application schema uses `PRAGMA user_version=6`; catalog schema version 3 is tracked in `component_schema_versions`. All active catalog data lives in that file; no legacy separate-catalog import path remains. See the data model for the exact relationships and application migrations.
+Rooms, Game and the public catalog share `DATA_DIR/whos_on_repeat.sqlite3` with separate table ownership. The [data model](06_DATA_MODEL.md) describes relationships and schema versions.
 
-The process serves API, frontend and installed Demo media, binds `0.0.0.0` on `PORT`, and applies migrations automatically. A lifespan task checks deadlines once per second and periodically cleans expired rooms. Blocking storage/provider work is offloaded from the async event loop. WAL, foreign keys and bounded busy timeouts support local persistence. Run one worker: leases, OAuth receipts, query budgets, settings and command locks are process-local. Assignment 1 adds no authored Docker, CI workflow, managed database or extra deployed service.
+Run one worker: room locks, audio leases, music receipts, settings and query budgets are process-local. Startup applies migrations and initializes recovery/catalog state. A one-second task advances deadlines; periodic cleanup enforces retention. Blocking database and provider work runs outside the async event loop.
 
-Verification combines pure rule tests, isolated SQLite/HTTP integration tests, frontend lifecycle tests and browser checks. Complete offline matches exercise the installed pack media, signed searches, readiness, submissions, score persistence and history. Audio assets are independently decoded, while physical speakers, phone compatibility and Normal real-account behavior require device acceptance. Historical PoC observations remain in [04_POC.md](04_POC.md); they are dated experiments, not evidence that the current implementation has passed those gates.
+Verification combines policy units, SQLite/HTTP integration, frontend lifecycle tests and device playtests. Commands and coverage are in [README](../README.md); test responsibilities are in [the testing strategy](18_TESTING_STRATEGY.md). Provider experiments are recorded in [the PoC](04_POC.md).

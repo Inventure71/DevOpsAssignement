@@ -1,8 +1,6 @@
-"""Explicit metadata-only pools for full-match tests and the local load probe.
+"""Isolated metadata for full-match tests and the state-read load probe.
 
-These entries are isolated from the canonical 100-song Demo catalog. Reusing four
-audio references keeps rule and persistence tests independent of media volume;
-original clips keeps these fixtures compact; they do not verify media playback.
+Four audio references keep rule and persistence fixtures compact.
 """
 
 import json

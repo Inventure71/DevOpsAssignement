@@ -301,22 +301,15 @@ test("suspending scheduled host audio reports one interrupted attempt without re
   assert.deepEqual(session.notices, []);
 });
 
-test("explicit URL room references restore separate tabs despite shared last-room storage", () => {
-  const values = new Map();
-  const shared = {
-    getItem: (key) => values.get(key) ?? null,
-    setItem: (key, value) => values.set(key, value),
-    removeItem: (key) => values.delete(key),
-  };
-  const firstTab = createModel(shared, "room-a");
+test("explicit URL room references restore each tab independently", () => {
+  const firstTab = createModel("room-a");
   firstTab.rememberRoom({ room_id: "room-a" });
-  const secondTab = createModel(shared, "room-b");
+  const secondTab = createModel("room-b");
   secondTab.rememberRoom({ room_id: "room-b" });
-  assert.equal(shared.getItem("repeat_room_id"), "room-b");
   assert.equal(firstTab.ui.roomId, "room-a");
 
-  const restoredFirst = createModel(shared, "room-a");
-  const restoredSecond = createModel(shared, "room-b");
+  const restoredFirst = createModel("room-a");
+  const restoredSecond = createModel("room-b");
   const snapshot = (room, player) => ({
     room: { id: room, revision: 1 },
     me: { id: player, character_id: "coral" },
@@ -339,9 +332,9 @@ test("explicit URL room references restore separate tabs despite shared last-roo
   );
   assert.equal(restoredFirst.ui.roomId, "room-a");
   assert.equal(
-    createModel(shared, null).ui.roomId,
+    createModel().ui.roomId,
     null,
-    "an explicit entry/join route does not restore last-room storage",
+    "the plain entry route does not implicitly restore a room",
   );
 });
 
@@ -683,7 +676,7 @@ test("an old playback poll cannot report its suspended audio against a replaceme
 
 test("a delayed ready acknowledgement cannot block polling or host countdown scheduling", async () => {
   const readyReply = deferred();
-  const model = createModel({ getItem() {}, setItem() {}, removeItem() {} }, "room");
+  const model = createModel("room");
   const session = audioSession({
     getState: () => model.ui.state,
     interceptRequest: (url) => url.endsWith("/ready") ? readyReply.promise : undefined,

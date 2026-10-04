@@ -20,19 +20,19 @@ def test_demo_capabilities_and_admission_ignore_configured_music_providers(tmp_p
     app = create_app(
         replace(app.state.coordinator.config, game_mode="demo"),
         background=False,
-        spotify_client=app.state.music_admissions.spotify,
-        apple_catalog=app.state.music_admissions.importer.apple,
-        music_importer=app.state.music_admissions.importer,
+        spotify_client=app.state.music_admissions.providers["spotify"].authorization.client,
+        apple_catalog=app.state.music_admissions.providers["spotify"].importer.apple,
+        music_importer=app.state.music_admissions.providers["spotify"].importer,
     )
     with TestClient(app) as client:
         config = client.get("/api/config").json()
         assert config["launch_mode"] == "demo"
         assert config["modes"]["demo"]["enabled"] is True
         assert config["modes"]["normal"]["enabled"] is False
-        assert client.get(MUSIC + "/config").json()["enabled"] is False
+        assert client.get(MUSIC + "/config").json()["providers"]["spotify"]["enabled"] is False
         for url, body in (
             ("/api/rooms", {"nickname": "Host", "mode": "normal"}),
-            (MUSIC + "/admissions", {"nickname": "Host"}),
+            (MUSIC + "/admissions", {"nickname": "Host", "provider": "spotify"}),
         ):
             response = client.post(url, json=body)
             assert response.status_code == 409
@@ -130,9 +130,9 @@ def test_real_without_keys_exposes_configuration_reason_and_cannot_admit(tmp_pat
         config = client.get("/api/config").json()
         assert config["modes"]["demo"]["enabled"] is True
         assert config["modes"]["normal"]["enabled"] is False
-        assert "not configured" in config["modes"]["normal"]["reason"]
+        assert "No music connection" in config["modes"]["normal"]["reason"]
         assert (
-            client.post(MUSIC + "/admissions", json={"nickname": "Host"}).status_code
+            client.post(MUSIC + "/admissions", json={"nickname": "Host", "provider": "spotify"}).status_code
             == 503
         )
         assert (

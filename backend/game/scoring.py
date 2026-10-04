@@ -1,8 +1,10 @@
 """Exact, server-timed scoring over frozen song facts."""
 
+from collections.abc import Mapping, Sequence
 from fractions import Fraction
-from typing import Any, Mapping, Sequence
-from backend.catalog.identity import recording_title
+from typing import Any
+
+from backend.game.song_titles import guess_title
 
 
 def half_up(value: Fraction) -> int:
@@ -25,7 +27,7 @@ def _artist_keys(song: Mapping[str, Any]) -> set[str]:
 
 
 def _title(song: Mapping[str, Any]) -> str:
-    return recording_title(song.get("title", ""))
+    return guess_title(song.get("title", ""))
 
 
 def _listeners(song: Mapping[str, Any]) -> set[str]:

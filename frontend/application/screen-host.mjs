@@ -3,6 +3,7 @@ export function screenKey({ ui, state }) {
   if (ui.page !== "play") return `info:${ui.page}`;
   if (ui.historyOpen) return "history";
   if (ui.musicImport) return "music-import";
+  if (ui.musicConnection) return "music-connection";
   if (!state) return ui.roomId ? "restoring" : "entry";
   const game = state.game;
   if (game && ui.dismissedGame !== game.id) {

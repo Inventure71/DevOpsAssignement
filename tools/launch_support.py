@@ -1,6 +1,8 @@
 """Launch errors, port availability, and human-readable playable addresses."""
 
+import os
 import socket
+import sys
 
 from backend.api.invitations import discover_lan_host
 
@@ -12,6 +14,10 @@ class LaunchError(Exception):
 def available_port(port):
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+            # Match Uvicorn's bind behavior: closed connections may remain in
+            # TIME_WAIT after shutdown, but an active listener still conflicts.
+            if os.name == "posix" and sys.platform != "cygwin":
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             listener.bind(("0.0.0.0", port))
     except OSError:
         raise LaunchError(

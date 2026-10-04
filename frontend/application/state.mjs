@@ -23,10 +23,8 @@ export function safeStorage(storage) {
     },
   };
 }
-export function createModel(
-  storage,
-  initialRoom = storage.getItem("repeat_room_id"),
-) {
+// A room is selected explicitly by its URL, never by another tab's last room.
+export function createModel(initialRoom = null) {
   const ui = {
     roomId: initialRoom,
     state: null,
@@ -40,6 +38,7 @@ export function createModel(
     launchConfig: null,
     launchError: null,
     musicImport: null,
+    musicConnection: null,
     canonicalUrl: null,
     error: null,
     songGuess: null,
@@ -56,7 +55,6 @@ export function createModel(
   let answerGame = null;
   function rememberRoom(result) {
     ui.roomId = result.room_id;
-    storage.setItem("repeat_room_id", ui.roomId);
     ui.dismissedGame = null;
     ui.page = "play";
   }
@@ -70,7 +68,6 @@ export function createModel(
     ui.historyOpen = false;
     ui.dismissedGame = null;
     ui.disconnected = false;
-    storage.removeItem("repeat_room_id");
     readySent.clear();
     acceptedAnswers.clear();
     answerGame = null;

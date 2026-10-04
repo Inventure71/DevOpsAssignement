@@ -1,8 +1,7 @@
-"""Shared metadata search cache, signed selections and local request budget.
+"""Public metadata search, signed selections and provider request budgets.
 
-Demo searches its supplied catalog without calling providers, including misses.
-Normal mode injects the developer catalog adapter. Only answer metadata
-is signed; listening evidence and playback URLs do not enter search responses.
+Demo searches its local catalog; Normal uses the configured developer catalog.
+Responses contain answer metadata with room-scoped selection tokens.
 """
 
 import threading
@@ -121,7 +120,7 @@ class SongSearch:
         if not terms:
             raise DomainError("invalid_song_query", "Enter a song or artist name.")
         local = []
-        # Caller supplies authorized shared Demo metadata, never listening pools.
+        # Caller supplies authorized public Demo metadata.
         for song in fixtures:
             text = normalized_words(song["title"] + " " + song["artist"])
             if all(term in text for term in terms):
@@ -163,8 +162,8 @@ class SongSearch:
                 if self.store
                 else None
             )
-            # Prefix hits never establish coverage: cached 'track10'...'track19'
-            # must not hide an uncached exact 'track1' recording.
+            # Only exact cached queries establish coverage; prefix hits can omit
+            # an uncached exact recording such as 'track1'.
             exact_title = any(
                 normalized_words(song["title"]) == normalized_words(query)
                 for song in indexed

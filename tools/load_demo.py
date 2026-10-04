@@ -21,7 +21,7 @@ def main():
     args = parser.parse_args()
     current = [1_000_000]
     with TemporaryDirectory() as directory:
-        # Probe the configured pack with isolated game data; this never plays audio.
+        # Probe state reads with the configured pack and isolated game data.
         application = create_app(
             Config(Path(directory)), clock=lambda: current[0], background=False
         )

@@ -36,7 +36,7 @@ export function normalizedAppearance(value = {}) {
   };
 }
 
-// Invalid measurements become silence, never an invented decorative waveform.
+// Invalid measurements become silence.
 export function normalizeLevels(levels) {
   if (!Array.isArray(levels) && !ArrayBuffer.isView(levels)) return [];
   return Array.from(levels, (level) => clamp(finite(level, 0), 0, 1));

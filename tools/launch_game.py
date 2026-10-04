@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Portable setup/start entry point; no provider credentials are needed for Demo."""
+"""Prepare dependencies and music, then start Demo or Real."""
 
 import argparse
 import os
@@ -82,7 +82,7 @@ def main(argv=None):
             return 0
         print("Starting server. Stop with Ctrl-C.", flush=True)
         os.chdir(ROOT)
-        # Replace the launcher, so Ctrl-C reaches the server and no wrapper stays behind.
+        # Replace the launcher so Ctrl-C reaches the server.
         os.execve(str(python), [str(python), "-m", "backend"], environment)
     except (LaunchError, OSError, ValueError, zipfile.BadZipFile) as error:
         parser.exit(1, "Cannot launch: " + str(error) + "\n")

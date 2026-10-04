@@ -11,7 +11,7 @@ export function musicPreparation(progress = {}) {
     const code = progress.error?.code;
     let message = "We couldn’t get your music ready. Try signing in again.";
     if (code === "insufficient_playable_songs")
-      message = "We need at least 10 songs with available previews from your listening history. Try another Spotify account or play the demo.";
+      message = "We need at least 10 songs with available previews from your listening history. Try another music account or play the demo.";
     else if (code === "insufficient_decoy_songs")
       message = "Some songs aren’t available right now. Try signing in again in a moment.";
     else if (code === "music_authorization_denied")
@@ -27,7 +27,7 @@ export function musicPreparation(progress = {}) {
     else if (code === "room_full")
       message = "This room is full. Ask your friends to create another room.";
     else if (code === "music_account_taken")
-      message = "This Spotify account is already in the room. Use another account to join.";
+      message = "This music account is already in the room. Use another account to join.";
     return { title: "Couldn’t get your music ready", message, busy: false, retry: false, back: true };
   }
   return {
@@ -35,7 +35,7 @@ export function musicPreparation(progress = {}) {
     message: progress.reconnecting
       ? "Reconnecting… We’ll continue as soon as you’re back online."
       : progress.status === "pending"
-        ? "Finishing your Spotify sign-in…"
+        ? "Finishing your music sign-in…"
         : "Finding your favorites for the game…",
     busy: true,
     retry: false,

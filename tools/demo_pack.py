@@ -107,7 +107,7 @@ def validate_installed(pack, source):
             or sha256(path) != expected["sha256"]
         ):
             raise ValueError(f"Installed Demo asset failed verification: {name}")
-    # Reuse the launcher's actual catalog/schema/asset validation, not another schema.
+    # Validate through the launcher's shared pack checks.
     if validate_demo_pack(pack) != source["song_count"]:
         raise ValueError("Demo catalog song count disagrees with its manifest")
     entries = json.loads((pack / "demo_catalog.json").read_text(encoding="utf-8"))

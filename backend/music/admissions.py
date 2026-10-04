@@ -1,36 +1,44 @@
-"""Expiring, browser-bound PKCE receipts and background imports, without SQL."""
+"""Browser-bound connection receipts; provider work precedes atomic admission."""
 
-import base64
-import hashlib
 import logging
 import secrets
 import threading
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 from backend.core.errors import DomainError
+from backend.music.authorization import AuthorizationFlow
 
 LIFETIME_SECONDS = 15 * 60
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(frozen=True)
+class ConnectedSource:
+    label: str
+    authorization: AuthorizationFlow
+    importer: Any
+    enabled: bool
+
+
+@dataclass(repr=False)
 class Receipt:
-    state: str
-    verifier: str
+    provider: str
+    context: Any
     payload: dict
     expires: float
+    admission_id: str = field(default_factory=lambda: secrets.token_urlsafe(16))
     status: str = "pending"
     admission: dict | None = None
     error: dict | None = None
 
 
 class MusicAdmissions:
-    def __init__(self, spotify, importer, admit, *, enabled, clock=time.monotonic):
-        self.spotify, self.importer, self.admit = spotify, importer, admit
-        self.enabled, self.clock = enabled, clock
+    def __init__(self, providers, admit, *, clock=time.monotonic):
+        self.providers, self.admit, self.clock = dict(providers), admit, clock
         self._receipts = {}
         self._lock = threading.RLock()
         self._workers = ThreadPoolExecutor(
@@ -38,20 +46,42 @@ class MusicAdmissions:
         )
         self._closed = False
 
-    def begin(self, payload, existing=None):
-        if not self.enabled:
+    @property
+    def enabled(self):
+        return any(source.enabled for source in self.providers.values())
+
+    def require_provider(self, provider):
+        source = self.providers.get(provider)
+        if source is None or not source.enabled:
             raise DomainError(
-                "music_not_configured",
-                "Spotify and Apple Music must be configured for Normal mode.",
+                "music_provider_unavailable",
+                "This music connection is unavailable.",
                 503,
             )
+        return source
+
+    def configuration(self, origin):
+        return {
+            provider: {
+                "id": provider,
+                "label": source.label,
+                "enabled": source.enabled,
+                "reason": None if source.enabled else "Unavailable in this session.",
+                **source.authorization.configuration(origin),
+            }
+            for provider, source in self.providers.items()
+        }
+
+    def begin(self, payload, existing=None, *, origin):
+        provider = payload["provider"]
+        source = self.require_provider(provider)
         with self._lock:
             self._prune()
             old = self._receipts.get(existing)
-            if old and old.status in ("pending", "processing"):
+            if old and old.status in ("pending", "processing", "complete"):
                 raise DomainError(
                     "music_admission_in_progress",
-                    "A Spotify sign-in is already in progress in this browser.",
+                    "Finish or cancel the current music connection first.",
                     409,
                 )
             if self._closed or len(self._receipts) >= 64:
@@ -61,44 +91,34 @@ class MusicAdmissions:
                     503,
                 )
             credential = secrets.token_urlsafe(32)
-            state, verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(48)
-            challenge = (
-                base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
-                .decode()
-                .rstrip("=")
-            )
-            authorization_url = self.spotify.authorization_url(state, challenge)
+            action, context = source.authorization.begin(origin)
             self._receipts[credential] = Receipt(
-                state, verifier, dict(payload), self.clock() + LIFETIME_SECONDS
+                provider, context, dict(payload), self.clock() + LIFETIME_SECONDS
             )
-            return credential, authorization_url
+            return credential, action
 
-    def callback(self, credential, state, code=None, error=None):
+    def callback(self, credential, provider, response):
         with self._lock:
             receipt = self._get(credential)
-            if not isinstance(state, str) or not secrets.compare_digest(
-                receipt.state, state
-            ):
+            if receipt.provider != provider:
                 raise DomainError(
-                    "invalid_music_state",
-                    "This Spotify sign-in could not be verified. Start again.",
+                    "invalid_music_provider",
+                    "This connection belongs to another provider.",
                     400,
                 )
             if receipt.status != "pending":
                 raise DomainError(
                     "music_callback_used",
-                    "This Spotify sign-in has already been processed.",
+                    "This music sign-in has already been processed.",
                     409,
                 )
-            if error or not code:
-                self._fail(
-                    receipt,
-                    DomainError(
-                        "music_authorization_denied",
-                        "Spotify sign-in was cancelled or refused.",
-                        400,
-                    ),
-                )
+            source = self.require_provider(provider)
+            try:
+                source.authorization.validate(receipt.context, response)
+            except DomainError as exc:
+                if exc.code == "invalid_music_state":
+                    raise
+                self._fail(receipt, exc)
                 return
             if (
                 sum(item.status == "processing" for item in self._receipts.values())
@@ -113,24 +133,34 @@ class MusicAdmissions:
                     ),
                 )
                 return
+            context = receipt.context
+            receipt.context = None
             receipt.status = "processing"
-            receipt.state = ""
-            self._workers.submit(self._import, credential, code, receipt.verifier)
-            receipt.verifier = ""
+            self._workers.submit(
+                self._import, credential, source, context, dict(response)
+            )
 
-    def _import(self, credential, code, verifier):
+    def _import(self, credential, source, context, response):
         token = None
         try:
             with self._lock:
                 self._get(credential)
-            token = self.spotify.exchange_code(code, verifier)
+            token = source.authorization.finish(context, response)
+            context = response = None
             with self._lock:
-                receipt = self._get(credential)
-                payload = dict(receipt.payload)
-            imported = self.importer.import_account(
+                payload = dict(self._get(credential).payload)
+            imported = source.importer.import_account(
                 token, include_decoys=not payload.get("room_id")
             )
             token = None
+            if imported.get("provider") != payload["provider"]:
+                raise DomainError(
+                    "invalid_music_import",
+                    "The music source returned a different provider.",
+                    503,
+                )
+            # Cancellation takes this same lock. It either removes the receipt
+            # before SQL writes, or returns the completed room credential.
             with self._lock:
                 receipt = self._get(credential)
                 if self._closed:
@@ -140,15 +170,13 @@ class MusicAdmissions:
                 )
                 receipt.status = "complete"
                 receipt.expires = self.clock() + LIFETIME_SECONDS
-                receipt.payload = {}
         except DomainError as exc:
             with self._lock:
                 receipt = self._receipts.get(credential)
                 if receipt:
                     self._fail(receipt, exc)
-        except Exception as exc:
-            # Log source frames, never exception text or locals: provider errors
-            # can contain tokens, authorization codes or personal account data.
+        except Exception as exc:  # noqa: BLE001 - worker boundary must record failure
+            # Provider errors may contain credentials; retain stack frames only.
             logger.error(
                 "Unexpected music import failure (%s); frames=%s",
                 type(exc).__name__,
@@ -164,24 +192,66 @@ class MusicAdmissions:
                         receipt,
                         DomainError(
                             "music_import_failed",
-                            "Music import failed. Start Spotify sign-in again.",
+                            "Music import failed. Connect your music again.",
                             503,
                         ),
                     )
         finally:
-            token = None
+            token = context = response = None
+
+    @staticmethod
+    def _result(receipt):
+        return {
+            "admission_id": receipt.admission_id,
+            "status": receipt.status,
+            "provider": receipt.provider,
+            "connection": dict(receipt.payload),
+            **({"error": dict(receipt.error)} if receipt.error else {}),
+        }, receipt.admission
 
     def status(self, credential):
         with self._lock:
-            receipt = self._get(credential)
-            return {
-                "status": receipt.status,
-                **({"error": dict(receipt.error)} if receipt.error else {}),
-            }, receipt.admission
+            return self._result(self._get(credential))
 
     def cancel(self, credential):
         with self._lock:
+            self._prune()
+            receipt = self._receipts.get(credential)
+            if receipt and receipt.status == "complete":
+                return self._result(receipt)
             self._receipts.pop(credential, None)
+            return {"status": "cancelled"}, None
+
+    def acknowledge(self, credential, admission_id):
+        """Retire only the completed connection accepted by this browser tab."""
+        with self._lock:
+            self._prune()
+            receipt = self._receipts.get(credential)
+            if receipt is None:
+                return True  # An already retired receipt is safe to acknowledge again.
+            if receipt.admission_id != admission_id:
+                return False  # Another tab has replaced the shared cookie.
+            if receipt.status != "complete":
+                raise DomainError(
+                    "music_admission_incomplete",
+                    "The music connection is not complete.",
+                    409,
+                )
+            self._receipts.pop(credential, None)
+            return True
+
+    def retire_player(self, room_id, player_id):
+        """Explicit Leave retires unacknowledged delivery receipts too."""
+        with self._lock:
+            self._receipts = {
+                key: receipt
+                for key, receipt in self._receipts.items()
+                if not (
+                    receipt.status == "complete"
+                    and receipt.admission["room"]["id"] == room_id
+                    and receipt.admission["player"]["id"] == player_id
+                )
+            }
 
     def close(self):
         with self._lock:
@@ -194,7 +264,7 @@ class MusicAdmissions:
         receipt = self._receipts.get(credential)
         if receipt is None:
             raise DomainError(
-                "music_admission_expired", "Spotify sign-in expired. Start again.", 401
+                "music_admission_expired", "Music sign-in expired. Start again.", 401
             )
         return receipt
 
@@ -208,6 +278,7 @@ class MusicAdmissions:
     def _fail(receipt, exc):
         logger.warning("Music admission failed: code=%s", exc.code)
         receipt.status = "failed"
+        receipt.context = None
         receipt.error = {
             "code": exc.code,
             "message": exc.message,
@@ -217,5 +288,3 @@ class MusicAdmissions:
         delay = exc.details.get("retry_after_seconds")
         if exc.status == 429 and isinstance(delay, int) and delay > 0:
             receipt.error["message"] += f" Try again in {delay} seconds."
-        receipt.state = receipt.verifier = ""
-        receipt.payload = {}

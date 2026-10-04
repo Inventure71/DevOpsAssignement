@@ -14,7 +14,7 @@ from backend.game.views import audio_manifest, game_view
 from backend.rooms.service import RETENTION_MS, RoomsService
 from backend.storage.database import Database
 from tests.support.catalog import write_large_catalog
-from tests.support.demo import demo_config, make_demo_pack
+from tests.support.demo import demo_config, make_demo_pack, prepared_demo_import
 
 
 class Clock:
@@ -64,7 +64,14 @@ class Match:
             "decoys_enabled": True,
         }
         with self.db.transaction() as conn:
-            host = self.rooms.create(conn, "Host", "coral", "demo", self.now)
+            host = self.rooms.create(
+                conn,
+                "Host",
+                "coral",
+                "demo",
+                self.now,
+                imported=prepared_demo_import(conn),
+            )
             self.room_id, self.host, self.token = (
                 host["room"]["id"],
                 host["player"]["id"],
@@ -72,7 +79,12 @@ class Match:
             )
             guests = [
                 self.rooms.join(
-                    conn, self.room_id, f"Guest {i}", "lavender", self.now + i
+                    conn,
+                    self.room_id,
+                    f"Guest {i}",
+                    "lavender",
+                    self.now + i,
+                    imported=prepared_demo_import(conn, include_decoys=False),
                 )
                 for i in range(1, player_count)
             ]
@@ -681,7 +693,9 @@ def test_coordinator_retention_deletes_cross_domain_history_without_deleting_sha
     )
     coordinator.initialize()
     other = coordinator.admission(
-        lambda conn, now: coordinator.rooms.create(conn, "Other", "lemon", "demo", now)
+        lambda conn, now: coordinator.rooms.create(
+            conn, "Other", "lemon", "demo", now, imported=prepared_demo_import(conn)
+        )
     )
     clock.now = 1000 + RETENTION_MS
     coordinator.cleanup()

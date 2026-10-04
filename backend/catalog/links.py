@@ -6,7 +6,7 @@ import json
 from backend.catalog.identity import normalized_words, recording_title
 
 
-# Bump when the meaning of a positive match changes, rather than aging successes.
+# Bump when recording verification rules change.
 MATCH_RULE_VERSION = 1
 
 
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS verified_links (
 
 
 def fingerprint(song):
-    """Recording identity changes require a new verification, not a timer."""
+    """Persist recording identities until their verification rules change."""
     identity = [
         MATCH_RULE_VERSION,
         recording_title(song["title"]),

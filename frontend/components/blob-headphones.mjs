@@ -16,7 +16,7 @@ const REMOVAL = [
   [0.85, { opacity: 0, lift: -46, spread: 11, angle: -14, scale: 0.9 }],
 ];
 
-/** No prior listening state means there are no headphones to remove. */
+/** Restored submissions show the final state; departures require prior listening. */
 export function sampleHeadphones(
   mood,
   age,

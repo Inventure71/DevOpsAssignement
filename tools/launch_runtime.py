@@ -1,4 +1,4 @@
-"""Portable Python setup and local signing-key checks; no provider calls."""
+"""Python environment setup and local signing-key validation."""
 
 import subprocess
 import sys
@@ -62,7 +62,7 @@ def probe_python(python, requirements):
 
 
 def prepare_python(root, *, check):
-    """--check never installs, creates a venv, or starts the application."""
+    """Check the existing environment or prepare it for launch."""
     python = venv_python(root)
     if not python.is_file():
         if check:
@@ -122,7 +122,7 @@ def prepare_python(root, *, check):
 
 
 def check_real_signing_key(python, environment):
-    """Validate the actual Apple key locally; this performs no provider requests."""
+    """Validate the local Apple signing key."""
     script = (
         "import os; from pathlib import Path; "
         "from cryptography.hazmat.primitives.serialization import load_pem_private_key; "

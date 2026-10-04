@@ -8,13 +8,14 @@ import pytest
 
 from backend.core.errors import DomainError
 from backend.music.importer import MusicImporter
-from backend.music.previews import PreviewResolver
 from backend.music.media import (
+    _SafeRedirect,
     allowed_preview_url,
     matches_recording,
     probe_preview,
-    _SafeRedirect,
 )
+from backend.music.previews import PreviewResolver
+from backend.music.sources import SpotifyListeningAdapter
 
 
 def song(index=1, **changes):
@@ -135,7 +136,9 @@ def test_inflight_duplicate_request_only_fetches_once():
     assert len(calls) == 1
 
 
-@pytest.mark.parametrize("failure,ttl", [(False, 60), (True, 10)], ids=["missing", "error"])
+@pytest.mark.parametrize(
+    "failure,ttl", [(False, 60), (True, 10)], ids=["missing", "error"]
+)
 def test_negative_media_cache_expires_and_retries(failure, ttl):
     now, calls = [100.0], []
 
@@ -262,7 +265,9 @@ class FakeResolver:
 
 def test_import_preserves_observed_songs_and_includes_host_decoys():
     result = MusicImporter(
-        FakeSpotify(), FakeResolver(missing=[0, 1]), decoy_tracks
+        SpotifyListeningAdapter(FakeSpotify()),
+        FakeResolver(missing=[0, 1]),
+        decoy_tracks,
     ).import_account("personal-token", True)
     assert result["account_id"] == "account-id"
     assert len(result["songs"]) == 13 and len(result["decoys"]) == 10
@@ -281,9 +286,9 @@ def test_guest_import_does_not_request_decoys():
         pytest.fail("Guest admission must not request public decoys")
 
     assert (
-        MusicImporter(spotify, FakeResolver(), unexpected_decoys).import_account(
-            "personal-token"
-        )["decoys"]
+        MusicImporter(
+            SpotifyListeningAdapter(spotify), FakeResolver(), unexpected_decoys
+        ).import_account("personal-token")["decoys"]
         == []
     )
 
@@ -291,7 +296,7 @@ def test_guest_import_does_not_request_decoys():
 def test_insufficient_playable_history_has_actual_counts():
     with pytest.raises(DomainError) as error:
         MusicImporter(
-            FakeSpotify(count=9), FakeResolver(), decoy_tracks
+            SpotifyListeningAdapter(FakeSpotify(count=9)), FakeResolver(), decoy_tracks
         ).import_account("personal-token")
     assert error.value.code == "insufficient_playable_songs"
     assert error.value.details == {"candidate_count": 9, "playable_count": 9}
@@ -300,14 +305,18 @@ def test_insufficient_playable_history_has_actual_counts():
 def test_provider_failure_is_not_misrepresented_as_insufficient_history():
     with pytest.raises(DomainError) as error:
         MusicImporter(
-            FakeSpotify(), FakeResolver(failing=range(6)), decoy_tracks
+            SpotifyListeningAdapter(FakeSpotify()),
+            FakeResolver(failing=range(6)),
+            decoy_tracks,
         ).import_account("personal-token")
     assert error.value.code == "preview_provider_unavailable"
 
 
 def test_sufficient_history_remains_usable_when_some_candidates_temporarily_fail():
     result = MusicImporter(
-        FakeSpotify(), FakeResolver(failing=[1, 2]), decoy_tracks
+        SpotifyListeningAdapter(FakeSpotify()),
+        FakeResolver(failing=[1, 2]),
+        decoy_tracks,
     ).import_account("personal-token")
     assert len(result["songs"]) == 13
     assert {entry["song_key"] for entry in result["songs"]}.isdisjoint(
@@ -322,7 +331,9 @@ def test_sufficient_history_remains_usable_when_some_candidates_temporarily_fail
 def test_enabled_decoy_pool_requires_enough_playable_tracks():
     with pytest.raises(DomainError) as error:
         MusicImporter(
-            FakeSpotify(), FakeResolver(missing=range(100, 108)), decoy_tracks
+            SpotifyListeningAdapter(FakeSpotify()),
+            FakeResolver(missing=range(100, 108)),
+            decoy_tracks,
         ).import_account("personal-token", True)
     assert error.value.code == "insufficient_decoy_songs"
 
@@ -333,7 +344,7 @@ def test_independent_decoy_provider_excludes_known_recordings_by_isrc():
         *[song(index, isrc=f"DECOY{index}") for index in range(100, 110)],
     ]
     result = MusicImporter(
-        FakeSpotify(), FakeResolver(), decoy_provider=catalog
+        SpotifyListeningAdapter(FakeSpotify()), FakeResolver(), decoy_provider=catalog
     ).import_account("personal-token", True)
     assert len(result["decoys"]) == 10
     assert all(entry["song_key"] != "spotify:track:200" for entry in result["decoys"])

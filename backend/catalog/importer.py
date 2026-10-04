@@ -1,4 +1,4 @@
-"""Streaming MusicBrainz canonical CC0 metadata ingestion (no network or audio)."""
+"""Streaming MusicBrainz CC0 metadata ingestion."""
 
 import csv
 import json

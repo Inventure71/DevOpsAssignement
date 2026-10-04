@@ -7,7 +7,7 @@ export function createMusicImportScreen(retry, back) {
   element.innerHTML = `<repeat-character mood="listening" aria-hidden="true"></repeat-character>
     <h1>Getting your music ready</h1><p role="status" aria-live="polite"></p>
     <button class="button button-primary" type="button" hidden>Retry connection →</button>
-    <button class="button button-outline import-back" type="button" hidden>Back to Spotify sign-in →</button>`;
+    <button class="button button-outline import-back" type="button">Back to music choices</button>`;
   const heading = element.querySelector("h1");
   const character = element.querySelector("repeat-character");
   const status = element.querySelector("p");
@@ -27,8 +27,9 @@ export function createMusicImportScreen(retry, back) {
       element.dataset.status = progress.status;
       element.setAttribute("aria-busy", String(preparation.busy));
       button.hidden = !preparation.retry;
-      backButton.hidden = !preparation.back;
-      status.textContent = preparation.message;
+      backButton.disabled = Boolean(ui.pending);
+      button.disabled = Boolean(ui.pending);
+      status.textContent = ui.error?.message || preparation.message;
     },
     destroy() {},
   };

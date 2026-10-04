@@ -1,23 +1,29 @@
 """Bounded imports drive actual normal games, preserving all observed ownership."""
 
 import json
+from dataclasses import replace
 from uuid import uuid4
 
 import pytest
 
 from backend.music.importer import MusicImporter
 from backend.music.previews import PreviewResolver
+from backend.music.sources import SpotifyListeningAdapter
 from tests.integration.test_music_admission import (
-    normal_session as normal_session,
     admit,
+    search_token,
     song,
     start_round,
-    search_token,
+)
+from tests.integration.test_music_admission import (
+    normal_session as normal_session,
 )
 
 
 @pytest.mark.parametrize("normal_session", [True], indirect=True)
-def test_bounded_shared_import_preserves_ownership_and_plays_replacement(normal_session):
+def test_bounded_shared_import_preserves_ownership_and_plays_replacement(
+    normal_session,
+):
     round_count = 5
     session = normal_session
     calls = []
@@ -42,8 +48,11 @@ def test_bounded_shared_import_preserves_ownership_and_plays_replacement(normal_
 
     apple.resolve_verified = resolve_verified
     resolver = PreviewResolver(apple, store=session["app"].state.catalog_store)
-    importer = MusicImporter(spotify, resolver, decoy_provider=apple.decoys)
-    session["app"].state.music_admissions.importer = importer
+    importer = MusicImporter(
+        SpotifyListeningAdapter(spotify), resolver, decoy_provider=apple.decoys
+    )
+    providers = session["app"].state.music_admissions.providers
+    providers["spotify"] = replace(providers["spotify"], importer=importer)
     apple.register([*observed, *apple.decoys()])
     room = admit(session["host"], "Host", "same-account")
     assert len(calls) == 36  # 24 player candidates + 12 decoys instead of 90

@@ -7,7 +7,7 @@ import { createRuntime } from "../../frontend/application/runtime.mjs";
 import { screenKey } from "../../frontend/application/screen-host.mjs";
 
 function model() {
-  return createModel({ getItem: () => null, setItem() {}, removeItem() {} });
+  return createModel();
 }
 
 function config(mode, enabled = true) {
@@ -22,11 +22,32 @@ function actions(m, api) {
   const action = createActions({
     model: m, transport: { api, path: (suffix) => suffix }, audio: {}, runtime: {},
     render() {}, notice: (message) => notices.push(message), forgetRoom() {},
-    musicAdmission: { start: async (fields) => mutations.push(fields) },
+    musicAdmission: { open: async (fields) => mutations.push(fields) },
     admitted: async (receipt) => mutations.push(receipt),
   });
   return { action, mutations, notices };
 }
+
+test("a plain Demo launch opens entry without restoring or creating a room", async () => {
+  const previous = createModel("old-room");
+  previous.rememberRoom({ room_id: "old-room" });
+  const m = createModel();
+  const requests = [];
+  const api = async (url) => {
+    requests.push(url);
+    assert.equal(url, "/api/config", "Launch must not issue room commands");
+    return config("demo");
+  };
+  const controller = createLaunchConfig({ ui: m.ui, render() {}, api });
+  assert.equal(await controller.load(), true);
+  const runtime = createRuntime(m, { api }, {}, {}, () => {}, () => {}, () => {});
+  await runtime.refresh();
+  assert.equal(m.ui.roomId, null);
+  assert.equal(m.ui.mode, "demo");
+  assert.equal(screenKey({ ui: m.ui }), "entry");
+  assert.deepEqual(requests, ["/api/config"]);
+  assert.equal(previous.ui.roomId, "old-room");
+});
 
 for (const mode of ["demo", "normal"]) {
   test(`${mode} launch selects its available mode only after configuration is loaded`, async () => {

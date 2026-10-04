@@ -9,6 +9,7 @@ import { createLobbyScreen } from "./screens/lobby.mjs";
 import { createRoundScreen } from "./screens/round.mjs";
 import { createEntryScreen } from "./screens/entry.mjs";
 import { createMusicImportScreen } from "./screens/music-import.mjs";
+import { createMusicConnectionScreen } from "./screens/music-connection.mjs";
 import { createResultsScreen } from "./screens/results.mjs";
 import { createInfoScreen } from "./screens/info.mjs";
 import { createHistoryScreen } from "./screens/history.mjs";
@@ -17,17 +18,14 @@ import { createScreenHost } from "./application/screen-host.mjs";
 import { createSiteHeader } from "./components/site-header.mjs";
 import { createLaunchConfig, modeAvailable, modeReason } from "./application/launch-config.mjs";
 
-let browserStorage;
+let browserSessionStorage;
 try {
-  browserStorage = globalThis.localStorage;
+  browserSessionStorage = globalThis.sessionStorage;
 } catch {
-  browserStorage = null;
+  browserSessionStorage = null;
 }
 const params = new URLSearchParams(location.search);
-const model = createModel(
-  safeStorage(browserStorage),
-  params.get("room") || undefined,
-);
+const model = createModel(params.get("room"));
 const ui = model.ui;
 ui.page = params.get("page") || "play";
 if (params.has("join")) {
@@ -35,7 +33,7 @@ if (params.has("join")) {
   ui.draftCode = params.get("join").toUpperCase();
   ui.roomId = null;
 }
-if (params.has("spotify")) ui.roomId = null;
+if (params.has("music")) ui.roomId = null;
 const root = document.querySelector("#main");
 const toast = document.querySelector("#notice");
 const transport = createTransport(
@@ -89,6 +87,7 @@ function viewModel() {
 const screens = createScreenHost(root, {
   info: (vm) => createInfoScreen(vm.ui.page, navigate),
   entry: () => createEntryScreen(emit),
+  "music-connection": () => createMusicConnectionScreen(emit),
   "music-import": () => createMusicImportScreen(
     () => emit("retry-import"),
     () => emit("back-to-sign-in"),
@@ -178,19 +177,20 @@ musicAdmission = createMusicAdmission({
   api: transport.api,
   render,
   admitted,
+  storage: safeStorage(browserSessionStorage),
 });
 const launchConfig = createLaunchConfig({ ui, api: transport.api, render });
 async function initialize() {
   if (!await launchConfig.load()) return;
   runtime.start();
-  if (params.has("spotify")) {
+  if (params.has("music")) {
     if (modeAvailable(ui, "normal"))
-      await musicAdmission.resume(params.get("spotify"));
+      await musicAdmission.resume(params.get("music"));
     else {
       ui.error = { message: modeReason(ui, "normal") };
       render();
     }
-  }
+  } else if (!ui.roomId && modeAvailable(ui, "normal")) await musicAdmission.recover();
 }
 action = createActions({
   model,
@@ -257,7 +257,7 @@ window.addEventListener("pagehide", () => {
 window.addEventListener("pageshow", (event) => {
   if (event.persisted) {
     if (ui.launchStatus === "ready") runtime.start();
-    if (ui.musicImport && modeAvailable(ui, "normal")) void musicAdmission.resume();
+    if (modeAvailable(ui, "normal")) void musicAdmission.resumePage();
     syncFrame();
   }
 });

@@ -1,40 +1,33 @@
 # Demo music pack
 
-Demo uses one pinned 100-song pack: 80 personal-pool recordings and 20 independent Nobody songs. Each player receives 36 randomly selected personal songs with simulated familiarity. Decoys are never assigned to a player. Normal mode instead uses each player's Spotify observations and Apple preview resolution.
+Demo's pinned pack contains 100 recordings: 80 personal-pool songs and 20 independent Nobody songs. Each player receives 36 personal recordings with simulated familiarity. The Demo source and local resolver use the same import/admission path as Spotify; [architecture](../docs/05_ARCHITECTURE.md#music-admission-and-the-public-catalog) defines the boundary.
 
-`demo_catalog.json` is the canonical public metadata for these 100 recordings. `demo_pack_source.json` pins the downloadable archive and its inventory. Audio, ZIPs, provenance and installation files stay under ignored `catalog/local/`; there are no bundled synthetic or festival packs.
+[demo_catalog.json](demo_catalog.json) holds public metadata. [demo_pack_source.json](demo_pack_source.json) pins the [Drive ZIP](https://drive.google.com/file/d/1nmv-F4OettnXqMj5JZNp_WzO1XZSCpOp/view), its size, ZIP SHA-256 and inner manifest SHA-256. Downloads and installations live under ignored `catalog/local/`.
 
 ## Install the Drive pack
 
-The [100-song ZIP](https://drive.google.com/file/d/1nmv-F4OettnXqMj5JZNp_WzO1XZSCpOp/view) is 102,785,177 bytes (98.02 MiB). The committed source descriptor pins its Drive file ID, byte count, ZIP SHA-256 and inner manifest SHA-256. Replacing the remote file does not silently change the music: different bytes fail verification.
+Both launchers install the default pack before starting the server. The first download is about 98 MiB; subsequent launches verify local files and Demo games work offline. Setup needs no provider credentials or media encoder.
 
-Both launchers install the default pack when it is missing, before starting the server. The teacher needs no Google login, Apple/Spotify key, FFmpeg or private acquisition script. Internet is needed once for dependencies and this download; subsequent launches and games use local files offline. To prepare music separately:
+From the repository root:
 
 ```bash
 python3 tools/setup_demo_pack.py
-# Offline, read-only integrity check of the installed pinned pack:
 python3 tools/setup_demo_pack.py --check
-# Install from a previously downloaded ZIP, without contacting Drive:
 python3 tools/setup_demo_pack.py --archive /path/to/whos-on-repeat-demo-100.zip
-# Windows uses py -3 instead of python3.
 ```
 
-The installer handles Drive's large-file confirmation page, verifies the archive before extraction, rejects unsafe paths/links and validates every file against the pinned inventory. A complete installation is published atomically under `catalog/local/packs/whos-on-repeat-demo-100-24455f95611e/`. The reusable download is cached under `catalog/local/downloads/`. Both locations are Git-ignored. Existing installations are verified offline; `--check` installs nothing and fails if the pack is missing or corrupt. Setup does not change application data.
+On Windows, replace `python3` with `py -3`. `--check` verifies the installed pack offline; `--archive` installs from a downloaded ZIP.
 
-A missing or invalid pack stops the convenience launcher with an actionable error. A bare `python -m backend` starts without an absent pack, initializes SQLite and exposes Demo as unavailable; it never downloads music during startup. An existing corrupt pack still fails validation before changing application data. Prepare the pack and restart to enable Demo. After an interrupted installation, remove `catalog/local/.drive-install.lock` only after its installer has stopped, then retry. The installer never changes Drive sharing settings or uploads files. An explicit `--demo-pack <directory>` selects a complete local pack for either launcher; invalid explicit selections also fail. Application startup validates installed assets but never downloads Demo music.
+The installer handles Drive confirmation, verifies archive/inventory checksums, rejects unsafe paths and links, and publishes a complete installation atomically under `catalog/local/packs/`. Downloads are cached in `catalog/local/downloads/`. A corrupt or incomplete pack stops the launcher. After an interrupted installation, remove `.drive-install.lock` only once its installer has stopped, then retry.
+
+`--demo-pack <directory>` selects another complete local pack. Bare `python -m backend` starts with Demo unavailable if the configured pack is absent; install it and restart to enable Demo. Existing corrupt assets fail startup validation before application data changes.
 
 ## Runtime ownership and validation
 
-`backend/rooms/demo.py` validates and replaces the shared `demo_catalog` lookup at startup. Existing room assignments and frozen games keep their own song facts; reseeding does not rewrite their history. The precommit cleanup removed obsolete local rooms/games before deleting their old media. Public provider metadata, verified links and caches were retained.
+Startup reseeds the shared `demo_catalog`; existing room assignments and frozen games retain their copies. Equal normalized ISRCs represent one recording, with the first row supplying preferred media. Conflicting title/artist identities or personal/decoy placement reject the pack. Blank ISRCs remain distinct by Demo ID.
 
-Equivalent rows with the same normalized ISRC count as one recording before player libraries are sampled; the first row supplies the preferred metadata and media. Missing or blank ISRCs remain distinct by Demo ID. Conflicting title, artist identity or personal/decoy placement rejects a pack before reseeding. Every referenced asset must stay inside the selected pack and be present and nonempty. Media URLs begin with `/static/demo/local/`; `/music-credits` serves that pack's credits. Missing artwork uses the UI's music-icon fallback.
+Assets must be present, nonempty and contained inside the selected pack. `/static/demo/local/` serves media and `/music-credits` serves its attribution. Demo guess search uses the complete shared catalog; player assignments remain private. See [data model](../docs/06_DATA_MODEL.md) and [testing strategy](../docs/18_TESTING_STRATEGY.md).
 
-Demo search uses the complete 100-song metadata lookup rather than a player's 36-song assignment or the separate public MusicBrainz index. It never contacts external providers. `/api/demo/preview` gives the UI lab one active catalog sample; the lab uses its actual title, artist and audio URL, with metadata-only alternate guesses for display scenarios.
+## Provenance and terms
 
-HTTP/SQLite integration tests exercise ten-/fifteen-round game loops, signed local search, readiness, answers, scoring and history. The Drive installer verifies the real archive and every extracted checksum. Metadata-only test fixtures remain under `tests/support/`; they are not another playable Demo catalog. Physical speaker and phone acceptance require device testing.
-
-## Provenance and private preparation
-
-The pack contains 100 original, unmodified Apple preview excerpts, approximately 30 seconds each. It contains no full songs. Private acquisition tooling and media remain Git-ignored and are not the teacher's installation path; the public Drive installer needs no signing key or media encoder.
-
-Apple's [developer terms](https://developer.apple.com/support/terms/apple-developer-program-license-agreement/) and [iTunes preview terms](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/index.html) restrict downloading/rehosting previews. Packaging and checksums do not establish an educational exemption or grant redistribution rights; these files are not CC-licensed or cleared for redistribution.
+The pack contains original Apple preview excerpts of approximately 30 seconds. Private acquisition tooling is separate from the public installer. Apple's [developer terms](https://developer.apple.com/support/terms/apple-developer-program-license-agreement/) and [preview terms](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/index.html) restrict downloading/rehosting previews; this pack has no established redistribution clearance. Its checksums verify integrity, while `/music-credits` supplies attribution.

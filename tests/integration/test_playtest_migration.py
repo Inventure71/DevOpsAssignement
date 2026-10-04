@@ -14,6 +14,8 @@ from tests.support.migrations import legacy_copy
 
 def imported(account="same-account"):
     return {
+        "provider": "spotify",
+        "evidence": "personal",
         "account_id": account,
         "songs": [song(f"shared-{index}") for index in range(12)],
     }

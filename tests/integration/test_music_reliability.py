@@ -8,8 +8,10 @@ from tests.integration.test_music_admission import (
     MUSIC,
     begin,
     finish,
-    normal_session as normal_session,
     song,
+)
+from tests.integration.test_music_admission import (
+    normal_session as normal_session,
 )
 
 
@@ -40,14 +42,14 @@ def test_cancelled_running_import_cannot_create_a_room(normal_session):
     state = begin(client, "Cancelled")
     assert (
         client.get(
-            MUSIC + "/callback",
+            "/api/music/spotify/callback",
             params={"state": state, "code": "cancelled"},
             follow_redirects=False,
         ).status_code
         == 303
     )
     assert importer.blocked.wait(2)
-    assert client.post(MUSIC + "/cancel", json={}).json() == {"cancelled": True}
+    assert client.post(MUSIC + "/cancel", json={}).json() == {"status": "cancelled"}
     assert client.post(MUSIC + "/cancel", json={}).status_code == 200
     importer.release.set()
     session["app"].state.music_admissions._workers.shutdown(wait=True)
@@ -61,6 +63,8 @@ def test_expiry_after_room_creation_rolls_back_all_admission_data(normal_session
     c = normal_session["app"].state.coordinator
     checks = iter([True, False])
     imported = {
+        "provider": "spotify",
+        "evidence": "personal",
         "account_id": "expired",
         "songs": [song("expiry" + str(i)) for i in range(10)],
     }
@@ -89,6 +93,8 @@ def test_unavailable_observed_song_gains_its_original_listener_when_media_arrive
             "normal",
             now,
             imported={
+                "provider": "spotify",
+                "evidence": "personal",
                 "account_id": "host",
                 "songs": [song("host" + str(i)) for i in range(10)],
                 "observed_songs": [unavailable],
@@ -108,6 +114,8 @@ def test_unavailable_observed_song_gains_its_original_listener_when_media_arrive
             "sky",
             now,
             imported={
+                "provider": "spotify",
+                "evidence": "personal",
                 "account_id": "guest",
                 "songs": [known, *[song("guest" + str(i)) for i in range(10)]],
             },
@@ -143,6 +151,8 @@ def test_mislabeled_decoy_isrc_does_not_supply_personal_song_media_or_membership
             "normal",
             now,
             imported={
+                "provider": "spotify",
+                "evidence": "personal",
                 "account_id": "host",
                 "songs": [song("host" + str(i)) for i in range(10)],
                 "decoys": [decoy],
@@ -158,6 +168,8 @@ def test_mislabeled_decoy_isrc_does_not_supply_personal_song_media_or_membership
             "sky",
             now,
             imported={
+                "provider": "spotify",
+                "evidence": "personal",
                 "account_id": "guest",
                 "songs": [original, *[song("guest" + str(i)) for i in range(10)]],
             },

@@ -11,10 +11,10 @@ export function createEntryScreen(emit) {
     <form class="entry-form"><div class="field-group"><label for="player-nickname">Your nickname</label><input id="player-nickname" name="nickname" type="text" placeholder="Your friends know you as…" autocomplete="nickname" maxlength="24" required></div>
       <div class="field-group entry-code-field"><label for="join-room-code">Room code</label><input id="join-room-code" name="code" type="text" placeholder="ABC123" inputmode="text" autocomplete="off" spellcheck="false" autocapitalize="characters" maxlength="6" minlength="6" pattern="[A-Za-z0-9]{6}"></div>
       <div class="field-group"><span class="entry-color-label" id="entry-color-label">Your color</span><blob-color-picker aria-labelledby="entry-color-label"></blob-color-picker></div>
-      <fieldset class="entry-mode-field"><legend>Music source</legend><div class="entry-mode-options">
-        <label><input type="radio" name="mode" value="normal" aria-describedby="entry-normal-reason"><span>Spotify<small id="entry-normal-reason"></small></span></label><label><input type="radio" name="mode" value="demo" aria-describedby="entry-demo-reason"><span>Demo<small id="entry-demo-reason"></small></span></label>
+      <fieldset class="entry-mode-field"><legend>Game mode</legend><div class="entry-mode-options">
+        <label><input type="radio" name="mode" value="normal" aria-describedby="entry-normal-reason"><span>Real<small id="entry-normal-reason"></small></span></label><label><input type="radio" name="mode" value="demo" aria-describedby="entry-demo-reason"><span>Demo<small id="entry-demo-reason"></small></span></label>
       </div></fieldset>
-      <p class="mode-label" id="entry-mode-help"></p><button class="button button-primary entry-submit" type="submit" aria-describedby="entry-mode-help">Connect Spotify →</button>
+      <p class="mode-label" id="entry-mode-help"></p><button class="button button-primary entry-submit" type="submit" aria-describedby="entry-mode-help">Continue →</button>
       <p class="launch-status" role="status" aria-live="polite"></p><button class="button button-outline launch-retry" type="button" hidden>Try again</button>
       <p class="form-error" role="status" aria-live="polite"></p><a class="canonical-address" hidden>Open configured game address →</a>
     </form></div>`;
@@ -73,11 +73,11 @@ export function createEntryScreen(emit) {
     const modeHelp = element.querySelector(".mode-label");
     modeHelp.textContent = joining
       ? modeAvailable(ui, "normal")
-        ? "Spotify rooms require sign-in. Demo rooms do not."
+        ? "Real rooms use your music. Demo rooms use a shared catalog."
         : "Join a Demo room. No music account needed."
       : ui.mode === "demo"
         ? "Demo uses the demo catalog. No music account needed."
-        : "Connect an approved Spotify account. Up to 5 accounts, including the host.";
+        : "Play with favorites from your music account.";
     element.querySelector(".entry-code-field").hidden = !joining;
     for (const button of tabs.children) {
       button.setAttribute(
@@ -102,7 +102,7 @@ export function createEntryScreen(emit) {
         ? "Join room →"
         : ui.mode === "demo"
           ? "Create demo room →"
-          : "Connect Spotify →";
+          : "Continue →";
     element.querySelector(".form-error").textContent = ui.error?.message ?? "";
     element.querySelector(".launch-status").textContent = ui.launchStatus === "error"
       ? ui.launchError : connected ? "" : "Connecting to the game…";

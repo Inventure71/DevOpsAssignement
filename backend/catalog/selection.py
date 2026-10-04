@@ -27,9 +27,9 @@ class CatalogSelections:
                 for candidate in candidates
                 if matches_recording(song, candidate)
             ]
-            # Guess scoring already equates the same version-aware title and
-            # structured artist IDs. Regional editions may have different ISRCs;
-            # this never relaxes the stricter audio-preview recording policy.
+            # Resolve the selected recording here; Game alone relaxes release
+            # labels for guess scoring. Regional editions may differ in ISRC;
+            # audio-preview recording matching remains strict.
             identities = {
                 (
                     recording_title(candidate["title"]),

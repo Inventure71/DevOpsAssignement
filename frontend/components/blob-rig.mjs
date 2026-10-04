@@ -1,4 +1,4 @@
-// Pure animation clips and a deformable control-point cage; no DOM or clock reads.
+// Pure animation clips and a deformable control-point cage.
 // Feet stay at GROUND unless a clip deliberately jumps. Width compensates height.
 const GROUND = 212;
 const CENTER = 120;
@@ -78,8 +78,7 @@ const SAD = [
 ];
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 const smooth = (t) => t * t * (3 - 2 * t);
-// Rest-space normals keep the travelling ripple attached to the material rather
-// than shifting a rigid silhouette. Contact points taper to zero displacement.
+// Rest-space normals attach ripples to the material; contact points stay planted.
 const FLOW_CAGE = OUTLINE.map(([x, y], index) => {
   const before = OUTLINE[(index + OUTLINE.length - 1) % OUTLINE.length];
   const after = OUTLINE[(index + 1) % OUTLINE.length];

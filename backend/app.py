@@ -10,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from backend.api.invitations import is_local_only
 from backend.api.music import create_music_router
 from backend.api.rate_limits import AdmissionLimits
 from backend.api.routes import create_router
@@ -23,10 +24,12 @@ from backend.catalog.store import CatalogStore
 from backend.core.config import Config
 from backend.core.errors import DomainError
 from backend.core.paths import FRONTEND_DIR
-from backend.music.admissions import MusicAdmissions
+from backend.music.admissions import ConnectedSource, MusicAdmissions
 from backend.music.apple import AppleCatalog
+from backend.music.authorization import SpotifyAuthorization
 from backend.music.importer import MusicImporter
 from backend.music.previews import PreviewResolver
+from backend.music.sources import SpotifyListeningAdapter
 from backend.music.spotify import SpotifyClient
 from backend.rooms.demo import preview_sample
 
@@ -89,18 +92,28 @@ def create_app(
     if song_search.store is None:
         song_search.store = catalog_store
     importer = music_importer or MusicImporter(
-        spotify,
+        SpotifyListeningAdapter(spotify),
         PreviewResolver(apple=apple, store=catalog_store),
         decoy_provider=apple.decoys,
     )
 
+    admission_handler = MusicAdmissionHandler(coordinator)
     admissions = MusicAdmissions(
-        spotify,
-        importer,
-        MusicAdmissionHandler(coordinator),
-        enabled=bool(
-            config.game_mode == "normal" and spotify.configured and apple.configured
-        ),
+        {
+            "spotify": ConnectedSource(
+                label="Spotify",
+                authorization=SpotifyAuthorization(
+                    spotify, config.spotify_redirect_uri, is_local_only
+                ),
+                importer=importer,
+                enabled=bool(
+                    config.game_mode == "normal"
+                    and spotify.configured
+                    and apple.configured
+                ),
+            )
+        },
+        admission_handler,
     )
 
     @asynccontextmanager
@@ -219,7 +232,12 @@ def create_app(
         int(os.environ.get("ROOM_CREATE_LIMIT", "10")),
         int(os.environ.get("ROOM_JOIN_LIMIT", "30")),
     )
-    room_commands = RoomCommands(coordinator, song_search)
+    room_commands = RoomCommands(
+        coordinator,
+        song_search,
+        admission_handler=admission_handler,
+        on_leave=admissions.retire_player,
+    )
     game_commands = GameCommands(coordinator, song_search.tokens)
     application.include_router(
         create_router(coordinator, limits, room_commands, game_commands)
@@ -229,7 +247,6 @@ def create_app(
             coordinator,
             admissions,
             limits,
-            search_provider=song_search.provider_name,
             room_commands=room_commands,
         )
     )

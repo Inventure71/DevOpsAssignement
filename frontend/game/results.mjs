@@ -1,4 +1,4 @@
-// Presentation uses frozen server classifications/points, never client scoring.
+// Present frozen server classifications and points.
 export function gamePlayers(state) {
   const standings = state.game?.leaderboard ?? [];
   if (!standings.length) return state.players ?? [];
@@ -99,8 +99,7 @@ export function phaseProgress(game, now) {
     !Number.isFinite(game.phase_ends_at_ms)
   )
     return null;
-  // Both server result phases last five seconds. Catch up after late polling;
-  // never reset the bar on each state update.
+  // Five-second server deadlines keep the bar accurate after late polling.
   const deadline = game.phase_ends_at_ms;
   const duration = 5000;
   const remaining = Math.max(0, Math.min(duration, deadline - now));

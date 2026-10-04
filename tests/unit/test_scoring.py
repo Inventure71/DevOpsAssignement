@@ -2,6 +2,7 @@ from fractions import Fraction
 
 import pytest
 
+from backend.catalog.identity import recording_title
 from backend.game.scoring import classify_song_guess, half_up, score_answer
 
 
@@ -106,6 +107,57 @@ def test_catalog_title_matches_normalized_unicode_and_same_structured_artist():
     selected["artists"] = [{"artist_key": "apple:different", "name": "Display"}]
     assert classify_song_guess(song, selected) == "wrong"
     assert score_answer(song, selected, [], 0, 20_000, "easy") == 0
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Blank Space (Taylor’s Version)",
+        "Blank Space [Taylor's Version]",
+        "Blank Space - Taylor's Version",
+        "Blank Space (Remastered)",
+        "Blank Space - 2014 Remaster",
+        "Blank Space — Remastered 2014",
+        "Blank Space (Deluxe Edition)",
+        "Blank Space (Taylor’s Version) (feat. Guest)",
+        "ＢＬＡＮＫ ＳＰＡＣＥ (Taylor's Version)",
+    ],
+)
+def test_release_editions_award_full_guess_credit_in_both_directions(title):
+    original = facts("spotify:original") | {"title": "Blank Space"}
+    original["artists"][0]["aliases"] = ["apple:taylor"]
+    edition = facts("apple:edition", artists=("apple:taylor",)) | {"title": title}
+    for song, chosen in ((original, edition), (edition, original)):
+        assert classify_song_guess(song, chosen) == "correct"
+        assert score_answer(song, chosen, ["Anna", "Ben"], 0, 20_000, "easy") == 375
+    # Playback and listening ownership still distinguish the exact recording.
+    assert recording_title(title) != recording_title(original["title"])
+    unrelated = edition | {"artists": [{"artist_key": "other", "name": "Display"}]}
+    assert classify_song_guess(original, unrelated) == "wrong"
+
+
+@pytest.mark.parametrize(
+    "original,chosen",
+    [
+        ("Blank Space", "Blank Space (Live) (Remastered 2014)"),
+        ("Blank Space", "Blank Space (Dance Remix)"),
+        ("Blank Space", "Blank Space (Acoustic)"),
+        ("Blank Space", "Blank Space (Karaoke)"),
+        ("Blank Space", "Blank Space (Piano Version)"),
+        ("Blank Space", "Blank Space (Instrumental)"),
+        ("Don't You (Forget About Me)", "Don't You"),
+        ("Blank Space", "Blank Space (Taylor's Version Live)"),
+        ("Blank Space", "Blank Space - Remastered Love"),
+        ("Blank Space", "Different Song (Remastered)"),
+        ("(Taylor's Version)", "(Remastered)"),
+    ],
+)
+def test_guess_matching_preserves_musical_versions_and_meaningful_title_text(
+    original, chosen
+):
+    song = facts("original") | {"title": original}
+    selected = facts("other") | {"title": chosen}
+    assert classify_song_guess(song, selected) == "artist"
 
 
 @pytest.mark.parametrize(

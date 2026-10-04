@@ -10,6 +10,7 @@ from backend.rooms.demo import seed_demo
 from backend.rooms.service import RETENTION_MS, RoomsService
 from backend.storage.database import Database
 from tests.support.catalog import write_large_catalog
+from tests.support.demo import prepared_demo_import
 
 
 @pytest.fixture
@@ -29,7 +30,9 @@ def service():
 
 def create(database, service, nickname="Host", now=1000):
     with database.transaction() as conn:
-        return service.create(conn, nickname, "coral", "demo", now)
+        return service.create(
+            conn, nickname, "coral", "demo", now, imported=prepared_demo_import(conn)
+        )
 
 
 def test_schema_initialization_is_versioned_and_idempotent(database):
@@ -44,7 +47,9 @@ def test_schema_initialization_is_versioned_and_idempotent(database):
 
 def test_transaction_rolls_back_all_room_admission_data(database, service):
     with pytest.raises(RuntimeError), database.transaction() as conn:
-        service.create(conn, "Host", "coral", "demo", 1000)
+        service.create(
+            conn, "Host", "coral", "demo", 1000, imported=prepared_demo_import(conn)
+        )
         raise RuntimeError("simulated subsequent operation failure")
     with database.read() as conn:
         assert conn.execute("SELECT COUNT(*) FROM rooms").fetchone()[0] == 0
@@ -80,7 +85,14 @@ def test_hidden_assignment_counts_shared_dedup_and_independent_rooms(database, s
     first, second = create(database, service), create(database, service)
     room_id = first["room"]["id"]
     with database.transaction() as conn:
-        join = service.join(conn, room_id, "Guest", "lavender", 1100)
+        join = service.join(
+            conn,
+            room_id,
+            "Guest",
+            "lavender",
+            1100,
+            imported=prepared_demo_import(conn, include_decoys=False),
+        )
         assert not join["player"]["is_host"]
         lobby = service.lobby(conn, room_id, 1200)
         assert len(lobby["players"]) == 2
@@ -95,7 +107,7 @@ def test_hidden_assignment_counts_shared_dedup_and_independent_rooms(database, s
                 "SELECT identity_key FROM songs WHERE room_id=?", (room_id,)
             )
         ]
-        assert 36 <= len(identities) <= 72
+        assert 56 <= len(identities) <= 92
         assert len(set(identities)) == len(identities)
         ids_first = {
             row[0]
@@ -121,7 +133,7 @@ def test_snapshot_copies_artwork_credits_characters_and_decoys(database, service
         snapshot = service.snapshot(conn, room_id)
         assert snapshot["host_id"] == joined["player"]["id"]
         assert snapshot["players"][0]["character_id"] == "coral"
-        assert len([s for s in snapshot["songs"] if not s["listeners"]]) == 24
+        assert len([s for s in snapshot["songs"] if not s["listeners"]]) == 20
         assert len([s for s in snapshot["songs"] if s["listeners"]]) == 36
         for song in snapshot["songs"]:
             assert song["artists"][0]["artist_key"].startswith("demo:")
@@ -141,10 +153,24 @@ def test_casefold_uniqueness_and_invalid_character(database, service):
     room_id = joined["room"]["id"]
     with database.transaction() as conn:
         with pytest.raises(DomainError) as error:
-            service.join(conn, room_id, " STRASSE ", "lavender", 1100)
+            service.join(
+                conn,
+                room_id,
+                " STRASSE ",
+                "lavender",
+                1100,
+                imported=prepared_demo_import(conn, include_decoys=False),
+            )
         assert error.value.code == "nickname_taken"
         with pytest.raises(DomainError) as error:
-            service.join(conn, room_id, "Guest", "arbitrary", 1100)
+            service.join(
+                conn,
+                room_id,
+                "Guest",
+                "arbitrary",
+                1100,
+                imported=prepared_demo_import(conn, include_decoys=False),
+            )
         assert error.value.code == "invalid_character"
         assert len(service.lobby(conn, room_id, 1100)["players"]) == 1
 
@@ -154,13 +180,34 @@ def test_roster_limit_and_lobby_lock_allow_existing_identity(database, service):
     room_id = joined["room"]["id"]
     with database.transaction() as conn:
         for i in range(9):
-            service.join(conn, room_id, f"Guest {i}", "lavender", 1100)
+            service.join(
+                conn,
+                room_id,
+                f"Guest {i}",
+                "lavender",
+                1100,
+                imported=prepared_demo_import(conn, include_decoys=False),
+            )
         with pytest.raises(DomainError) as error:
-            service.join(conn, room_id, "Eleventh", "lavender", 1100)
+            service.join(
+                conn,
+                room_id,
+                "Eleventh",
+                "lavender",
+                1100,
+                imported=prepared_demo_import(conn, include_decoys=False),
+            )
         assert error.value.code == "room_full"
         service.set_state(conn, room_id, "playing")
         with pytest.raises(DomainError) as error:
-            service.join(conn, room_id, "New browser", "lavender", 1100)
+            service.join(
+                conn,
+                room_id,
+                "New browser",
+                "lavender",
+                1100,
+                imported=prepared_demo_import(conn, include_decoys=False),
+            )
         assert error.value.code == "room_locked"
         with pytest.raises(DomainError):
             service.update_player(
@@ -261,14 +308,21 @@ def test_member_leave_removes_only_own_links_and_unreferenced_songs(database, se
     joined = create(database, service)
     room_id = joined["room"]["id"]
     with database.transaction() as conn:
-        guest = service.join(conn, room_id, "Guest", "lavender", 1100)
+        guest = service.join(
+            conn,
+            room_id,
+            "Guest",
+            "lavender",
+            1100,
+            imported=prepared_demo_import(conn, include_decoys=False),
+        )
         service.remove_player(conn, room_id, guest["player"]["id"], 1200)
         assert len(service.lobby(conn, room_id, 1200)["players"]) == 1
         assert (
             conn.execute(
                 "SELECT COUNT(*) FROM songs WHERE room_id=?", (room_id,)
             ).fetchone()[0]
-            == 36
+            == 56
         )
         assert service.lobby(conn, room_id, 1200)["players"][0]["song_count"] == 36
         with pytest.raises(DomainError):
