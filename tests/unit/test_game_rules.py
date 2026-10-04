@@ -1,176 +1,14 @@
 """Game policy against repository doubles; clocks/randomness are explicit."""
 
 import json
-from copy import deepcopy
-from random import Random
-from unittest.mock import create_autospec
 
 import pytest
 
 from backend.core.errors import DomainError
-from backend.game.repository import GameRepository, encode
-from backend.game.service import GameService
-
-
-@pytest.fixture
-def match():
-    repo = create_autospec(GameRepository, instance=True)
-    games, roster, rounds, answers, receipts = {}, [], [], [], {}
-    preparations = {}
-    repo.pending_preparation.side_effect = lambda conn, gid: deepcopy(
-        preparations.get(gid)
-    )
-
-    def save_preparation(conn, gid, record):
-        preparations[gid] = deepcopy(record)
-
-    repo.save_pending_preparation.side_effect = save_preparation
-    repo.delete_pending_preparation.side_effect = lambda conn, gid: preparations.pop(
-        gid, None
-    )
-    repo.game.side_effect = lambda conn, gid: dict(games[gid]) if gid in games else None
-    repo.active.side_effect = lambda conn: [
-        dict(g) for g in games.values() if g["status"] in ("preparing", "playing")
-    ]
-    repo.start_receipt.return_value = None
-    repo.receipt.side_effect = lambda conn, gid, rid: receipts.get((gid, rid))
-    repo.roster.side_effect = lambda conn, gid: [
-        dict(row) for row in roster if row["game_id"] == gid
-    ]
-    repo.current.side_effect = lambda conn, gid: next(
-        (dict(row) for row in reversed(rounds) if row["game_id"] == gid), None
-    )
-    repo.attempts.side_effect = lambda conn, gid: [
-        dict(row) for row in rounds if row["game_id"] == gid
-    ]
-    repo.answers.side_effect = lambda conn, rid: [
-        dict(a) for a in answers if a["round_id"] == rid
-    ]
-
-    def insert(conn, table, values):
-        row = dict(values)
-        if table == "games":
-            games[row["id"]] = row
-        elif table == "game_players":
-            roster.append(row)
-        elif table == "rounds":
-            row = {
-                "readiness_generation": 1,
-                "ready_player_ids_json": "[]",
-                "excluded_player_ids_json": "[]",
-                **row,
-            }
-            rounds.append(row)
-        elif table == "answers":
-            answers.append(row)
-
-    repo.insert.side_effect = insert
-    repo.update_game.side_effect = lambda conn, gid, **fields: games[gid].update(fields)
-    repo.update_round.side_effect = lambda conn, rid, **fields: next(
-        r for r in rounds if r["id"] == rid
-    ).update(fields)
-
-    def score_answer(conn, rid, actor, points):
-        next(
-            row
-            for row in answers
-            if row["round_id"] == rid and row["player_id"] == actor
-        )["points"] = points
-
-    repo.score_answer.side_effect = score_answer
-
-    def remember(conn, gid, actor, kind, payload, result, now):
-        receipts[gid, payload["request_id"]] = {
-            "actor_player_id": actor,
-            "command_type": kind,
-            "payload_json": encode(payload),
-            "result_json": encode(result),
-        }
-
-    repo.remember.side_effect = remember
-    game = GameService(Random(17), repository=repo)
-    players = [
-        {
-            "id": f"p{i}",
-            "nickname": f"Player {i}",
-            "character_id": "coral",
-            "is_host": i == 0,
-        }
-        for i in range(3)
-    ]
-    songs = [
-        {
-            "song_key": f"song{i}",
-            "title": f"Title {i}",
-            "artist": "Composer",
-            "artists": [{"artist_key": "demo:composer", "name": "Composer"}],
-            "listeners": [{"player_id": f"p{i % 3}", "familiarity": "easy"}],
-            "preview_url": "/clip",
-        }
-        for i in range(96)
-    ]
-    songs += [
-        {
-            "song_key": f"decoy{i}",
-            "title": f"Decoy {i}",
-            "artist": "Composer",
-            "artists": [{"artist_key": "demo:composer", "name": "Composer"}],
-            "listeners": [],
-            "preview_url": "/clip",
-        }
-        for i in range(24)
-    ]
-    snapshot = {
-        "room_id": "room",
-        "revision": 3,
-        "mode": "demo",
-        "host_id": "p0",
-        "players": players,
-        "songs": songs,
-    }
-    settings = {
-        "round_count": 10,
-        "answer_seconds": 20,
-        "difficulty": "mixed",
-        "decoys_enabled": True,
-    }
-    payload = {"request_id": "start", "room_revision": 3}
-    gid = game.start(None, snapshot, settings, "p0", payload, 1000)["game_id"]
-    return game, repo, games[gid], rounds, answers, snapshot
-
-
-def error(code, operation):
-    with pytest.raises(DomainError) as caught:
-        operation()
-    assert caught.value.code == code
-
-
-def prepared(match):
-    service, _, game, rounds, _, _ = match
-    for slot in json.loads(game["round_plan_json"]):
-        for candidate in slot["candidates"]:
-            service.preload(
-                None,
-                game["id"],
-                "p0",
-                {
-                    "request_id": candidate["song_key"],
-                    "candidate_id": candidate["song_key"],
-                    "ok": True,
-                },
-                1000,
-            )
-    service.advance(None, game["id"], 6000)
-    return rounds[-1]
-
-
-def answering(match):
-    service, _, game, _, _, _ = match
-    attempt = prepared(match)
-    for actor in ("p0", "p1", "p2"):
-        service.ready(None, game["id"], attempt["id"], actor, 1, 6000)
-    service.advance(None, game["id"], 9000)
-    return attempt
+from tests.support.game_policy import answering, error, prepared
+from tests.support.game_policy import (
+    match as match,  # noqa: PLC0414 -- fixture registration
+)
 
 
 def test_start_freezes_values_and_rejects_invalid_host_revision_count_and_pool(match):
@@ -319,6 +157,13 @@ def test_answers_enforce_window_listener_identity_expiry_finality_and_close_once
         "who_player_ids": [x["player_id"] for x in song["listeners"]],
     }
     error(
+        "game_not_found",
+        lambda: service.answer(
+            None, game["id"], attempt["id"], "outsider", payload, 9000
+        ),
+    )
+    assert answers == []
+    error(
         "answer_window_closed",
         lambda: service.answer(None, game["id"], attempt["id"], "p0", payload, 8999),
     )
@@ -340,7 +185,7 @@ def test_answers_enforce_window_listener_identity_expiry_finality_and_close_once
     for selected in (["unknown"], ["p0", "p0"]):
         error(
             "invalid_listeners",
-            lambda: service.answer(
+            lambda selected=selected: service.answer(
                 None,
                 game["id"],
                 attempt["id"],
@@ -367,6 +212,20 @@ def test_answers_enforce_window_listener_identity_expiry_finality_and_close_once
     for actor in ("p1", "p2"):
         service.answer(None, game["id"], attempt["id"], actor, payload, 9001)
     assert game["phase"] == "reveal" and len(answers) == 3
+    assert (
+        service.answer(None, game["id"], attempt["id"], "p0", payload, 29000) == result
+    )
+    error(
+        "answer_final",
+        lambda: service.answer(
+            None,
+            game["id"],
+            attempt["id"],
+            "p0",
+            payload | {"who_player_ids": ["p2"]},
+            29000,
+        ),
+    )
     assert repo.score_answer.call_count == 3
     assert all(call.args[-1] > 0 for call in repo.score_answer.call_args_list)
     assert all(answer["points"] > 0 for answer in answers)
@@ -438,3 +297,103 @@ def test_audio_failure_uses_checked_reserve_and_preserves_voided_attempt(match):
         now,
     )
     assert rounds[-1]["readiness_generation"] == 2
+
+
+@pytest.mark.parametrize(
+    "failed_slots,aborted", [(range(1, 4), False), (range(1, 5), True)]
+)
+def test_checked_plan_skips_failed_original_slots_or_aborts_at_limit(
+    match, failed_slots, aborted
+):
+    service, _, game, rounds, _, _ = match
+    plan = json.loads(game["round_plan_json"])
+    for slot in plan:
+        for candidate in slot["candidates"]:
+            service.preload(
+                None,
+                game["id"],
+                "p0",
+                {
+                    "request_id": candidate["song_key"],
+                    "candidate_id": candidate["song_key"],
+                    "ok": slot["round_number"] not in failed_slots,
+                },
+                1000,
+            )
+    service.advance(None, game["id"], 6000, host_connected=False)
+    assert game["phase"] == "setup" and rounds == []
+    service.advance(None, game["id"], 9000)
+    assert (game["status"] == "aborted") is aborted
+    if aborted:
+        assert game["end_reason"] == "too_many_skipped" and rounds == []
+    else:
+        assert rounds[-1]["round_number"] == 4
+        assert game["prepared_at_ms"] == 9000
+        assert rounds[-1]["readiness_deadline_at_ms"] == 19_000
+
+
+@pytest.mark.parametrize(
+    "excluded,code",
+    [
+        (["p0"], "invalid_exclusion"),
+        (["p1", "p2"], "host_not_ready"),
+        (["p1"], "invalid_exclusion"),
+        (["p1", "p1", "p2"], "invalid_exclusion"),
+    ],
+)
+def test_continue_cannot_exclude_host_or_omit_duplicate_missing_players(
+    match, excluded, code
+):
+    service, _, game, rounds, _, _ = match
+    first = answering(match)
+    service.advance(None, game["id"], first["deadline_at_ms"] + 10_000)
+    current = rounds[-1]
+    with pytest.raises(DomainError) as caught:
+        service.readiness_command(
+            None,
+            game["id"],
+            current["id"],
+            "p0",
+            "continue",
+            {
+                "request_id": "continue",
+                "readiness_generation": 1,
+                "exclude_player_ids": excluded,
+            },
+            current["readiness_deadline_at_ms"],
+        )
+    assert caught.value.code == code
+    assert game["phase"] == "ready"
+
+
+def test_continue_excludes_only_barrier_and_reconnecting_player_can_still_answer(match):
+    service, _, game, rounds, _, _ = match
+    first = answering(match)
+    service.advance(None, game["id"], first["deadline_at_ms"] + 10_000)
+    current = rounds[-1]
+    now = current["readiness_deadline_at_ms"]
+    service.ready(None, game["id"], current["id"], "p0", 1, now - 1)
+    payload = {
+        "request_id": "continue",
+        "readiness_generation": 1,
+        "exclude_player_ids": ["p1", "p2"],
+    }
+    accepted = service.readiness_command(
+        None, game["id"], current["id"], "p0", "continue", payload, now
+    )
+    assert (
+        service.readiness_command(
+            None, game["id"], current["id"], "p0", "continue", payload, now + 1
+        )
+        == accepted
+    )
+    assert game["phase"] == "countdown"
+    service.advance(None, game["id"], current["starts_at_ms"])
+    assert service.answer(
+        None,
+        game["id"],
+        current["id"],
+        "p1",
+        {"song_guess": None, "who_player_ids": []},
+        current["starts_at_ms"],
+    )["accepted"]

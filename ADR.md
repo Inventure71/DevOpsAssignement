@@ -38,8 +38,7 @@ Consequences: Game works through its own repository without querying Rooms table
 
 Updates: manual song picking was excluded on 2026-09-30; module responsibilities were documented on 2026-10-01. The 2026-10-02 provider path uses Spotify for listening input and Apple for catalog/previews, with provider I/O outside admission transactions. The 2026-10-04 refinement keeps SQL in repositories, domain rules in services and cross-domain ordering in application coordination.
 
-Implementation: [start coordination](backend/application/coordinator.py), [Rooms service](backend/rooms/service.py), [Game service](backend/game/service.py).
-Details: [architecture](docs/05_ARCHITECTURE.md).
+Implementation: [start coordination](backend/application/coordinator.py), [Rooms service](backend/rooms/service.py), [Game service](backend/game/service.py). Details: [architecture](docs/05_ARCHITECTURE.md).
 
 ## 3. Room-local songs and frozen game facts in SQLite
 
@@ -57,8 +56,7 @@ Consequences: Frozen facts stabilize scoring and history; void attempts retain t
 
 Updates: optional artwork and retained void answers were clarified on 2026-09-30. On 2026-10-01, selected song facts replaced four-choice answers and API projections became owner-only, including for the host. The 2026-10-02 admission schema stores account digests rather than OAuth tokens. The 2026-10-04 refinement places public catalog metadata and scoped verified links in the same SQLite file, superseding the intermediate separate-catalog setup; preview expiry does not erase recording identity.
 
-Schema and diagram: [data model](docs/06_DATA_MODEL.md).
-Executable schema: [migrations](backend/storage/migrations/).
+Schema and diagram: [data model](docs/06_DATA_MODEL.md). Executable schema: [migrations](backend/storage/migrations/).
 
 ## 4. Prioritize core rule tests and verify integration separately
 
@@ -68,16 +66,15 @@ Status: Decided
 
 Context: Routing coverage alone cannot establish that membership, deadlines, scoring and recovery behave correctly. The assignment requires at least 70% unit coverage of the two domains' core business logic.
 
-Decision: Prioritize deterministic unit tests for Rooms policy, Game transitions, scoring and selection, with controlled clocks/randomness and a 70% coverage gate. Complement them with temporary SQLite/HTTP integration tests and frontend controller tests for persistence, authority, privacy, retries, readiness and stale asynchronous work.
+Decision: Prioritize deterministic unit tests for Rooms policy, Game transitions, scoring, selection and round preparation, with controlled clocks/randomness and a 90% coverage gate for each domain. Complement them with temporary SQLite/HTTP integration tests and frontend controller tests for persistence, authority, privacy, retries, readiness and stale asynchronous work.
 
 Alternatives considered: Provider mocks alone bypass gameplay and persistence, while a coverage percentage alone can conceal incorrect boundary behavior. Making every test depend on live accounts or physical devices would make failures harder to reproduce.
 
 Consequences: Repository doubles isolate policy tests, while integration tests exercise real transactions and complete matches. Physical audio, phone compatibility and live account setup remain thinner manual acceptance areas, so automated success cannot establish those outcomes.
 
-Update (2026-10-04): the coverage command measures unit tests only over `backend.rooms.service`, `backend.game.service`, `backend.game.scoring` and `backend.game.selection`. The original strategy also targeted a three-browser ten-round game, sub-two-second round preparation and roughly 400 state polls per second; these are acceptance targets, with historical measurements and their limits recorded separately.
+Update (2026-10-04): the coverage command measures unit tests only over `backend.rooms.service`, `backend.game.service`, `backend.game.scoring`, `backend.game.selection` and `backend.game.preparation`. The project now enforces 90% in each core domain; the assignment minimum remains 70%. [Test ownership](docs/18_TESTING_STRATEGY.md) explains the consolidation and validation. The original strategy also targeted a three-browser ten-round game, sub-two-second round preparation and roughly 400 state polls per second; these are acceptance targets, with historical measurements and their limits recorded separately.
 
-Command and test boundaries: [README](README.md#verify).
-Dated results and remaining checks: [implementation status](docs/08_IMPLEMENTATION_STATUS.md).
+Command and test boundaries: [README](README.md#verify). Dated results and remaining checks: [implementation status](docs/08_IMPLEMENTATION_STATUS.md).
 
 ## 5. Defer all-device audio and broader game features
 
@@ -95,5 +92,10 @@ Consequences: Guests participate in readiness and guessing while the host owns p
 
 Evolution: the 2026-10-01 milestone used four original Demo tracks and deferred Normal admission. The 2026-10-02 checkpoint added the Normal provider path, while live account/device acceptance remained separate. On 2026-10-04, Demo moved to the checksum-pinned 100-song pack with automatic installation before server startup or installation from a downloaded archive; subsequent gameplay works offline without provider credentials. Real-game launch retains Demo, and older synthetic/festival packs and fallback launch paths have been removed.
 
-Scope and runtime: [API/runtime contract](docs/07_API_AND_RUNTIME.md).
-Teacher setup: [README](README.md#run), [Demo pack](catalog/README.md).
+Startup refinement (2026-10-04): server/SQLite readiness does not require the
+Demo pack. Missing media disables Demo explicitly, while configured Normal
+admission remains independent; the assessment launcher still prepares the sole
+100-song pack before starting a playable Demo. Existing corrupt packs fail
+validation before application data changes.
+
+Scope and runtime: [API/runtime contract](docs/07_API_AND_RUNTIME.md). Teacher setup: [README](README.md#run), [Demo pack](catalog/README.md).

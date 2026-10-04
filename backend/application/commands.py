@@ -28,7 +28,7 @@ class RoomCommands:
         with self.c.db.read() as conn:
             result = self.c.rooms.resolve_code(conn, code, self.c.clock())
             result["join_available"] = result["join_available"] and (
-                result["mode"] == "demo" or self.c.config.game_mode == "normal"
+                self.c.launch_mode.available(result["mode"])
             )
             return result
 

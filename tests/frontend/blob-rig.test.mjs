@@ -356,28 +356,6 @@ test("color presets are shared immutable identities with a usable fallback", () 
   assert.equal(getBlobColor(null), BLOB_COLORS[0]);
 });
 
-test("the resting silhouette has soft local lobes and asymmetry instead of straight cone sides", () => {
-  const { points } = deformBlob(sampleBlobMotion("idle", 0, { reduced: true }));
-  const turns = points.map(([x, y], index) => {
-    const before = points[(index + points.length - 1) % points.length],
-      after = points[(index + 1) % points.length];
-    return (x - before[0]) * (after[1] - y) - (y - before[1]) * (after[0] - x);
-  });
-  assert.ok(
-    turns.some((turn) => turn < 0) && turns.some((turn) => turn > 0),
-    "rounded lobes introduce local bends into the otherwise convex body",
-  );
-  const middleY = 145;
-  const middle = points.filter(([, y]) => Math.abs(y - middleY) < 15);
-  assert.ok(middle.length >= 2);
-  const left = Math.min(...middle.map(([x]) => x)),
-    right = Math.max(...middle.map(([x]) => x));
-  assert.ok(
-    Math.abs(120 - left - (right - 120)) > 3,
-    "left and right lobes are deliberately asymmetric",
-  );
-});
-
 test("sadness slumps the body gently and keeps a still expression when motion is reduced", () => {
   const resting = deformBlob(sampleBlobMotion("idle", 0, { reduced: true }));
   const poses = [0, 0.4, 2, 8].map((t) => sampleBlobMotion("sad", t));

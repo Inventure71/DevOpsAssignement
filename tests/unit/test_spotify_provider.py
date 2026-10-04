@@ -45,10 +45,14 @@ def client(transport):
 
 
 def test_authorization_and_pkce_exchange_do_not_use_or_retain_refresh_token():
-    transport = Transport(
-        lambda *args: {"access_token": "access", "refresh_token": "private-refresh"}
-    )
+    def respond(method, url, headers, data):
+        if method == "POST":
+            return {"access_token": "access", "refresh_token": "private-refresh"}
+        return {"id": "account"} if urlsplit(url).path == "/v1/me" else {"items": []}
+
+    transport = Transport(respond)
     spotify = client(transport)
+    assert spotify.configured
     query = parse_qs(
         urlsplit(spotify.authorization_url("bound-state", "challenge")).query
     )
@@ -62,28 +66,10 @@ def test_authorization_and_pkce_exchange_do_not_use_or_retain_refresh_token():
     assert "Authorization" not in headers
     assert parse_qs(body.decode())["code_verifier"] == ["verifier"]
     assert "private-refresh" not in repr(vars(spotify))
-
-
-def test_pkce_login_and_personal_import_work_without_client_secret():
-    def respond(method, url, headers, data):
-        if method == "POST":
-            return {"access_token": "access"}
-        if urlsplit(url).path == "/v1/me":
-            return {"id": "account"}
-        return {"items": []}
-
-    transport = Transport(respond)
-    spotify = SpotifyClient(
-        "client-id",
-        "http://127.0.0.1:8000/api/music/spotify/callback",
-        transport=transport,
-    )
-    assert spotify.configured
-    assert spotify.authorization_url("state", "challenge")
-    assert spotify.exchange_code("code", "verifier") == "access"
     assert spotify.profile("access") == "account"
+    assert transport.calls[1][1].endswith("/me")
+    assert transport.calls[1][2] == {"Authorization": "Bearer access"}
     assert spotify.listening("access") == []
-    assert len(transport.calls) == 6
 
 
 @pytest.mark.parametrize(

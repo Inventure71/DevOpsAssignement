@@ -177,18 +177,6 @@ def test_real_launch_accepts_explicit_demo_pack_and_cli_overrides_configured_pac
     assert not notes and "Demo: local Demo pack" in description
 
 
-def test_real_launch_retains_the_same_pinned_demo_pack(project, real_settings):
-    from tools.demo_pack import installed_path, load_source
-
-    environment, notes, description = launch.build_environment(
-        project, "real", options(), real_settings
-    )
-    assert environment["DEMO_PACK_DIR"] == str(
-        installed_path(project, load_source(project))
-    )
-    assert not notes and "Demo: local Demo pack (100 clips)" in description
-
-
 @pytest.mark.parametrize(
     "damage", ["traversal", "empty", "credits", "metadata", "too-small"]
 )

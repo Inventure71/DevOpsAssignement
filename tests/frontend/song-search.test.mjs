@@ -22,17 +22,25 @@ class Node {
 }
 globalThis.HTMLElement = class extends Node {
   attachShadow() {
-    const nodes = new Map();
+    const nodes = new Map([
+      "input", ".panel", ".status", "[role=listbox]", ".hint", ".clear",
+      ".search-button", ".retry", ".field", ".lock",
+    ].map((selector) => [selector, new Node()]));
     this.shadowRoot = new Node();
     this.shadowRoot.querySelector = (selector) => {
-      if (!nodes.has(selector)) nodes.set(selector, new Node());
+      assert.ok(nodes.has(selector), `Unsupported SongSearch selector: ${selector}`);
       return nodes.get(selector);
     };
   }
   dispatchEvent(event) { this.events.push(event); }
 };
 globalThis.customElements = { define() {} };
-globalThis.document = { createElement: () => new Node() };
+globalThis.document = {
+  createElement(tag) {
+    assert.ok(["button", "span", "img"].includes(tag), `Unsupported SongSearch element: ${tag}`);
+    return new Node();
+  },
+};
 globalThis.CustomEvent = class { constructor(type, fields) { this.type = type; Object.assign(this, fields); } };
 const { SongSearch } = await import("../../frontend/components/song-search.mjs");
 function create(search = async () => ({ songs: [] })) {

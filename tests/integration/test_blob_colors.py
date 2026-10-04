@@ -3,16 +3,14 @@
 import json
 import sqlite3
 
-import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
-from tests.support.demo import demo_config, make_demo_pack
 from backend.storage.database import Database
 from tests.integration.test_game import Match
 from tests.support.catalog import write_large_catalog
+from tests.support.demo import demo_config, make_demo_pack
 from tests.support.migrations import legacy_copy
-
 
 LEGACY_COLORS = {
     "vinyl": "coral",
@@ -42,11 +40,8 @@ def records(conn):
     }
 
 
-@pytest.mark.parametrize("legacy,color", LEGACY_COLORS.items())
-def test_v2_upgrade_maps_live_and_frozen_colors_preserving_all_other_data(
-    tmp_path, legacy, color
-):
-    match = Match(tmp_path / "source")
+def test_v2_upgrade_maps_live_and_frozen_colors_preserving_all_other_data(tmp_path):
+    match = Match(tmp_path / "source", player_count=len(LEGACY_COLORS))
     match.preload()
     match.answering()
     selected, listeners = match.correct()
@@ -58,13 +53,14 @@ def test_v2_upgrade_maps_live_and_frozen_colors_preserving_all_other_data(
     path = tmp_path / "v2.sqlite3"
     with match.db.read() as source, sqlite3.connect(path) as old:
         legacy_copy(source, old, 2)
-        old.execute(
-            "UPDATE players SET character_id=? WHERE id=?", (legacy, match.host)
-        )
-        old.execute(
-            "UPDATE game_players SET character_id=? WHERE player_id=?",
-            (legacy, match.host),
-        )
+        for player_id, legacy in zip(match.ids, LEGACY_COLORS):
+            old.execute(
+                "UPDATE players SET character_id=? WHERE id=?", (legacy, player_id)
+            )
+            old.execute(
+                "UPDATE game_players SET character_id=? WHERE player_id=?",
+                (legacy, player_id),
+            )
     old_db = Database(path)
     with old_db.read() as conn:
         before = records(conn)
@@ -98,7 +94,7 @@ def test_v2_upgrade_maps_live_and_frozen_colors_preserving_all_other_data(
             match.rooms.authenticate(conn, match.room_id, match.token, match.now)[
                 "character_id"
             ]
-            == color
+            == "coral"
         )
         assert match.game.repo.leaderboard(conn, match.game_id) == before_board
         assert (

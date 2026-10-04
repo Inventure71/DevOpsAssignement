@@ -5,13 +5,13 @@ song selection, readiness, timing, scoring and history all use production paths.
 This verifies transport and playable media availability, not physical speakers.
 """
 
-from contextlib import ExitStack
 import json
+from contextlib import ExitStack
 
-import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
+from backend.storage.database import Database
 from tests.support.demo import demo_config, make_demo_pack
 
 
@@ -28,12 +28,9 @@ def accepted(response):
     return response.json()
 
 
-@pytest.mark.parametrize("round_count", [10, 15])
-def test_100_song_pack_completes_match_without_provider_credentials(
-    tmp_path, round_count
-):
+def test_100_song_pack_completes_match_without_provider_credentials(tmp_path):
     pack = make_demo_pack(tmp_path / "music")
-    exercise_demo_match(tmp_path, round_count, pack)
+    exercise_demo_match(tmp_path, 15, pack)
 
 
 def exercise_demo_match(tmp_path, round_count, pack, *, expected_song_count=36):
@@ -213,3 +210,17 @@ def exercise_demo_match(tmp_path, round_count, pack, *, expected_song_count=36):
                 == 3 * round_count
             )
             assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
+
+    # Scores, immutable answers and ranks must survive independent reopening.
+    reopened = Database(coordinator.db.path)
+    reopened.initialize()
+    with reopened.read() as conn:
+        roster = coordinator.game.repo.roster(conn, game_id)
+        assert len(roster) == len(player_ids)
+        assert all(
+            p["final_score"] == points[p["player_id"]] and p["final_rank"] is not None
+            for p in roster
+        )
+        saved = coordinator.game.repo.history(conn, room["room_id"])
+        assert saved[0]["id"] == game_id
+        assert saved[0]["leaderboard"] == state["game"]["leaderboard"]

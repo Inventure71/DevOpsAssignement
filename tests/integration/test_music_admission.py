@@ -619,14 +619,13 @@ def test_concurrent_pending_imports_cannot_exceed_five_players(normal_session):
         )
 
 
-@pytest.mark.parametrize("round_count", [5, 10, 15])
 @pytest.mark.parametrize(
-    "normal_session",
-    [False, True],
-    indirect=True,
-    ids=["five-distinct-accounts", "two-shared-account"],
+    "normal_session,round_count",
+    [(False, 5), (True, 15)],
+    indirect=["normal_session"],
+    ids=["standard-five-players", "playtest-shared-account"],
 )
-def test_normal_game_completes_all_round_settings_private_results_and_rematch(
+def test_normal_game_completes_with_private_results_and_rematch(
     normal_session, round_count
 ):
     session = normal_session

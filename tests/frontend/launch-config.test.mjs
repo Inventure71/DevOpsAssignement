@@ -99,6 +99,21 @@ test("an unconfigured Normal launch selects Demo and keeps Spotify unavailable",
   assert.equal(requests, 1);
 });
 
+test("a ready server without music keeps both admissions disabled", async () => {
+  const m = model();
+  const unavailable = config("demo", false);
+  unavailable.modes.demo = { enabled: false, reason: "Demo music is not installed on this server." };
+  const controller = createLaunchConfig({ ui: m.ui, render() {}, api: async () => unavailable });
+  assert.equal(await controller.load(), true);
+  assert.equal(m.ui.launchStatus, "ready");
+  assert.equal(modeAvailable(m.ui, "demo"), false);
+  assert.equal(modeAvailable(m.ui, "normal"), false);
+  const s = actions(m, () => assert.fail("Missing music must block admission"));
+  await s.action("admit");
+  assert.match(m.ui.error.message, /not installed/);
+  assert.deepEqual(s.mutations, []);
+});
+
 for (const launch of ["demo", "normal"]) {
   test(`${launch} launch rejects a resolved Spotify room when Spotify is unavailable`, async () => {
     const m = model();

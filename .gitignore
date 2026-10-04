@@ -71,3 +71,6 @@ notes/
 
 # Proof-of-concept throwaway code (never committed)
 poc/
+
+
+tmp/

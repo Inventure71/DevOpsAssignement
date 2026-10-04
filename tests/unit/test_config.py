@@ -1,9 +1,29 @@
-"""Explicit opt-in for relaxed playtest admission rules."""
+"""Deployment settings and explicit opt-in for relaxed playtest admission rules."""
 
 import pytest
 
 from backend.core.config import Config
 from backend.core.paths import pinned_demo_pack_path
+
+
+def test_environment_config_uses_deployment_path_port_and_secure_cookie(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("PORT", "9000")
+    monkeypatch.setenv("COOKIE_SECURE", "true")
+    config = Config.from_env()
+    assert config.data_dir == tmp_path
+    assert config.database_path == tmp_path / "whos_on_repeat.sqlite3"
+    assert config.port == 9000 and config.cookie_secure is True
+
+
+@pytest.mark.parametrize(
+    "setting,value",
+    [("PORT", "70000"), ("COOKIE_SECURE", "sometimes"), ("SETUP_TIMEOUT_MS", "9999")],
+)
+def test_invalid_deployment_setting_fails_startup(monkeypatch, setting, value):
+    monkeypatch.setenv(setting, value)
+    with pytest.raises(ValueError, match=setting):
+        Config.from_env()
 
 
 def test_playtest_defaults_off(monkeypatch):
@@ -25,8 +45,12 @@ def test_invalid_playtest_value_fails_startup(monkeypatch):
         Config.from_env()
 
 
-def test_demo_pack_defaults_to_pinned_installation(monkeypatch):
-    monkeypatch.delenv("DEMO_PACK_DIR", raising=False)
+@pytest.mark.parametrize("value", [None, ""], ids=["absent", "empty"])
+def test_demo_pack_defaults_to_pinned_installation(monkeypatch, value):
+    if value is None:
+        monkeypatch.delenv("DEMO_PACK_DIR", raising=False)
+    else:
+        monkeypatch.setenv("DEMO_PACK_DIR", value)
     assert Config.from_env().demo_pack_dir == pinned_demo_pack_path()
 
 
@@ -36,11 +60,6 @@ def test_local_demo_pack_is_explicit_and_resolves_from_environment(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("DEMO_PACK_DIR", "music")
     assert Config.from_env().demo_pack_dir == tmp_path / "music"
-
-
-def test_empty_demo_pack_setting_uses_pinned_installation(monkeypatch):
-    monkeypatch.setenv("DEMO_PACK_DIR", "")
-    assert Config.from_env().demo_pack_dir == pinned_demo_pack_path()
 
 
 def test_pinned_location_is_independent_of_working_directory(monkeypatch, tmp_path):
@@ -53,19 +72,6 @@ def test_pinned_location_is_independent_of_working_directory(monkeypatch, tmp_pa
 def test_pinned_location_rejects_unsafe_identity(tmp_path, pack, sha):
     with pytest.raises(ValueError, match="pinned Demo pack"):
         pinned_demo_pack_path(tmp_path, {"pack": pack, "sha256": sha})
-
-
-def test_missing_pack_fails_before_creating_application_database(tmp_path):
-    from fastapi.testclient import TestClient
-    from backend.app import create_app
-
-    config = Config(tmp_path / "data", demo_pack_dir=tmp_path / "missing")
-    application = create_app(config, background=False)
-    assert not config.database_path.exists()
-    with pytest.raises(ValueError, match="setup_demo_pack.py"):
-        with TestClient(application):
-            pass
-    assert not config.database_path.exists()
 
 
 def test_launch_defaults_to_demo_without_environment(monkeypatch):

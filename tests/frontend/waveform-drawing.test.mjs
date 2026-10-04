@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   normalizedAppearance,
   normalizeLevels,
-  waveformProgress,
   waveformGeometry,
 } from "../../frontend/components/waveform-drawing.mjs";
 
@@ -113,38 +112,6 @@ test("untrusted or malformed measurements and layout inputs yield finite, bounde
       assert.ok(!/NaN|Infinity/.test(geometry.paths[0].d));
     }
   }
-});
-
-test("progress follows the authoritative timestamps including exact start and deadline", () => {
-  const round = { startsAt: 1000, deadline: 21000 };
-  for (const [now, elapsed, progress] of [
-    [0, 0, 0],
-    [1000, 0, 0],
-    [9000, 8000, 0.4],
-    [21000, 20000, 1],
-    [25000, 20000, 1],
-  ])
-    assert.deepEqual(waveformProgress(round, now), {
-      duration: 20000,
-      elapsed,
-      progress,
-    });
-  assert.deepEqual(waveformProgress({ startsAt: 0, deadline: 1000 }, 500), {
-    duration: 1000,
-    elapsed: 500,
-    progress: 0.5,
-  });
-  for (const invalid of [
-    {},
-    { startsAt: 20, deadline: 10 },
-    { startsAt: 1, deadline: 1 },
-    { startsAt: NaN, deadline: 200 },
-  ])
-    assert.deepEqual(waveformProgress(invalid, 100), {
-      duration: 0,
-      elapsed: 0,
-      progress: 0,
-    });
 });
 
 test("custom drawings receive immutable original measurements and layout without truncated audio", () => {

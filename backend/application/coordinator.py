@@ -40,10 +40,13 @@ class Coordinator:
         return self._locks.hold(room_id)
 
     def initialize(self):
-        validate_pack_assets(self.config.demo_pack_dir)
+        pack_available = self.config.demo_pack_dir.exists()
+        if pack_available:
+            validate_pack_assets(self.config.demo_pack_dir)
         self.db.initialize()
         with self.db.transaction() as conn:
-            seed_demo(conn, self.config.demo_pack_dir / "demo_catalog.json")
+            if pack_available:
+                seed_demo(conn, self.config.demo_pack_dir / "demo_catalog.json")
             now = self.clock()
             for game in self.game.repo.active(conn):
                 self.game.finish(conn, game["id"], now, "server_restart")
@@ -51,6 +54,7 @@ class Coordinator:
         self.leases = AudioLeases()
         self._settings.clear()
         self.cleanup()
+        self.launch_mode.demo_available = pack_available
 
     def _reconcile(self, conn, room_id, now):
         latest = self.game.repo.latest(conn, room_id)
@@ -271,15 +275,14 @@ class Coordinator:
         with self.db.read() as conn:
             ids = [g["room_id"] for g in self.game.repo.active(conn)]
         for room_id in ids:
-            with self.room_lock(room_id):
-                with self.db.transaction() as conn:
-                    try:
-                        self.rooms.room(conn, room_id, now)
-                    except DomainError as exc:
-                        if exc.code == "room_expired":
-                            continue
-                        raise
-                    self._advance(conn, room_id, now)
+            with self.room_lock(room_id), self.db.transaction() as conn:
+                try:
+                    self.rooms.room(conn, room_id, now)
+                except DomainError as exc:
+                    if exc.code == "room_expired":
+                        continue
+                    raise
+                self._advance(conn, room_id, now)
 
     def cleanup(self):
         now = self.clock()

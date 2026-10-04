@@ -1,36 +1,39 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { roundTiming } from "../../frontend/game/timing.mjs";
+import { waveformProgress } from "../../frontend/components/waveform-drawing.mjs";
 import { waveformLevels } from "../../frontend/audio/levels.mjs";
 import { createLabAudio } from "../../frontend/audio/lab.mjs";
 
-test("remaining arc and elapsed sound drawing share exact countdown boundaries", () => {
-  for (const [now, remaining, elapsed, expired] of [
-    [-100, 20000, 0, false],
-    [0, 20000, 0, false],
-    [8000, 12000, 8000, false],
-    [20000, 0, 20000, true],
-    [25000, 0, 20000, true],
-  ]) {
-    const timing = roundTiming({ startsAt: 0, deadline: 20000, now });
-    assert.equal(timing.remaining, remaining);
-    assert.equal(timing.elapsed, elapsed);
-    assert.equal(timing.expired, expired);
-    assert.equal(timing.remainingFraction + timing.progress, 1);
-    assert.equal(timing.started, now >= 0);
-  }
-  for (const data of [
-    {},
-    { startsAt: 5, deadline: 5, now: 10 },
-    { startsAt: 20, deadline: 10, now: 30 },
-    { startsAt: 0, deadline: 20, now: NaN },
-  ]) {
-    const timing = roundTiming(data);
-    assert.equal(timing.duration, 0);
-    assert.equal(timing.remainingFraction, 0);
-    assert.equal(timing.expired, false);
-  }
-});
+const invalidTiming = {
+  duration: 0, elapsed: 0, progress: 0, remaining: 0,
+  remainingFraction: 0, started: false, expired: false,
+};
+for (const [name, data, expected] of [
+  ["before start", { startsAt: 0, deadline: 20000, now: -100 },
+    { duration: 20000, elapsed: 0, progress: 0, remaining: 20000, remainingFraction: 1, started: false, expired: false }],
+  ["exact start at zero", { startsAt: 0, deadline: 20000, now: 0 },
+    { duration: 20000, elapsed: 0, progress: 0, remaining: 20000, remainingFraction: 1, started: true, expired: false }],
+  ["during the round", { startsAt: 1000, deadline: 21000, now: 9000 },
+    { duration: 20000, elapsed: 8000, progress: 0.4, remaining: 12000, remainingFraction: 0.6, started: true, expired: false }],
+  ["short round midpoint", { startsAt: 0, deadline: 1000, now: 500 },
+    { duration: 1000, elapsed: 500, progress: 0.5, remaining: 500, remainingFraction: 0.5, started: true, expired: false }],
+  ["exact deadline", { startsAt: 0, deadline: 20000, now: 20000 },
+    { duration: 20000, elapsed: 20000, progress: 1, remaining: 0, remainingFraction: 0, started: true, expired: true }],
+  ["after deadline", { startsAt: 0, deadline: 20000, now: 25000 },
+    { duration: 20000, elapsed: 20000, progress: 1, remaining: 0, remainingFraction: 0, started: true, expired: true }],
+  ["missing timestamps", {}, invalidTiming],
+  ["empty window", { startsAt: 5, deadline: 5, now: 10 }, invalidTiming],
+  ["reversed window", { startsAt: 20, deadline: 10, now: 30 }, invalidTiming],
+  ["invalid clock", { startsAt: 0, deadline: 20, now: NaN }, invalidTiming],
+  ["invalid start", { startsAt: NaN, deadline: 200, now: 100 }, invalidTiming],
+]) {
+  test(`countdown and waveform clocks agree: ${name}`, () => {
+    assert.deepEqual(roundTiming(data), expected);
+    const { duration, elapsed, progress } = expected;
+    assert.deepEqual(waveformProgress(data, data.now), { duration, elapsed, progress });
+  });
+}
 
 test("measured audio draws only the played window and hears either stereo channel", () => {
   const left = new Float32Array(3000);
@@ -47,6 +50,8 @@ test("measured audio draws only the played window and hears either stereo channe
   assert.deepEqual(levels.slice(24), Array(24).fill(1));
   assert.deepEqual(waveformLevels(buffer, 48, 10), Array(48).fill(0));
   assert.deepEqual(waveformLevels(buffer, 48, 0), Array(48).fill(0));
+  const silence = { duration: 30, numberOfChannels: 1, getChannelData: () => new Float32Array(3000) };
+  assert.deepEqual(waveformLevels(silence), Array(48).fill(0));
 });
 
 test("short clips leave silence on the remainder of the round's audio axis", () => {

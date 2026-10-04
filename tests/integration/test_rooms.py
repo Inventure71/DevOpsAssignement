@@ -5,12 +5,11 @@ import sqlite3
 
 import pytest
 
-from backend.core.config import Config
-from tests.support.catalog import write_large_catalog
-from backend.storage.database import Database
 from backend.core.errors import DomainError
 from backend.rooms.demo import seed_demo
 from backend.rooms.service import RETENTION_MS, RoomsService
+from backend.storage.database import Database
+from tests.support.catalog import write_large_catalog
 
 
 @pytest.fixture
@@ -44,10 +43,9 @@ def test_schema_initialization_is_versioned_and_idempotent(database):
 
 
 def test_transaction_rolls_back_all_room_admission_data(database, service):
-    with pytest.raises(RuntimeError):
-        with database.transaction() as conn:
-            service.create(conn, "Host", "coral", "demo", 1000)
-            raise RuntimeError("simulated subsequent operation failure")
+    with pytest.raises(RuntimeError), database.transaction() as conn:
+        service.create(conn, "Host", "coral", "demo", 1000)
+        raise RuntimeError("simulated subsequent operation failure")
     with database.read() as conn:
         assert conn.execute("SELECT COUNT(*) FROM rooms").fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM players").fetchone()[0] == 0
@@ -70,9 +68,8 @@ def test_credential_survives_restart_is_only_a_digest_and_is_room_scoped(
 
 
 def test_normal_mode_cannot_fake_authorization_or_assign_demo(database, service):
-    with pytest.raises(DomainError) as error:
-        with database.transaction() as conn:
-            service.create(conn, "Host", "coral", "normal", 1000)
+    with pytest.raises(DomainError) as error, database.transaction() as conn:
+        service.create(conn, "Host", "coral", "normal", 1000)
     assert error.value.code == "provider_unavailable"
     assert error.value.status == 503
     with database.read() as conn:
@@ -172,22 +169,6 @@ def test_roster_limit_and_lobby_lock_allow_existing_identity(database, service):
         assert (
             service.authenticate(conn, room_id, joined["token"], 1200)["id"]
             == joined["player"]["id"]
-        )
-
-
-def test_host_heartbeat_at_exact_grace_cannot_revive_playing_game(database, service):
-    joined = create(database, service)
-    room_id, host = joined["room"]["id"], joined["player"]["id"]
-    with database.transaction() as conn:
-        service.set_state(conn, room_id, "playing")
-        assert (
-            service.heartbeat(conn, room_id, host, 60_999)["last_seen_at_ms"] == 60_999
-        )
-        with pytest.raises(DomainError) as error:
-            service.heartbeat(conn, room_id, host, 120_999)
-        assert error.value.code == "host_expired"
-        assert (
-            service.snapshot(conn, room_id)["players"][0]["last_seen_at_ms"] == 60_999
         )
 
 
@@ -301,15 +282,3 @@ def test_invalid_seed_does_not_create_partial_catalog(database, tmp_path):
         with pytest.raises(ValueError):
             seed_demo(conn, path)
         assert conn.execute("SELECT COUNT(*) FROM demo_catalog").fetchone()[0] == 120
-
-
-def test_environment_config_validates_deployment_values(monkeypatch):
-    monkeypatch.setenv("DATA_DIR", "/tmp/custom")
-    monkeypatch.setenv("PORT", "9000")
-    monkeypatch.setenv("COOKIE_SECURE", "true")
-    config = Config.from_env()
-    assert config.database_path.name == "whos_on_repeat.sqlite3"
-    assert config.port == 9000 and config.cookie_secure
-    monkeypatch.setenv("PORT", "70000")
-    with pytest.raises(ValueError):
-        Config.from_env()

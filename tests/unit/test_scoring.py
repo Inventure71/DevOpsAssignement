@@ -88,17 +88,23 @@ def test_listener_fraction_and_wrong_picks_exactly_cancel():
 def test_rounding_and_invalid_input():
     assert half_up(Fraction(375, 2)) == 188
     assert half_up(Fraction(5, 2)) == 3
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="answer_ms must be positive"):
         score_answer(facts(), None, [], 0, 0, "easy")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Invalid song selection"):
         score_answer(facts(), True, [], 0, 20_000, "easy")
+    with pytest.raises(ValueError, match="Unknown difficulty"):
+        score_answer(facts(), None, [], 0, 20_000, "unknown")
+    with pytest.raises(ValueError, match="Scores must be non-negative"):
+        half_up(Fraction(-1))
 
 
 def test_catalog_title_matches_normalized_unicode_and_same_structured_artist():
     song = facts(key="room:local") | {"title": "Ｂｉｌｌｉｅ   Jean"}
     selected = facts(key="apple:track:42") | {"title": "billie jean"}
+    assert classify_song_guess(song, selected) == "correct"
     assert score_answer(song, selected, ["Anna", "Ben"], 0, 20_000, "easy") == 375
     selected["artists"] = [{"artist_key": "apple:different", "name": "Display"}]
+    assert classify_song_guess(song, selected) == "wrong"
     assert score_answer(song, selected, [], 0, 20_000, "easy") == 0
 
 
@@ -116,14 +122,6 @@ def test_song_classification_is_independent_of_listener_score(chosen, expected):
     assert classify_song_guess(song, chosen) == expected
     # A wrong song and no song can each earn positive listener points.
     assert score_answer(song, chosen, ["Anna", "Ben"], 0, 20_000, "easy") > 0
-
-
-def test_song_classification_matches_titles_only_with_structured_artist_overlap():
-    song = facts("room:local") | {"title": "Ｂｉｌｌｉｅ   Jean"}
-    selected = facts("apple:other-id") | {"title": "billie jean"}
-    assert classify_song_guess(song, selected) == "correct"
-    selected["artists"] = [{"artist_key": "apple:someone-else", "name": "Display"}]
-    assert classify_song_guess(song, selected) == "wrong"
 
 
 def test_verified_cross_provider_aliases_preserve_artist_credit_and_reject_mislabeled_versions():

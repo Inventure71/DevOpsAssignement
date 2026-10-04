@@ -75,10 +75,11 @@ def test_catalog_metadata_retains_full_relationship_credits_and_formats_artwork(
     assert result["artwork_url"] == "https://is1-ssl.mzstatic.com/image/300x300bb.jpg"
 
 
-def test_isrc_lookup_merges_preview_without_replacing_spotify_facts():
+def test_isrc_lookup_and_cached_media_preserve_spotify_facts_and_artist_aliases():
     apple, transport = client([{"data": [catalog_song()]}])
+    resolver = PreviewResolver(apple)
     original = spotify_song()
-    result = apple.resolve_verified(original)
+    result = resolver.resolve(original)
     assert result["song_key"] == original["song_key"]
     assert result["artists"] == [
         original["artists"][0] | {"aliases": ["apple:artist:kanye"]}
@@ -88,6 +89,10 @@ def test_isrc_lookup_merges_preview_without_replacing_spotify_facts():
     assert "filter%5Bisrc%5D=USUM70741277" in transport.calls[0][1]
     assert transport.calls[0][2] == {"Authorization": "Bearer developer-token"}
     assert "preview_url" not in original
+    cached = resolver.resolve(original | {"familiarity": "easy"})
+    assert cached["artists"] == result["artists"]
+    assert cached["familiarity"] == "easy" and result["familiarity"] == "hard"
+    assert len(transport.calls) == 1
 
 
 def test_instrumental_with_same_isrc_is_rejected_before_search_fallback():
@@ -181,16 +186,6 @@ def test_chart_preview_is_probed_without_repeat_catalog_lookup():
     original = normalize_song(catalog_song())
     assert apple.resolve_verified(original) == original
     assert transport.calls == []
-
-
-def test_preview_cache_preserves_artist_aliases_across_distinct_callers():
-    apple, _ = client([{"data": [catalog_song()]}])
-    resolver = PreviewResolver(apple=apple)
-    first = resolver.resolve(spotify_song())
-    second = resolver.resolve(spotify_song() | {"familiarity": "easy"})
-    assert first["artists"][0]["aliases"] == ["apple:artist:kanye"]
-    assert second["artists"][0]["aliases"] == ["apple:artist:kanye"]
-    assert first["familiarity"] == "hard" and second["familiarity"] == "easy"
 
 
 def test_developer_token_is_signed_es256_cached_and_refreshed(tmp_path):

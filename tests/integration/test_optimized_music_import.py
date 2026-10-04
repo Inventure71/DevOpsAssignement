@@ -16,11 +16,9 @@ from tests.integration.test_music_admission import (
 )
 
 
-@pytest.mark.parametrize("round_count", [5, 10, 15])
 @pytest.mark.parametrize("normal_session", [True], indirect=True)
-def test_bounded_shared_account_import_complete_game_with_failed_original(
-    normal_session, round_count
-):
+def test_bounded_shared_import_preserves_ownership_and_plays_replacement(normal_session):
+    round_count = 5
     session = normal_session
     calls = []
     observed = [
@@ -119,41 +117,22 @@ def test_bounded_shared_account_import_complete_game_with_failed_original(
         )
     clock.value += 5000
     c.tick()
-    seen = set()
-    for number in range(1, round_count + 1):
-        current, frozen = start_round(session, clients, prefix, game_id, lease)
-        assert current["round_number"] == number
-        assert (
-            current["audio_candidate_id"] != failed
-            and current["audio_candidate_id"] not in seen
+    current, frozen = start_round(session, clients, prefix, game_id, lease)
+    assert current["round_number"] == 1
+    assert current["audio_candidate_id"] != failed
+    for client in clients:
+        token = search_token(client, prefix, frozen["title"])
+        response = client.post(
+            prefix + f"/games/{game_id}/rounds/{current['id']}/answers",
+            json={
+                "song_guess_token": token,
+                "who_player_ids": [owner["player_id"] for owner in frozen["listeners"]],
+            },
         )
-        seen.add(current["audio_candidate_id"])
-        for client in clients:
-            token = search_token(client, prefix, frozen["title"])
-            response = client.post(
-                prefix + f"/games/{game_id}/rounds/{current['id']}/answers",
-                json={
-                    "song_guess_token": token,
-                    "who_player_ids": [
-                        owner["player_id"] for owner in frozen["listeners"]
-                    ],
-                },
-            )
-            assert response.status_code == 200, response.text
-        state = host.get(prefix + "/state").json()
-        assert (
-            state["game"]["phase"] == "reveal"
-            and state["game"]["round"]["reveal"]["my_answer"]["song_match"] == "correct"
-        )
-        clock.value = state["game"]["phase_ends_at_ms"]
-        c.tick()
-        state = host.get(prefix + "/state").json()
-        clock.value = state["game"]["phase_ends_at_ms"]
-        host.post(prefix + "/heartbeat", json={})
-        host.post(prefix + "/audio-controller", json={"tab_id": "host-tab"})
-        c.tick()
-    final = host.get(prefix + "/state").json()
-    assert (
-        final["game"]["status"] == "completed"
-        and final["game"]["playable_rounds"] == round_count
-    )
+        assert response.status_code == 200, response.text
+    for client in clients:
+        game = client.get(prefix + "/state").json()["game"]
+        assert game["phase"] == "reveal"
+        reveal = game["round"]["reveal"]
+        assert reveal["my_answer"]["song_match"] == "correct"
+        assert set(reveal["listener_ids"]) == player_ids

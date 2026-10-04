@@ -10,13 +10,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from backend.api.music import create_music_router
 from backend.api.rate_limits import AdmissionLimits
 from backend.api.routes import create_router
-from backend.api.music import create_music_router
 from backend.api.security import check_origin
 from backend.api.session_transport import check_session_transport, https_game_url
-from backend.application.coordinator import Coordinator
 from backend.application.commands import GameCommands, RoomCommands
+from backend.application.coordinator import Coordinator
 from backend.application.music_admission import MusicAdmissionHandler
 from backend.catalog.search import SongSearch
 from backend.catalog.store import CatalogStore
@@ -185,6 +185,7 @@ def create_app(
 
     @application.get("/api/demo/preview")
     def demo_preview():
+        coordinator.launch_mode.require("demo")
         with coordinator.db.read() as conn:
             return {"song": preview_sample(conn)}
 
@@ -211,6 +212,7 @@ def create_app(
 
     @application.get("/music-credits", include_in_schema=False)
     def music_credits():
+        coordinator.launch_mode.require("demo")
         return FileResponse(config.demo_pack_dir / "assets" / "credits.html")
 
     limits = AdmissionLimits(
@@ -231,11 +233,18 @@ def create_app(
             room_commands=room_commands,
         )
     )
-    application.mount(
-        "/static/demo/local",
-        StaticFiles(directory=config.demo_pack_dir / "assets", check_dir=False),
-        name="demo-assets",
-    )
+    if (config.demo_pack_dir / "assets").is_dir():
+        application.mount(
+            "/static/demo/local",
+            StaticFiles(directory=config.demo_pack_dir / "assets"),
+            name="demo-assets",
+        )
+    else:
+
+        @application.get("/static/demo/local/{path:path}", include_in_schema=False)
+        def unavailable_demo_asset(path: str):
+            coordinator.launch_mode.require("demo")
+
     application.mount("/ui", StaticFiles(directory=FRONTEND_DIR), name="frontend")
     return application
 

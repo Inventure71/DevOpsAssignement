@@ -105,17 +105,23 @@ test("callback restores imported room only after a complete receipt, then stops 
   assert.equal(new URL(s.urls[0]).searchParams.has("spotify"), false);
 });
 
-test("denied or failed imports show an actionable error and never admit or fall back to Demo", async () => {
-  const s = session(() => ({ status: "failed", error: { code: "denied", message: "Spotify authorization was denied." } }));
-  await s.controller.resume();
-  assert.equal(s.ui.error.code, "denied");
-  assert.equal(s.ui.musicImport.status, "failed");
-  assert.equal(screenKey({ ui: s.ui }), "music-import");
-  assert.equal(s.ui.musicImport.error, s.ui.error);
-  assert.deepEqual(s.admissions, []);
-  assert.equal(s.jobs.size, 0);
-  assert.equal(s.requests.length, 1);
-});
+for (const [name, error] of [
+  ["denied authorization", { code: "denied", message: "Spotify authorization was denied." }],
+  ["insufficient history", { code: "insufficient_playable_songs", message: "Not enough playable songs.",
+    details: { candidate_count: 60, playable_count: 4 } }],
+]) {
+  test(`${name} retains diagnostics, stops polling and never admits or falls back to Demo`, async () => {
+    const s = session(() => ({ status: "failed", error }));
+    await s.controller.resume();
+    assert.deepEqual(s.ui.musicImport, { status: "failed", error });
+    assert.equal(s.ui.error, error);
+    assert.equal(screenKey({ ui: s.ui }), "music-import");
+    assert.deepEqual(s.admissions, []);
+    assert.equal(s.jobs.size, 0);
+    assert.equal(s.requests.length, 1);
+    assert.equal(new URL(s.urls[0]).searchParams.has("spotify"), false);
+  });
+}
 
 test("an invalid OAuth callback shows verification failure without polling or cancelling a valid receipt", async () => {
   const s = session(() => { throw new Error("Must not be called"); });
@@ -123,16 +129,6 @@ test("an invalid OAuth callback shows verification failure without polling or ca
   assert.match(s.ui.error.message, /verification failed/);
   assert.equal(s.ui.musicImport.status, "failed");
   assert.deepEqual(s.requests, []);
-  assert.equal(s.jobs.size, 0);
-  assert.equal(new URL(s.urls[0]).searchParams.has("spotify"), false);
-});
-
-test("failed imports retain backend diagnostics in state and stop polling", async () => {
-  const error = { code: "insufficient_playable_songs", message: "Not enough playable songs.",
-    details: { candidate_count: 60, playable_count: 4 } };
-  const s = session(() => ({ status: "failed", error }));
-  await s.controller.resume();
-  assert.deepEqual(s.ui.musicImport, { status: "failed", error });
   assert.equal(s.jobs.size, 0);
   assert.equal(new URL(s.urls[0]).searchParams.has("spotify"), false);
 });

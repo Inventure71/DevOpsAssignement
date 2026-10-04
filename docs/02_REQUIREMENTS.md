@@ -1,21 +1,11 @@
 # 02 — Requirements
 
 ## How the game is played
-Each player uses their own phone browser (no app to install). By default players are **together in the same place**: the **host's device plays the clip** out loud, and the other phones are used to answer. An **all-devices** mode is conditional: it will be enabled only after a two-device timing and audible-playback check; host-device audio is the first playable milestone. The app itself runs on a server (Azure in Assignment 2), so everyone opens the same URL.
-The host is also a guessing player and the only admin. Everyone sees their own
-song search, reveal and leaderboard; a central presentation screen is not required.
+Each player uses their own phone browser (no app to install). By default players are **together in the same place**: the **host's device plays the clip** out loud, and the other phones are used to answer. An **all-devices** mode is conditional: it will be enabled only after a two-device timing and audible-playback check; host-device audio is the first playable milestone. The app itself runs on a server (Azure in Assignment 2), so everyone opens the same URL. The host is also a guessing player and the only admin. Everyone sees their own song search, reveal and leaderboard; a central presentation screen is not required.
 
 ## Delivery boundary after the PoC
 
-Bundled demo songs and host-device audio form the first milestone. Normal
-players do not choose or inspect their song pool; manual picks are excluded.
-The next checkpoint implements one Spotify development app for Normal imports,
-limited to five approved accounts including the host, and Apple developer catalog
-search/previews. Live five-account acceptance remains required. Personal Apple
-history remains outside this implementation.
-Requirements below describe the core unless explicitly marked conditional.
-The app is built from scratch; PoC implementation and mocked tests do not count
-as finished application features. See `04_POC.md` and `05_ARCHITECTURE.md`.
+Bundled demo songs and host-device audio form the first milestone. Normal players do not choose or inspect their song pool; manual picks are excluded. The next checkpoint implements one Spotify development app for Normal imports, limited to five approved accounts including the host, and Apple developer catalog search/previews. Live five-account acceptance remains required. Personal Apple history remains outside this implementation. Requirements below describe the core unless explicitly marked conditional. The app is built from scratch; PoC implementation and mocked tests do not count as finished application features. See `04_POC.md` and `05_ARCHITECTURE.md`.
 
 ## Game settings (chosen by the host)
 | Setting | Options | Default |
@@ -36,11 +26,7 @@ as finished application features. See `04_POC.md` and `05_ARCHITECTURE.md`.
 - **FR4** The system shall reject new joins when a Normal room has five players, a Demo room has ten players, or a game is in progress. Normal permits only one player per verified Spotify account in a room; the Spotify app's five-account allowlist is shared across rooms. Restoring an existing starting player is a reconnect, not a new join; a different browser cannot enter as a new identity mid-game.
 - **FR5** The system shall restore a player through a room-scoped browser cookie while the room exists; rooms do not overwrite each other's identity and same-room tabs share one identity. No nickname-based recovery or device transfer is offered in v1. All starting players remain participants/ranking entries even when disconnected or excluded from a readiness barrier.
 - **FR6** The normal game shall load songs without players selecting them or inspecting their imported song lists before play. Real songs come from each player's verified Spotify top/recent-song import, with Apple preview checks; provider availability and sufficient playable candidates are prerequisites. Manual song picking is excluded.
-- **FR7** The system shall show nicknames, characters, song counts/import readiness and settings in the lobby, without returning song titles, artists, covers or listener mappings.
-  Characters use one reusable fluid blob rig with selectable colors and friendly
-  open eyes. Listening, submitted, celebrating and sad poses reflect gameplay.
-  Incorrect song reveals use sadness; artist-only credit and missing song answers
-  remain distinct from incorrect guesses.
+- **FR7** The system shall show nicknames, characters, song counts/import readiness and settings in the lobby, without returning song titles, artists, covers or listener mappings. Characters use one reusable fluid blob rig with selectable colors and friendly open eyes. Listening, submitted, celebrating and sad poses reflect gameplay. Incorrect song reveals use sadness; artist-only credit and missing song answers remain distinct from incorrect guesses.
 - **FR8** The system shall let the host choose the number of rounds, the answer time, the available audio playback mode, the game difficulty and whether decoy songs are used.
 - **FR9** The system shall enable Start only with 3–5 players in Normal or 3–10 players in Demo, at least 10 imported/assigned songs each and completed lobby imports. Those counts do not guarantee enough unique playable songs; preparation must also validate the full planned sequence and reserves.
 

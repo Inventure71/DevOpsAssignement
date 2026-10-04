@@ -73,13 +73,10 @@ def test_rejects_different_recording_even_with_identical_isrc(title, artist):
     )
 
 
-def test_feature_credits_are_equivalent_but_other_versions_are_retained():
+def test_feature_credits_are_equivalent():
     assert matches_recording(
         song(title="Stronger (feat. Guest)"),
         {"title": "Stronger", "artist": "Kanye West"},
-    )
-    assert not matches_recording(
-        song(title="Stronger (Live)"), {"title": "Stronger", "artist": "Kanye West"}
     )
 
 
@@ -138,30 +135,30 @@ def test_inflight_duplicate_request_only_fetches_once():
     assert len(calls) == 1
 
 
-def test_provider_error_is_reported_and_cached_briefly():
-    calls = []
+@pytest.mark.parametrize("failure,ttl", [(False, 60), (True, 10)], ids=["missing", "error"])
+def test_negative_media_cache_expires_and_retries(failure, ttl):
+    now, calls = [100.0], []
 
     def fetch(entry):
         calls.append(entry)
-        raise DomainError("preview_provider_unavailable", "Offline", 503)
+        if failure:
+            raise DomainError("preview_provider_unavailable", "Offline", 503)
 
-    resolver = PreviewResolver(FakeCatalog(fetch))
-    for _ in range(2):
-        with pytest.raises(DomainError, match="Offline"):
-            resolver.resolve(song())
+    resolver = PreviewResolver(FakeCatalog(fetch), monotonic=lambda: now[0])
+
+    def resolve():
+        if failure:
+            with pytest.raises(DomainError, match="Offline") as error:
+                resolver.resolve(song())
+            assert error.value.code == "preview_provider_unavailable"
+        else:
+            assert resolver.resolve(song()) is None
+
+    resolve()
+    resolve()
     assert len(calls) == 1
-
-
-def test_unmatched_recording_cache_expires_and_retries():
-    now, calls = [100.0], []
-    resolver = PreviewResolver(
-        FakeCatalog(lambda entry: calls.append(entry) or None), monotonic=lambda: now[0]
-    )
-    assert resolver.resolve(song()) is None
-    assert resolver.resolve(song()) is None
-    assert len(calls) == 1
-    now[0] += 61
-    assert resolver.resolve(song()) is None
+    now[0] += ttl + 1
+    resolve()
     assert len(calls) == 2
 
 

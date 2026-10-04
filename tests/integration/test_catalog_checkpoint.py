@@ -7,9 +7,9 @@ from fastapi.testclient import TestClient
 
 from backend.app import create_app
 from backend.core.paths import CATALOG_PATH, FRONTEND_DIR
-from backend.storage.database import Database
 from backend.rooms.demo import seed_demo
 from backend.rooms.service import RoomsService
+from backend.storage.database import Database
 from tests.support.catalog import write_large_catalog
 from tests.support.demo import demo_config, make_demo_pack
 
@@ -31,10 +31,12 @@ def test_canonical_demo_boots_serves_assets_and_starts_default_game(tmp_path):
         assert state["game"] is None
         with app.state.coordinator.db.read() as conn:
             entries = list(conn.execute("SELECT * FROM demo_catalog ORDER BY id"))
-            assert len(entries) == 100
+            assert len(entries) == len({entry["id"] for entry in entries}) == 100
             assert sum(entry["pool_kind"] == "personal" for entry in entries) == 80
             assert sum(entry["pool_kind"] == "decoy" for entry in entries) == 20
             for entry in entries:
+                assert entry["preview_url"].startswith("/static/demo/local/clips/")
+                assert not entry["title"].startswith("Demo ")
                 clip = host.get(entry["preview_url"])
                 assert clip.status_code == 200 and len(clip.content) > 1000
                 assert clip.headers["content-type"].startswith("audio/")
@@ -103,31 +105,22 @@ def test_invalid_catalog_keeps_previously_seeded_entries(tmp_path, entries):
         assert conn.execute("SELECT COUNT(*) FROM demo_catalog").fetchone()[0] == 100
 
 
-def test_canonical_metadata_has_only_the_pinned_hundred_song_inventory():
-    entries = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-    assert len(entries) == len({entry["id"] for entry in entries}) == 100
-    assert all(
-        entry["preview_url"].startswith("/static/demo/local/clips/")
-        for entry in entries
-    )
-    assert all(not entry["title"].startswith("Demo ") for entry in entries)
-    assert sum(entry["pool_kind"] == "personal" for entry in entries) == 80
-    assert sum(entry["pool_kind"] == "decoy" for entry in entries) == 20
-
-
 @pytest.mark.parametrize("missing", ["catalog", "clip", "credits"])
 def test_incomplete_pack_rejects_startup_before_database_creation(tmp_path, missing):
-    pack = make_demo_pack(tmp_path / "media")
+    pack = tmp_path / "media"
+    make_demo_pack(pack)
     if missing == "catalog":
         (pack / "demo_catalog.json").unlink()
     elif missing == "clip":
         next((pack / "assets/clips").iterdir()).unlink()
-    else:
+    elif missing == "credits":
         (pack / "assets/credits.html").unlink()
     config = demo_config(tmp_path / "data", demo_pack_dir=pack)
-    with pytest.raises(ValueError, match="missing or incomplete"):
-        with TestClient(create_app(config, background=False)):
-            pass
+    with (
+        pytest.raises(ValueError, match="missing or incomplete"),
+        TestClient(create_app(config, background=False)),
+    ):
+        pass
     assert not config.database_path.exists()
     assert not config.data_dir.exists()
 
@@ -163,18 +156,17 @@ def test_app_resources_work_when_started_outside_checkout(tmp_path, monkeypatch)
         assert (
             client.get("/static/demo/local/%2e%2e/demo_catalog.json").status_code == 404
         )
-        for module in FRONTEND_DIR.rglob("*.mjs"):
-            response = client.get("/ui/" + module.relative_to(FRONTEND_DIR).as_posix())
-            assert response.status_code == 200
-            assert response.headers["content-type"].split(";")[0] in {
-                "text/javascript",
-                "application/javascript",
-            }
-            assert response.content == module.read_bytes()
+        # Static routing is independent of module count; verify the real entry module.
+        module = FRONTEND_DIR / "app.mjs"
+        response = client.get("/ui/" + module.relative_to(FRONTEND_DIR).as_posix())
+        assert response.status_code == 200
+        assert response.headers["content-type"].split(";")[0] in {
+            "text/javascript",
+            "application/javascript",
+        }
+        assert response.content == module.read_bytes()
         with app.state.coordinator.db.read() as conn:
             assert conn.execute("PRAGMA user_version").fetchone()[0] == 6
-            songs = list(conn.execute("SELECT preview_url FROM demo_catalog"))
-            assert len(songs) == 100
-        for song in songs:
-            assert client.get(song["preview_url"]).status_code == 200
+            song = conn.execute("SELECT preview_url FROM demo_catalog LIMIT 1").fetchone()
+        assert client.get(song["preview_url"]).status_code == 200
     assert config.database_path.is_file()

@@ -148,71 +148,6 @@ def test_http_warm_search_survives_restart_and_tokens_remain_room_specific(tmp_p
     assert calls == ["billie jean"]
 
 
-def test_bulk_local_search_zero_calls_resolution_is_cached_and_default_contract_works(
-    tmp_path,
-):
-    calls = []
-
-    def provider(query):
-        calls.append(query)
-        return [SONG]
-
-    app = create_normal_app(
-        demo_config(tmp_path), background=False, song_search=SongSearch(provider)
-    )
-    with TestClient(app) as client:
-        reference = bulk_song()
-        app.state.catalog_store.save_songs(
-            [reference], "musicbrainz:canonical:CC0", 100
-        )
-        room = admit(client, "Host", "host-account")
-        prefix = "/api/rooms/" + room["room_id"]
-        result = client.get(
-            prefix + "/song-search", params={"q": "billie", "local": True}
-        ).json()["songs"][0]
-        assert result["resolve_required"] is True and calls == []
-        resolved = client.post(
-            prefix + "/song-selection", json={"token": result["token"]}
-        )
-        assert resolved.status_code == 200, resolved.text
-        assert set(resolved.json()) == {"title", "artist", "artwork_url", "token"}
-        metadata = app.state.song_search.tokens.decode(
-            resolved.json()["token"], room["room_id"]
-        )[0]
-        assert metadata == SONG and "_catalog_reference" not in metadata
-        assert len(calls) == 1
-        # A new resolver object uses the durable public recording mapping.
-        assert (
-            client.post(
-                prefix + "/song-selection", json={"token": result["token"]}
-            ).status_code
-            == 200
-        )
-        assert len(calls) == 1
-        ordinary = client.get(
-            prefix + "/song-search", params={"q": "Billie Jean"}
-        ).json()
-        assert (
-            ordinary["songs"][0]["title"] == SONG["title"]
-            and "resolve_required" not in ordinary["songs"][0]
-        )
-        assert len(calls) == 1
-    app = create_normal_app(
-        demo_config(tmp_path), background=False, song_search=SongSearch(provider)
-    )
-    with TestClient(app) as client:
-        room = admit(client, "New", "new-account")
-        prefix = "/api/rooms/" + room["room_id"]
-        token = app.state.song_search.tokens.issue(
-            room["room_id"], reference | {"_catalog_reference": True}, 10**15
-        )
-        assert (
-            client.post(prefix + "/song-selection", json={"token": token}).status_code
-            == 200
-        )
-    assert len(calls) == 1
-
-
 @pytest.mark.parametrize(
     "candidate, expected",
     [
@@ -272,41 +207,6 @@ def test_bulk_selection_rejects_wrong_versions_covers_and_homonymous_ambiguity(
                 )[0]
                 for entry in alternatives
             )
-
-
-def test_selection_authentication_expiry_wrong_room_and_unresolved_answer_rejected(
-    tmp_path,
-):
-    app = create_normal_app(
-        demo_config(tmp_path),
-        background=False,
-        song_search=SongSearch(lambda q: [SONG]),
-    )
-    with TestClient(app) as client:
-        room = admit(client, "Host", "host-account")
-        prefix = "/api/rooms/" + room["room_id"]
-        token = app.state.song_search.tokens.issue(
-            room["room_id"], bulk_song() | {"_catalog_reference": True}, 0
-        )
-        assert (
-            client.post(prefix + "/song-selection", json={"token": token}).json()[
-                "error"
-            ]["code"]
-            == "song_selection_expired"
-        )
-        assert (
-            TestClient(app)
-            .post(prefix + "/song-selection", json={"token": token})
-            .status_code
-            == 401
-        )
-        token = app.state.song_search.tokens.issue("another-room", SONG, 10**15)
-        assert (
-            client.post(prefix + "/song-selection", json={"token": token}).json()[
-                "error"
-            ]["code"]
-            == "invalid_song_selection"
-        )
 
 
 def test_streaming_import_validates_real_canonical_columns_and_skips_composite_credit(

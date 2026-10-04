@@ -5,12 +5,12 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.app import create_app
 from backend.catalog.links import fingerprint
 from backend.catalog.search import SongSearch
 from backend.catalog.store import CatalogStore
 from tests.support.demo import demo_config
 from tests.integration.test_catalog_store import bulk_song, store_at
+from tests.integration.test_music_admission import admit, create_normal_app
 from tests.unit.test_song_catalog import SONG
 
 
@@ -170,27 +170,38 @@ def test_http_every_equivalent_match_reused_across_rooms_years_and_provider_outa
 
     for attempt in range(2):
         search = SongSearch(provider, provider_scope=scope, clock=lambda: now[0])
-        app = create_app(demo_config(tmp_path), background=False, song_search=search)
+        app = create_normal_app(demo_config(tmp_path), background=False, song_search=search)
         with TestClient(app) as client:
             app.state.catalog_store.save_songs(
                 [source], "musicbrainz:canonical:CC0", now[0]
             )
             for index in range(2):
-                room = client.post(
-                    "/api/rooms", json={"nickname": "Host", "mode": "demo"}
-                ).json()
+                room = admit(client, "Host", f"account-{attempt}-{index}")
                 prefix = "/api/rooms/" + room["room_id"]
-                token = search.tokens.issue(
-                    room["room_id"], source | {"_catalog_reference": True}, 10**15
-                )
+                if attempt == index == 0:
+                    result = client.get(
+                        prefix + "/song-search", params={"q": "billie", "local": True}
+                    ).json()["songs"][0]
+                    assert result["resolve_required"] is True and calls == []
+                    token = result["token"]
+                else:
+                    token = search.tokens.issue(
+                        room["room_id"], source | {"_catalog_reference": True}, 10**15
+                    )
                 response = client.post(
                     prefix + "/song-selection", json={"token": token}
                 )
                 assert response.status_code == 200, response.text
+                assert set(response.json()) == {"title", "artist", "artwork_url", "token"}
                 decoded = search.tokens.decode(
                     response.json()["token"], room["room_id"]
                 )[0]
                 assert decoded == targets[0]
+                ordinary = client.get(
+                    prefix + "/song-search", params={"q": "Billie Jean"}
+                ).json()["songs"][0]
+                assert ordinary["title"] == SONG["title"]
+                assert "resolve_required" not in ordinary
             assert app.state.catalog_store.links.find(scope, "guess", source) == targets
             assert all(
                 app.state.catalog_store.links.find(scope, "guess", target) == [source]

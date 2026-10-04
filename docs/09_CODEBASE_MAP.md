@@ -1,9 +1,6 @@
 # 09 — Codebase Map
 
-Current checkout, updated 2026-10-04. One Python process serves two business
-domains, the public metadata catalog, API and native browser client. Assignment 1
-uses layered modules within the required monolithic deployment. Folder boundaries
-define responsibility; they do not imply separately deployed services.
+Current checkout, updated 2026-10-04. One Python process serves two business domains, the public metadata catalog, API and native browser client. Assignment 1 uses layered modules within the required monolithic deployment. Folder boundaries define responsibility; they do not imply separately deployed services.
 
 ## Backend ownership
 
@@ -30,17 +27,9 @@ define responsibility; they do not imply separately deployed services.
 | `backend/game/views.py` | Public projections, caller-owned answer visibility and private host audio manifest |
 | `backend/storage/database.py` | SQLite connection policy and application migrations 001–006 |
 
-There is no separate phase controller: `GameService` owns timed transitions and
-commands together. Routes call injected use cases. Coordination applies due
-transitions before accepting the incoming command, keeping closure/expiry correct
-when a stale request is rejected. Room locks serialize both requests and cleanup;
-SQLite transactions maintain local cross-domain atomicity.
+There is no separate phase controller: `GameService` owns timed transitions and commands together. Routes call injected use cases. Coordination applies due transitions before accepting the incoming command, keeping closure/expiry correct when a stale request is rejected. Room locks serialize both requests and cleanup; SQLite transactions maintain local cross-domain atomicity.
 
-Rooms exports roster, song facts and familiarity values at Start. Game freezes
-them without querying live membership tables. SQL foreign keys still enforce the
-shared local room lifecycle, as shown in [the data model](06_DATA_MODEL.md).
-Replacing storage or splitting services requires addressing that transaction and
-lifecycle boundary explicitly.
+Rooms exports roster, song facts and familiarity values at Start. Game freezes them without querying live membership tables. SQL foreign keys still enforce the shared local room lifecycle, as shown in [the data model](06_DATA_MODEL.md). Replacing storage or splitting services requires addressing that transaction and lifecycle boundary explicitly.
 
 ## Public metadata and music adapters
 
@@ -60,16 +49,9 @@ lifecycle boundary explicitly.
 | `backend/music/importer.py` | Bounded import/preview work, observed membership preservation and independent decoys |
 | `backend/music/admissions.py` | Expiring browser-bound PKCE receipts and background import jobs; no SQL |
 
-Public search knows no hidden listener tables or private room SQL. Application
-commands supply Demo metadata only when permitted. Provider waits happen after
-room serialization/read contexts end. Successful relationships are reused across
-rooms/games; preview expiry does not expire the recording identity. Signed answer
-submission and score closure need no provider I/O.
+Public search knows no hidden listener tables or private room SQL. Application commands supply Demo metadata only when permitted. Provider waits happen after room serialization/read contexts end. Successful relationships are reused across rooms/games; preview expiry does not expire the recording identity. Signed answer submission and score closure need no provider I/O.
 
-All active persistence uses `DATA_DIR/whos_on_repeat.sqlite3`: application migration
-version 6 and catalog component version 3 coexist independently. There is no
-separate catalog file or legacy import module. Shared catalog data contains no
-private account/listener evidence.
+All active persistence uses `DATA_DIR/whos_on_repeat.sqlite3`: application migration version 6 and catalog component version 3 coexist independently. There is no separate catalog file or legacy import module. Shared catalog data contains no private account/listener evidence.
 
 ## Browser ownership
 
@@ -93,52 +75,19 @@ private account/listener evidence.
 | `frontend/dom.mjs` | Stable keyed reconciliation and safe text updates |
 | `frontend/lab.mjs`, `lab/`, `lab.html` | Fixture-only visual studio, with separate cancellation/clock ownership |
 
-Guests acknowledge round data independently of host playback. Only the host
-speaker loads/plays game clips in the current mode. Resetting or changing room
-invalidates pending audio/readiness work. Polling preserves stable controls and
-SVG nodes; result helpers display authoritative scores rather than recalculate
-them. Reveal includes only the requesting player's guesses alongside the public
-correct song, frozen listeners and rankings.
+Guests acknowledge round data independently of host playback. Only the host speaker loads/plays game clips in the current mode. Resetting or changing room invalidates pending audio/readiness work. Polling preserves stable controls and SVG nodes; result helpers display authoritative scores rather than recalculate them. Reveal includes only the requesting player's guesses alongside the public correct song, frozen listeners and rankings.
 
-Native `.mjs` modules are served directly from `/ui/`, with no npm manifest or
-build step. `/` is the game; `/ui-lab` is explicitly fixture-only. Browser Search
-or Enter sends a query; typing alone does not. A selected unresolved bulk result
-is verified once before its signed facts can be submitted.
+Native `.mjs` modules are served directly from `/ui/`, with no npm manifest or build step. `/` is the game; `/ui-lab` is explicitly fixture-only. Browser Search or Enter sends a query; typing alone does not. A selected unresolved bulk result is verified once before its signed facts can be submitted.
 
 ## Assets, tools and verification
 
-`catalog/demo_catalog.json` contains the sole default Demo's 100 public metadata
-rows: 80 personal songs and 20 decoys. Every participant receives 36 personal
-songs with simulated familiarity. The tracked `catalog/demo_pack_source.json`
-pins the corresponding Drive archive and inventory; media installs under ignored
-`catalog/local/packs/<pack>-<sha12>/`. API keys and ffmpeg are unnecessary for
-installation and play. First setup needs internet or the pinned ZIP supplied to
-`tools/setup_demo_pack.py --archive`. Media is served at `/static/demo/local/`;
-`/music-credits` serves the selected pack's attribution. Private acquisition
-tooling and original media remain excluded from source control. No synthetic
-or festival fallback catalog remains. See [catalog setup](../catalog/README.md).
+`catalog/demo_catalog.json` contains the sole default Demo's 100 public metadata rows: 80 personal songs and 20 decoys. Every participant receives 36 personal songs with simulated familiarity. The tracked `catalog/demo_pack_source.json` pins the corresponding Drive archive and inventory; media installs under ignored `catalog/local/packs/<pack>-<sha12>/`. API keys and ffmpeg are unnecessary for installation and play. First setup needs internet or the pinned ZIP supplied to `tools/setup_demo_pack.py --archive`. Media is served at `/static/demo/local/`; `/music-credits` serves the selected pack's attribution. Private acquisition tooling and original media remain excluded from source control. No synthetic or festival fallback catalog remains. See [catalog setup](../catalog/README.md).
 
-The UI lab requests one actual catalog sample from `/api/demo/preview`; its
-alternate guesses are metadata-only rendering scenarios rather than another
-playable catalog. Startup does not autoplay audio, and character/lobby fixtures
-remain available if music metadata cannot load.
+The UI lab requests one actual catalog sample from `/api/demo/preview`; its alternate guesses are metadata-only rendering scenarios rather than another playable catalog. Startup does not autoplay audio, and character/lobby fixtures remain available if music metadata cannot load.
 
-`tools/drive_download.py` owns anonymous Drive confirmation and bounded ZIP
-transfer; `tools/demo_pack.py` owns pinned inventory checks, locking and atomic
-installation. `tools/demo_pack_validation.py` shares the actual catalog and
-asset validation between setup and launch. `tools/setup_demo_pack.py` is the
-public install/offline-check command. The launch script prepares a missing pack
-before starting the server; runtime providers and application data are independent
-of that setup. Downloads and installations stay in ignored `catalog/local/`;
-only the descriptor, installer and tests belong in source control.
+`tools/drive_download.py` owns anonymous Drive confirmation and bounded ZIP transfer; `tools/demo_pack.py` owns pinned inventory checks, locking and atomic installation. `tools/demo_pack_validation.py` shares the actual catalog and asset validation between setup and launch. `tools/setup_demo_pack.py` is the public install/offline-check command. The launch script prepares a missing pack before starting the server; runtime providers and application data are independent of that setup. Downloads and installations stay in ignored `catalog/local/`; only the descriptor, installer and tests belong in source control.
 
-`requirements.txt` is the single root runtime/test dependency manifest.
-`pyproject.toml` configures verification rather than declaring another dependency
-set. `tools/verify.sh` runs local checks; catalog setup/import and playtest/load
-tools are optional development tools. `tools/run_demo.sh` and
-`tools/run_real_game.sh` share a portable `launch_game.py` entry, environment and
-asset preflight, and Python setup helpers. The application startup contract does
-not require a `.env` file, manual migrations, tunnel or media encoder.
+`requirements.txt` is the single root runtime/test dependency manifest. `pyproject.toml` configures verification rather than declaring another dependency set. `tools/verify.sh` runs local checks; catalog setup/import and playtest/load tools are optional development tools. `tools/run_demo.sh` and `tools/run_real_game.sh` share a portable `launch_game.py` entry, environment and asset preflight, and Python setup helpers. The application startup contract does not require a `.env` file, manual migrations, tunnel or media encoder.
 
 | Change | Starting point | Meaningful verification |
 |---|---|---|
@@ -153,9 +102,4 @@ not require a `.env` file, manual migrations, tunnel or media encoder.
 | Demo metadata/media | Pinned metadata/source, installer and pack validation | Full default ten-/fifteen-round HTTP match, real media retrieval and decode |
 | Presentation | Screens, components and styles | Browser interaction, keyboard/mobile layout and physical devices |
 
-`tests/unit/` isolates business policy with explicit dependencies; integration
-tests use temporary real SQLite and production HTTP paths; `tests/frontend/`
-checks browser module behavior with Node. Automated acceptance does not establish
-physical audio, phone compatibility, synchronized speakers or real-account
-availability. Run/setup/coverage commands live in [README](../README.md); dated
-experiments remain in the PoC and implementation-status documents.
+`tests/unit/` isolates business policy with explicit dependencies; integration tests use temporary real SQLite and production HTTP paths; `tests/frontend/` checks browser module behavior with Node. Automated acceptance does not establish physical audio, phone compatibility, synchronized speakers or real-account availability. Run/setup/coverage commands live in [README](../README.md); dated experiments remain in the PoC and implementation-status documents.

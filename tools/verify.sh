@@ -7,6 +7,16 @@ verification_python="${PYTHON:-.venv/bin/python}"
 "$verification_python" -m pytest -q tests/unit \
   --cov=backend.rooms.service --cov=backend.game.service \
   --cov=backend.game.scoring --cov=backend.game.selection \
-  --cov-report=term-missing --cov-fail-under=70
+  --cov=backend.game.preparation \
+  --cov-report=term-missing --cov-fail-under=90
+# Enforce the target in each domain; a stronger domain cannot hide a weaker one.
+"$verification_python" -m coverage report \
+  --include=backend/rooms/service.py --fail-under=90
+"$verification_python" -m coverage report \
+  --include='backend/game/service.py,backend/game/scoring.py,backend/game/selection.py,backend/game/preparation.py' \
+  --fail-under=90
+# Preparation is small and critical: also prevent dilution within Game coverage.
+"$verification_python" -m coverage report \
+  --include=backend/game/preparation.py --fail-under=90
 "$verification_python" -m pytest -q tests/integration
 node --test tests/frontend/*.test.mjs

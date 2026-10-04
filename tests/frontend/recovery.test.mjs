@@ -751,25 +751,6 @@ test("a delayed ready acknowledgement cannot block polling or host countdown sch
   session.audio.reset();
 });
 
-test("decoded upcoming audio is ready during results only while its context is running", async (t) => {
-  const session = audioSession();
-  t.after(() => session.audio.reset());
-  await session.audio.enable();
-  await session.audio.synchronize();
-  await settleUntil(() => session.requestsFor("/preload-check").length === 2 &&
-    session.audio.readiness(session.state.game.round).ready, "decoded preparation");
-  session.state.game.phase = "reveal";
-  const upcoming = { id: "next", audio_candidate_id: "two" };
-  assert.equal(session.audio.readiness(upcoming).ready, true);
-  const fetched = session.counts().fetches;
-  const started = session.sources.filter((source) => source.starts.length).length;
-  await session.audio.synchronize();
-  assert.equal(session.counts().fetches, fetched);
-  assert.equal(session.sources.filter((source) => source.starts.length).length, started);
-  session.context().state = "suspended";
-  assert.equal(session.audio.readiness(upcoming).ready, false);
-});
-
 for (const state of ["suspended", "interrupted", "closed"]) {
   test(`${state} host audio blocks current and upcoming acknowledgements until enabled again`, async (t) => {
     const session = audioSession({
@@ -785,6 +766,15 @@ for (const state of ["suspended", "interrupted", "closed"]) {
       () => session.audio.readiness(session.state.game.round).ready,
       "decoded host audio",
     );
+    session.state.game.phase = "reveal";
+    session.state.game.upcoming_round = {
+      id: "next", readiness_generation: 4, audio_candidate_id: "two",
+    };
+    assert.equal(session.audio.readiness(session.state.game.upcoming_round).ready, true);
+    const fetched = session.counts().fetches;
+    await session.audio.synchronize();
+    assert.equal(session.counts().fetches, fetched, "decoded upcoming audio is reused");
+    assert.equal(session.sources.length, 1, "results never start playback");
     const originalContext = session.context();
     const before = session.renders();
     originalContext.state = state;
@@ -798,9 +788,6 @@ for (const state of ["suspended", "interrupted", "closed"]) {
     await session.audio.synchronize();
     assert.equal(session.readySent.size, 0);
     session.state.game.phase = "leaderboard";
-    session.state.game.upcoming_round = {
-      id: "next", readiness_generation: 4, audio_candidate_id: "two",
-    };
     await session.upcomingReadiness.synchronize();
     assert.equal(session.requestsFor("/ready").length, 0);
     assert.equal(session.requestsFor("/audio-failure").length, 0);

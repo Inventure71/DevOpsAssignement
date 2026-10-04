@@ -241,10 +241,20 @@ def test_slow_catalog_lookup_does_not_hold_room_command_lock(tmp_path):
             assert pending.result(timeout=2).status_code == 200
 
 
-def test_selection_resolution_rejects_exact_expiry_boundary(session):
+def test_selection_resolution_requires_authentic_room_token_before_exact_expiry(session):
     c, clock, host, guests, room, prefix, lease = session
     search = host.app.state.song_search
     selection = search.tokens.issue(room["room_id"], SONG, clock.value - 1_200_000)
     response = host.post(prefix + "/song-selection", json={"token": selection})
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "song_selection_expired"
+    valid = search.tokens.issue(room["room_id"], SONG, clock.value)
+    with TestClient(host.app) as anonymous:
+        assert anonymous.post(prefix + "/song-selection", json={"token": valid}).status_code == 401
+    wrong_room = search.tokens.issue("another-room", SONG, clock.value)
+    for token in (wrong_room, valid[:-1] + "x"):
+        response = host.post(prefix + "/song-selection", json={"token": token})
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "invalid_song_selection"
+    just_before = search.tokens.issue(room["room_id"], SONG, clock.value - 1_199_999)
+    assert host.post(prefix + "/song-selection", json={"token": just_before}).status_code == 200

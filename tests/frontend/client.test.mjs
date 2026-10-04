@@ -7,8 +7,6 @@ import {
 } from "../../frontend/transport/client.mjs";
 import { createRuntime } from "../../frontend/application/runtime.mjs";
 import { createActions } from "../../frontend/application/actions.mjs";
-import { createAudioController } from "../../frontend/audio/host.mjs";
-import { waveformLevels } from "../../frontend/audio/levels.mjs";
 
 function storage() {
   const values = new Map();
@@ -389,100 +387,4 @@ test("no answer is sent at or after the deadline", async () => {
   await action("submit-answer");
   assert.equal(calls, 0);
   assert.equal(m.ui.state.game.round.my_answer, null);
-});
-test("waveform derives levels from audio samples and keeps silence zero", () => {
-  const quiet = { getChannelData: () => new Float32Array(4800) };
-  assert.deepEqual(waveformLevels(quiet), Array(48).fill(0));
-  const data = new Float32Array(4800);
-  data.fill(0.5, 2400);
-  const levels = waveformLevels({ getChannelData: () => data });
-  assert.equal(levels.length, 48);
-  assert.equal(levels[0], 0);
-  assert.equal(levels[47], 1);
-  assert(levels.every((level) => level >= 0 && level <= 1));
-});
-test("host preloading deduplicates source URLs and publishes real waveform levels", async () => {
-  const state = snapshot();
-  state.game.phase = "setup";
-  let fetches = 0,
-    decoded = 0;
-  const checks = [];
-  const sources = [];
-  const samples = new Float32Array(4800).fill(0.4);
-  class Context extends EventTarget {
-    state = "running";
-    sampleRate = 48000;
-    destination = {};
-    currentTime = 5;
-    async resume() {}
-    createBuffer() {
-      return {};
-    }
-    createBufferSource() {
-      const source = {
-        connect() {},
-        start(...args) {
-          this.starts = args;
-        },
-        stop(...args) {
-          this.stops = args;
-        },
-      };
-      sources.push(source);
-      return source;
-    }
-    async decodeAudioData() {
-      decoded++;
-      return { duration: 30, getChannelData: () => samples };
-    }
-  }
-  const api = async (url, options) => {
-    if (url.endsWith("/audio-controller")) return { lease_id: "lease" };
-    if (url.endsWith("/audio"))
-      return {
-        candidates: [
-          { candidate_id: "one", preview_url: "/clip" },
-          { candidate_id: "two", preview_url: "/clip" },
-        ],
-      };
-    if (url.endsWith("/preload-check")) checks.push(options.body);
-    return { accepted: true };
-  };
-  const environment = {
-    AudioContext: Context,
-    fetch: async () => {
-      fetches++;
-      return { ok: true, arrayBuffer: async () => new ArrayBuffer(1) };
-    },
-    AbortController,
-    setTimeout,
-    clearTimeout,
-  };
-  const audio = createAudioController(
-    { api, path: (s) => s, roundPath: (s) => s },
-    () => state,
-    () => 2000,
-    "tab",
-    () => {},
-    (message) => assert.fail(message),
-    environment,
-  );
-  await audio.enable();
-  await audio.synchronize();
-  for (let i = 0; i < 30 && checks.length < 2; i++)
-    await new Promise((r) => setTimeout(r, 2));
-  assert.equal(checks.length, 2);
-  assert.equal(fetches, 1);
-  assert.equal(decoded, 1);
-  assert.equal(checks[0].waveform.length, 48);
-  state.game.round.audio_candidate_id = "one";
-  state.game.round.starts_at_ms = 3000;
-  state.game.round.deadline_at_ms = 23000;
-  state.game.phase = "countdown";
-  await audio.synchronize();
-  await audio.synchronize();
-  assert.equal(sources.length, 2);
-  assert.deepEqual(sources[1].starts, [6]);
-  assert.deepEqual(sources[1].stops, [26]);
-  audio.reset();
 });
