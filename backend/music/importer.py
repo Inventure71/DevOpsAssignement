@@ -3,16 +3,35 @@
 from concurrent.futures import ThreadPoolExecutor
 
 from backend.core.errors import DomainError
+from backend.music.sources import MusicSource
 
 
 class MusicImporter:
-    def __init__(self, spotify, resolver, decoy_provider):
-        self.spotify, self.resolver = spotify, resolver
+    def __init__(
+        self,
+        source: MusicSource,
+        resolver,
+        decoy_provider,
+        *,
+        personal_target=24,
+        decoy_target=12,
+        candidate_limit=60,
+        decoy_candidate_limit=30,
+        minimum_personal=10,
+        minimum_decoys=3,
+    ):
+        self.source, self.resolver = source, resolver
         self.decoy_provider = decoy_provider
+        self.personal_target, self.decoy_target = personal_target, decoy_target
+        self.candidate_limit, self.decoy_candidate_limit = (
+            candidate_limit,
+            decoy_candidate_limit,
+        )
+        self.minimum_personal, self.minimum_decoys = minimum_personal, minimum_decoys
 
     def _resolve(self, candidates, target=24):
         songs, errors = [], []
-        # Spotify already interleaves familiarity strata. Batches retain that
+        # Sources already order familiarity strata. Batches retain that
         # order and avoid scheduling all 60 lookups before enough clips exist.
         with ThreadPoolExecutor(
             max_workers=4, thread_name_prefix="music-preview"
@@ -34,22 +53,22 @@ class MusicImporter:
         except DomainError as error:
             return None, error
 
-    def import_account(self, token, include_decoys=False):
-        account_id = self.spotify.profile(token)
-        candidates = self.spotify.listening(token)[:60]
-        songs, errors = self._resolve(candidates)
-        if len(songs) < 10:
+    def import_account(self, credential=None, include_decoys=False):
+        listening = self.source.read(credential)
+        candidates = listening.songs[: self.candidate_limit]
+        songs, errors = self._resolve(candidates, target=self.personal_target)
+        if len(songs) < self.minimum_personal:
             if errors:
                 raise errors[0]
             raise DomainError(
                 "insufficient_playable_songs",
-                "Your Spotify history has fewer than ten playable songs.",
+                f"Your {self.source.label} listening data has too few playable songs.",
                 422,
                 {"candidate_count": len(candidates), "playable_count": len(songs)},
             )
         decoys = []
         if include_decoys:
-            decoy_candidates = self.decoy_provider()[:30]
+            decoy_candidates = self.decoy_provider()[: self.decoy_candidate_limit]
             personal_keys = {song["song_key"] for song in candidates}
             personal_isrcs = {song["isrc"] for song in candidates if song.get("isrc")}
             decoy_candidates = [
@@ -58,8 +77,10 @@ class MusicImporter:
                 if song["song_key"] not in personal_keys
                 and (not song.get("isrc") or song["isrc"] not in personal_isrcs)
             ]
-            decoys, decoy_errors = self._resolve(decoy_candidates, target=12)
-            if len(decoys) < 3:
+            decoys, decoy_errors = self._resolve(
+                decoy_candidates, target=self.decoy_target
+            )
+            if len(decoys) < self.minimum_decoys:
                 if decoy_errors:
                     raise decoy_errors[0]
                 raise DomainError(
@@ -69,7 +90,9 @@ class MusicImporter:
                     {"playable_count": len(decoys)},
                 )
         return {
-            "account_id": account_id,
+            "provider": listening.provider,
+            "evidence": listening.evidence,
+            "account_id": listening.account_id,
             "songs": songs,
             "observed_songs": candidates,
             "decoys": decoys,

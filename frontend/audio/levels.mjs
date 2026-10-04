@@ -17,8 +17,7 @@ export function waveformLevels(
     duration && Number.isFinite(durationSeconds)
       ? Math.max(0, durationSeconds / duration)
       : 1;
-  // The full round is the x-axis. Short clips leave actual silence afterward,
-  // rather than stretching ten seconds of sound into a twenty-second round.
+  // The full round is the x-axis; short clips leave silence after their end.
   const length = Math.min(
     Number.MAX_SAFE_INTEGER,
     Math.floor(samples.length * fraction),

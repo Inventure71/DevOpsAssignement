@@ -237,6 +237,62 @@ def test_exact_deadline_commits_closure_even_when_answer_rejected(session):
         )
 
 
+def test_release_edition_search_submission_and_reveal_award_full_credit(session):
+    c, clock, host, guests, _room, prefix, _lease = session
+    gid, attempt, _ = start(session)
+    with c.db.transaction() as conn:
+        current = c.game.repo.current(conn, gid)
+        game = c.game.repo.game(conn, gid)
+        frozen = game["songs_snapshot_json"]
+        song = next(
+            s for s in json.loads(frozen) if s["song_key"] == current["song_key"]
+        )
+        # A distinct public release enters through the real catalog/search path.
+        conn.execute(
+            """INSERT INTO demo_catalog
+               SELECT 'alternate-edition',pool_kind,isrc,title || ' (Remastered 2014)',
+                      artist,artists_json,preview_url,artwork_url
+               FROM demo_catalog WHERE title=? AND artist=?""",
+            (song["title"], song["artist"]),
+        )
+        clock.value = current["starts_at_ms"]
+    c.tick()
+    search = host.get(prefix + "/song-search", params={"q": song["title"]})
+    assert search.status_code == 200, search.text
+    edition = next(
+        s for s in search.json()["songs"] if s["title"].endswith("(Remastered 2014)")
+    )
+    listeners = [p["player_id"] for p in song["listeners"]]
+    path = prefix + f"/games/{gid}/rounds/{attempt['id']}/answers"
+    assert (
+        host.post(
+            path,
+            json={"song_guess_token": edition["token"], "who_player_ids": listeners},
+        ).status_code
+        == 200
+    )
+    for guest in guests:
+        assert (
+            guest.post(
+                path, json={"song_guess_token": None, "who_player_ids": []}
+            ).status_code
+            == 200
+        )
+    reveal = host.get(prefix + "/state").json()["game"]["round"]["reveal"]
+    assert reveal["song"]["title"] == song["title"]
+    assert reveal["my_answer"]["song_guess"]["title"] == edition["title"]
+    assert reveal["my_answer"]["song_match"] == "correct"
+    assert (
+        reveal["my_answer"]["points"]
+        == {"easy": 375, "medium": 563, "hard": 750, "decoy": 375}[
+            current["difficulty"]
+        ]
+    )
+    assert set(reveal["listener_ids"]) == set(listeners)
+    with c.db.read() as conn:
+        assert c.game.repo.game(conn, gid)["songs_snapshot_json"] == frozen
+
+
 def test_host_expiry_cannot_be_revived_by_late_heartbeat(session):
     c, clock, host, guests, room, prefix, lease = session
     gid, _, _ = start(session)

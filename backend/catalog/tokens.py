@@ -1,4 +1,4 @@
-"""Room-scoped, authenticated metadata selections; no provider call on submission."""
+"""Signed, room-scoped song metadata and expiry."""
 
 import base64
 import hashlib

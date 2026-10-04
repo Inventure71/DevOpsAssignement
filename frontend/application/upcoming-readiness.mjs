@@ -1,7 +1,7 @@
 import { requestId } from "../transport/client.mjs";
 
-// Results polling renews short-lived preparation acknowledgements. This owns no
-// playback or timers; the normal ready-round acknowledgement remains the fallback.
+// Results polling renews preparation acknowledgements; current-round check-in
+// remains the fallback.
 export function createUpcomingReadiness(
   transport,
   getState,

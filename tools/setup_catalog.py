@@ -59,7 +59,7 @@ def official_open(request):
 
 
 def import_archive(archive, database, zstd, limit):
-    """Read one CSV directly from the decompression pipe; never extract files."""
+    """Stream one CSV directly from the decompression pipe."""
     Database(database).initialize()
     store = CatalogStore(database)
     store.initialize()
@@ -140,7 +140,7 @@ def main(argv=None):
         parser.error("--limit must be positive")
     try:
         official_url(args.url)
-        # --info has no dependency on zstd and no filesystem side effects.
+        # Report metadata before loading decompression dependencies.
         zstd = shutil.which("zstd")
         if not args.info and not args.download_only and zstd is None:
             raise ValueError("zstd is required on PATH before downloading for import")

@@ -1,14 +1,11 @@
 """Seeded catalog adapter; assignments remain private to the Rooms domain."""
 
 import json
-import secrets
 import sqlite3
 from pathlib import Path
 from urllib.parse import unquote
 
 from backend.catalog.identity import normalized_words, recording_title
-
-ASSIGNMENT_SIZE = 36
 
 
 def seed_demo(conn: sqlite3.Connection, path: Path) -> None:
@@ -161,63 +158,22 @@ def preview_sample(conn: sqlite3.Connection) -> dict:
     return dict(row)
 
 
-def assign(conn: sqlite3.Connection, room_id: str, player_id: str) -> None:
-    catalog = list(
-        conn.execute(
-            "SELECT * FROM demo_catalog WHERE pool_kind = 'personal' ORDER BY id"
+def catalog_snapshot(conn: sqlite3.Connection) -> dict[str, list[dict]]:
+    """Copy shared catalog facts; preparation runs after this short read closes."""
+    pools = {"personal": [], "decoy": []}
+    for row in conn.execute("SELECT * FROM demo_catalog ORDER BY id"):
+        pools[row["pool_kind"]].append(
+            {
+                "song_key": "demo:" + row["id"],
+                "isrc": row["isrc"],
+                "title": row["title"],
+                "artist": row["artist"],
+                "artists": json.loads(row["artists_json"]),
+                "preview_url": row["preview_url"],
+                "artwork_url": row["artwork_url"],
+            }
         )
-    )
-    if not catalog:
-        raise RuntimeError("Demo catalog is not initialized")
-    rng = secrets.SystemRandom()
-    count = min(ASSIGNMENT_SIZE, len(catalog))
-    for song in rng.sample(catalog, count):
-        identity = (
-            "isrc:" + song["isrc"].strip().upper()
-            if song["isrc"]
-            else "demo:" + song["id"]
-        )
-        conn.execute(
-            """INSERT INTO songs (id, room_id, identity_key, isrc, title, artist, artists_json, preview_url, artwork_url)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(room_id, identity_key) DO NOTHING""",
-            (
-                secrets.token_hex(16),
-                room_id,
-                identity,
-                song["isrc"],
-                song["title"],
-                song["artist"],
-                song["artists_json"],
-                song["preview_url"],
-                song["artwork_url"],
-            ),
-        )
-        song_id = conn.execute(
-            "SELECT id FROM songs WHERE room_id=? AND identity_key=?",
-            (room_id, identity),
-        ).fetchone()[0]
-        conn.execute(
-            "INSERT INTO player_songs (room_id, player_id, song_id, familiarity) VALUES (?, ?, ?, ?)",
-            (room_id, player_id, song_id, rng.choice(("easy", "medium", "hard"))),
-        )
-
-
-def decoys(conn: sqlite3.Connection) -> list[dict]:
-    return [
-        {
-            "song_key": "demo-decoy:" + row["id"],
-            "isrc": row["isrc"],
-            "title": row["title"],
-            "artist": row["artist"],
-            "artists": json.loads(row["artists_json"]),
-            "preview_url": row["preview_url"],
-            "artwork_url": row["artwork_url"],
-            "listeners": [],
-        }
-        for row in conn.execute(
-            "SELECT * FROM demo_catalog WHERE pool_kind='decoy' ORDER BY id"
-        )
-    ]
+    return pools
 
 
 def search_fixtures(conn):

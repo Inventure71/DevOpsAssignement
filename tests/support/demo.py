@@ -1,11 +1,11 @@
 """Isolated transport media for tests; runtime always uses the installed pack."""
 
+import json
+import wave
 from functools import lru_cache
 from io import BytesIO
-import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import wave
 
 from backend.core.config import Config
 from backend.core.paths import CATALOG_PATH
@@ -64,3 +64,20 @@ def demo_config(*args, **kwargs):
     if "demo_pack_dir" not in kwargs:
         kwargs["demo_pack_dir"] = shared_demo_pack()
     return Config(*args, **kwargs)
+
+
+def prepared_demo_import(conn, *, include_decoys=True):
+    """Supply prepared source facts to tests focused on Rooms persistence."""
+    from backend.music.sources import DemoListeningAdapter
+    from backend.rooms.demo import catalog_snapshot
+
+    pools = catalog_snapshot(conn)
+    listening = DemoListeningAdapter(pools["personal"]).read()
+    return {
+        "provider": listening.provider,
+        "evidence": listening.evidence,
+        "account_id": listening.account_id,
+        "songs": listening.songs,
+        "observed_songs": listening.songs,
+        "decoys": pools["decoy"][:20] if include_decoys else [],
+    }

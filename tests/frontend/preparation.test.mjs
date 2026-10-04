@@ -27,7 +27,7 @@ test("insufficient history stays actionable without revealing candidate/resolver
     code: "insufficient_playable_songs", details: { candidate_count: 60, playable_count: 4 },
   } });
   assert.match(result.message, /at least 10 songs/);
-  assert.match(result.message, /another Spotify account or play the demo/);
+  assert.match(result.message, /another music account or play the demo/);
   assert.doesNotMatch(result.message, /60|4|candidate|resolver/);
   const unknown = musicPreparation({ status: "failed", error: { message: "Apple JWT invalid, worker quota 60" } });
   assert.doesNotMatch(unknown.message, /Apple|JWT|worker|quota|60/);

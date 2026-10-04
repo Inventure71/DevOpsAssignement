@@ -1,4 +1,4 @@
-# Single assignment manifest: application and local verification dependencies.
+# Application and verification dependencies.
 fastapi==0.142.2
 uvicorn==0.54.0
 PyJWT[crypto]==2.10.1

@@ -2,7 +2,7 @@ import { requestId } from "../transport/client.mjs";
 import { modeAvailable, modeReason } from "./launch-config.mjs";
 import { startReadiness } from "../game/lobby-readiness.mjs";
 
-// User commands own mutations. Polling never guesses, submits or changes settings.
+// User commands own mutations; polling reads state.
 export function createActions({
   model,
   transport,
@@ -88,12 +88,6 @@ export function createActions({
       await musicAdmission.resume();
       return;
     }
-    if (name === "back-to-sign-in") {
-      musicAdmission.stop();
-      ui.musicImport = null;
-      render();
-      return;
-    }
     if (name === "character" && !ui.state) {
       ui.character = payload;
       render();
@@ -139,7 +133,14 @@ export function createActions({
     ui.error = null;
     render();
     try {
-      if (name === "admit") {
+      if (name === "connect-music") {
+        if (!modeAvailable(ui, "normal")) throw new Error(modeReason(ui, "normal"));
+        await musicAdmission.start(payload);
+      } else if (name === "music-back" || name === "back-to-sign-in") {
+        await musicAdmission.back(name === "back-to-sign-in");
+      } else if (name === "retry-music-config") {
+        await musicAdmission.loadConfig();
+      } else if (name === "admit") {
         if (ui.launchStatus !== "ready")
           throw new Error(ui.launchError || "Please wait while the game connects.");
         const fields = {
@@ -160,13 +161,13 @@ export function createActions({
             });
           } catch (error) {
             if (error.code !== "music_sign_in_required") throw error;
-            await musicAdmission.start({ ...fields, room_id: resolved.room_id });
+            await musicAdmission.open({ ...fields, mode: "normal", room_id: resolved.room_id }, ui.draftCode.trim());
             return;
           }
         } else if (!modeAvailable(ui, ui.mode)) {
           throw new Error(modeReason(ui, ui.mode));
         } else if (ui.mode === "normal") {
-          await musicAdmission.start(fields);
+          await musicAdmission.open({ ...fields, mode: "normal" });
           return;
         } else
           result = await api("/api/rooms", {
@@ -285,8 +286,9 @@ export function createActions({
           );
       }
     } catch (error) {
-      if (name === "admit") {
+      if (["admit", "connect-music", "music-back", "back-to-sign-in", "retry-music-config"].includes(name)) {
         ui.error = { message: error.message };
+        if (ui.musicConnection) ui.musicConnection.error = error.message;
         if (error.code === "session_https_required" && error.details?.application_url) {
           const address = new URL(error.details.application_url);
           if (ui.screen === "join") address.searchParams.set("join", ui.draftCode);

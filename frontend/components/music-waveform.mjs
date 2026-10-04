@@ -9,8 +9,7 @@ const SVG = "http://www.w3.org/2000/svg";
 let serial = 0;
 const format = (milliseconds) =>
   `${Math.floor(milliseconds / 60000)}:${String(Math.floor(milliseconds / 1000) % 60).padStart(2, "0")}`;
-// Audio decoding and scheduling belong to the caller; this element only draws
-// measured samples and the authoritative timeline. No private clocks or fetches.
+// Draws measured samples on the caller's clock; the caller owns audio playback.
 class MusicWaveform extends HTMLElement {
   constructor() {
     super();

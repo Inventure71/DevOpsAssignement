@@ -1,4 +1,4 @@
-"""Small bounded JSON transport; provider errors never expose response bodies."""
+"""Bounded JSON transport and sanitized provider errors."""
 
 import json
 import math

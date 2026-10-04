@@ -1,4 +1,4 @@
-// The screen and audio drawing share one clock; neither owns a timer.
+// Countdown and waveform use the screen clock.
 export function roundTiming({ startsAt, deadline, now }) {
   const valid =
     [startsAt, deadline, now].every(Number.isFinite) && deadline > startsAt;

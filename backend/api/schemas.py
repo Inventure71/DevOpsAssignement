@@ -19,7 +19,12 @@ class Create(Identity):
 
 
 class MusicAdmission(Identity):
+    provider: Annotated[str, Field(min_length=1, max_length=32, pattern=r"^[a-z][a-z0-9_-]*$")]
     room_id: Annotated[str, Field(min_length=1, max_length=64)] | None = None
+
+
+class MusicAcknowledgement(Body):
+    admission_id: Annotated[str, Field(min_length=1, max_length=128)]
 
 
 class Settings(Body):

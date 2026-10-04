@@ -4,7 +4,7 @@ A music party game: listen to a song, guess its title and identify which players
 
 ## Run
 
-**For assessment, please use Demo.** It includes 100 real song previews and simulated player libraries, so no Spotify account or API keys are needed. You can try a complete game by yourself using two browser tabs.
+**For assessment, use Demo.** It includes 100 real song previews and simulated listening libraries. No Spotify account or API keys are needed, and you can test it by yourself in two browser sessions.
 
 You need **Python 3.12+**, a modern browser and internet access for the first setup. From the project folder, run:
 
@@ -20,28 +20,30 @@ bash tools/run_demo.sh --playtest
 py -3 tools/launch_game.py demo --playtest
 ```
 
-The launcher creates the Python environment, installs dependencies and downloads the pinned music pack (about 98 MiB). Later Demo launches and games work offline. There is no frontend build, Google login, Apple key or tunnel to configure. `--playtest` allows two players; normal game rules require at least three.
+The launcher creates the Python environment, installs dependencies and downloads the music pack (about 98 MiB). Later Demo games work offline. `--playtest` allows two players; regular games require at least three.
 
-### Try a game in two tabs
+### Try a game on one computer
 
 1. Open the **Open on this computer** URL printed by the launcher, normally **http://127.0.0.1:8000/**. Keep this tab as the host.
 2. Enter a nickname such as **Host**, select **Demo** and click **Create demo room**.
-3. In the lobby, click **Invite a friend** and copy the invite URL. If the browser shows a share dialog, copy the link from there.
-4. Open a **second tab**, paste that invite URL, enter another nickname such as **Guest**, and click **Join room**. The room code is filled in by the link.
-5. Return to the host tab and click **Start game**. This click enables audio; the song plays from the host tab only. Keep both tabs open.
+3. In the lobby, click **Invite a friend** and copy the link.
+4. Open the invite in a **private/incognito window or another browser**, enter another nickname such as **Guest**, and click **Join room**. The room code is filled in by the link.
+5. Return to the host tab and click **Start game**. This click enables audio; the song plays from the host tab only. Keep both sessions open.
 6. In each tab, search for a song, select a result, choose the listeners (or **Nobody**) and submit the answer. Rounds advance to reveal and rankings.
 
-If the second tab reconnects as Host instead of creating Guest, open the invite in a private/incognito window or another browser: tabs at the same address share session cookies. The usual host loopback URL and LAN invite use separate addresses. You can also open the invite on a phone or another computer on the same Wi-Fi.
+You can also join from a phone or another computer on the same Wi-Fi.
 
 Stop the server with **Ctrl-C** in the terminal. If port 8000 is already in use, add `--port 8001` to your launch command and use the newly printed URL.
 
-### Why Spotify mode is unavailable in the submitted Demo
+Opening the main address shows Create/Join. Refreshing a room's URL reconnects to that room; invitation links open Join.
 
-Spotify mode uses each player's actual listening history. It requires my private Apple Music signing key for catalog/previews, a configured Spotify developer app with approved participant accounts, and a shared HTTPS address with its exact OAuth callback registered. Those credentials are excluded from this repository. Consequently, a fresh checkout cannot run Spotify mode without separate provider setup, and its option is disabled during Demo launch.
+### Real music and Demo
 
-Demo exercises the same room, round, search, scoring and results flow using local music and simulated listening histories. If you want to configure your own provider credentials, see [Spotify setup](docs/13_SPOTIFY_IMPLEMENTATION.md) and [real-game launch instructions](docs/16_DEVICE_PLAYTEST.md).
+**Real** uses Spotify listening history and asks new players to connect their music before joining. **Demo** uses simulated libraries and the same gameplay without an external account. An invitation determines the room's mode. Personal Apple Music import is marked **Coming later**; Apple catalog search and previews are used in configured Real games.
 
-**Optional Spotify testing:** If you would like to try the Spotify version, please email me your name and the email address associated with your Spotify account. I can add you to the application's authorized test users and arrange access to the configured game. Authorizing your account alone does not configure Spotify mode in a fresh checkout; Demo remains available without this step.
+Real requires a configured Spotify developer app, approved participants, Apple catalog signing credentials and a shared HTTPS address with a registered OAuth callback. Credentials are excluded from this repository, so Real is disabled during Demo launch. See [Spotify setup](docs/13_SPOTIFY_IMPLEMENTATION.md) and [real-game launch instructions](docs/16_DEVICE_PLAYTEST.md).
+
+**To try Spotify:** email me your name and Spotify account email so I can authorize you and arrange access to the configured game. This does not configure Real mode in your own checkout.
 
 ### Music setup troubleshooting
 
@@ -63,76 +65,53 @@ python3 tools/setup_demo_pack.py --archive catalog/local/downloads/whos-on-repea
 py -3 tools/setup_demo_pack.py --archive catalog/local/downloads/whos-on-repeat-demo-100.zip
 ```
 
-The installer checks the ZIP and extracts it into the correct pack directory; you do not need to move individual songs. Once it reports **Demo music verified**, rerun the Demo launch command above. The ZIP and installed music are Git-ignored. If you saved the ZIP elsewhere, replace the archive path with its actual location (use quotes if the path contains spaces).
+When the installer reports **Demo music verified**, rerun the Demo launch command. If you saved the ZIP elsewhere, use its actual path in the command.
 
-See [music pack setup](catalog/README.md) for offline integrity checks. After setup, `--check` on either launch command performs a read-only preflight without starting a server. Use the printed browser URL; `0.0.0.0` is only the server's bind address.
+See [music pack setup](catalog/README.md) for more help. Add `--check` to a launch command to check setup without starting the server.
 
 ## Direct server startup
 
-After installing `requirements.txt`, the deployment command is:
+After installing `requirements.txt`, start the server directly:
 
 ```bash
 python -m backend
 ```
 
-It binds `0.0.0.0`, reads `PORT` (default `8000`) and initializes the single SQLite
-file under `DATA_DIR` (default `data`). It needs no `.env`, credentials, interactive
-migration or music download to start. `/health/ready` checks server/database
-readiness; `/api/config` reports which game modes are available.
-
-Without installed music, Demo is disabled and its admission/preview requests
-return an explanation. A configured Normal provider path does not need Demo
-media. For a playable assessment game, use the Demo launcher above: it prepares
-Python dependencies and the same verified 100-song music pack as installation
-steps before starting the server. That first installation needs internet or an
-already downloaded ZIP; subsequent games work offline. Installing music into a
-running bare-server checkout requires a restart before Demo becomes available.
+The server listens on port `8000` and stores SQLite data under `data/`. Set `PORT` and `DATA_DIR` to change these defaults. It can start without music or provider credentials; available modes depend on that setup. For a playable Demo, use the launcher above. Restart the server if you install music while it is running.
 
 ## Verify
 
-With Python dependencies installed and **Node 24+**, run unit, SQLite/HTTP
-integration and frontend checks:
+With the project Python environment installed and **Node 24+**, run all tests:
 
 ```bash
 bash tools/verify.sh
 ```
 
-The exact core unit-coverage command is:
+With the project Python environment activated, measure core unit coverage:
 
 ```bash
 python -m pytest -q tests/unit \
   --cov=backend.rooms.service --cov=backend.game.service \
   --cov=backend.game.scoring --cov=backend.game.selection \
-  --cov=backend.game.preparation \
+  --cov=backend.game.preparation --cov=backend.game.song_titles \
   --cov-report=term-missing --cov-fail-under=90
 ```
 
-Measured on 2026-10-04 from an isolated public-source copy: **286 unit tests
-passed; combined core line coverage was 94.05% (601 of 639 statements)**.
-Rooms measured **92.13%** and Game **94.79%**. The script enforces **90% for
-both the combined core and each domain**, above the assignment's 70% minimum;
-integration coverage is not included in the core unit figure.
+Core unit line coverage is **94.79%**: Rooms **94.38%**, Game **94.94%**. The verification script enforces **90% overall and in each domain**, above the assignment's 70% minimum.
 
-The complete public-source run passed **504 Python tests (286 unit + 218
-integration)** and **178 frontend tests**. Tests use temporary data and need no
-provider keys or downloaded music. The existing Python environment was supplied
-for verification; this was not a fresh dependency download or a Windows hardware
-check. On Windows, run the Python and Node commands from
-[the verification script](tools/verify.sh).
+The Oct 4 public-source run passed **323 unit + 245 integration = 568 Python tests**, plus **206 frontend tests**. Private acquisition-tool tests are excluded.
 
-See [test ownership](docs/18_TESTING_STRATEGY.md) and
-[dated verification evidence](docs/08_IMPLEMENTATION_STATUS.md).
+Tests use temporary data and offline provider substitutes; no keys or music download are needed. On Windows, run the Python and Node commands from [the verification script](tools/verify.sh). See [testing strategy](docs/18_TESTING_STRATEGY.md) for test scope and further results.
 
 ## Architecture
 
-The assignment's single-process application separates HTTP/application commands, Rooms and Game services, owned SQLite repositories and music-provider adapters. The browser separates presentation, transport and host audio. All application tables live in `DATA_DIR/whos_on_repeat.sqlite3` (schema 6, catalog component 3).
+The app runs in one process with two core domains: **Rooms** handles players and membership; **Game** handles rounds and scoring. Both use SQLite. Spotify and Demo share an import and admission path. The browser separates presentation, transport and host audio.
 
 - [Architecture and boundaries](docs/05_ARCHITECTURE.md)
 - [Data model](docs/06_DATA_MODEL.md)
 - [API and runtime](docs/07_API_AND_RUNTIME.md)
 - [Code map](docs/09_CODEBASE_MAP.md)
-- [Catalog optimization](docs/14_CATALOG_OPTIMIZATION.md)
 
 ## Assignment evidence
 
-[ADR.md](ADR.md) contains five decisions. [AI_USAGE.md](AI_USAGE.md) records AI assistance; its explanation drafts need the author's review. [Assignment checklist](docs/17_ASSIGNMENT_REVIEW.md) tracks submission evidence. The local report PDF is a draft and is excluded from source control, alongside credentials, downloaded music, application data and generated artifacts.
+[ADR.md](ADR.md) records architecture decisions, [AI_USAGE.md](AI_USAGE.md) records AI assistance, and the [assignment checklist](docs/17_ASSIGNMENT_REVIEW.md) tracks the required deliverables.

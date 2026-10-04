@@ -31,7 +31,7 @@ APPLICATION_KEYS = {
 
 
 def read_dotenv(path):
-    """Read literal KEY=value settings; never execute shell code or interpolate."""
+    """Parse literal KEY=value settings."""
     if not path.is_file():
         return {}
     result = {}

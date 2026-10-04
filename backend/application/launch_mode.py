@@ -24,12 +24,12 @@ class LaunchMode:
         if mode == "normal" and self.mode != "normal":
             raise DomainError(
                 "mode_unavailable",
-                "This server is running Demo. Spotify rooms are unavailable.",
+                "This server is running Demo. Real rooms are unavailable.",
                 409,
             )
 
     def capabilities(self, *, music_configured):
-        spotify = self.mode == "normal" and music_configured
+        real = self.mode == "normal" and music_configured
         return {
             "launch_mode": self.mode,
             "modes": {
@@ -40,12 +40,12 @@ class LaunchMode:
                     else "Demo music is not installed on this server.",
                 },
                 "normal": {
-                    "enabled": spotify,
+                    "enabled": real,
                     "reason": "Unavailable in this Demo session."
                     if self.mode == "demo"
                     else None
-                    if spotify
-                    else "Spotify is not configured on this server.",
+                    if real
+                    else "No music connection is configured on this server.",
                 },
             },
         }

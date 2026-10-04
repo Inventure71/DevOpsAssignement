@@ -79,7 +79,7 @@ def _invalid_response():
 
 
 class SpotifyClient:
-    """Provider facts only: no room persistence, playback, or long-lived user tokens."""
+    """Spotify authorization and personal listening data."""
 
     def __init__(
         self,

@@ -455,6 +455,7 @@ svg {
   display: none;
 }
 .extra-settings-panel {
+  background: var(--surface);
   position: absolute;
   top: calc(100% + 24px);
   right: 0;
@@ -1243,4 +1244,70 @@ svg {
 }
 .music-import-screen[data-status="failed"] p:first-of-type {
   color: var(--ink);
+}
+
+.music-connection-screen {
+  max-width: 520px;
+  margin: 32px auto;
+  padding: clamp(24px, 5vw, 40px);
+  text-align: center;
+}
+.music-connection-screen repeat-character {
+  display: block;
+  width: 120px;
+  height: 135px;
+  margin: 0 auto 18px;
+}
+.music-connection-screen h1 {
+  font-size: clamp(28px, 4vw, 36px);
+}
+.music-connection-screen p {
+  line-height: 1.5;
+  margin-top: 12px;
+}
+.connection-intro, .connection-status {
+  color: var(--muted);
+}
+.music-provider-list {
+  display: grid;
+  gap: 12px;
+  margin: 28px 0 16px;
+}
+.music-provider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 18px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--wash);
+}
+.music-provider > span:nth-child(2) {
+  flex: 1;
+}
+.music-provider strong, .music-provider small {
+  display: block;
+}
+.music-provider small {
+  margin-top: 4px;
+  line-height: 1.4;
+  font-size: 13px;
+  color: var(--muted);
+}
+.music-provider:disabled {
+  opacity: 0.6;
+}
+.provider-mark {
+  font-size: 28px;
+}
+.music-connection-screen .button, .music-connection-screen .canonical-address {
+  margin-top: 20px;
+}
+.music-connection-screen p:empty {
+  display: none;
+}
+.music-connection-screen .canonical-address {
+  display: block;
 }

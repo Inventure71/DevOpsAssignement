@@ -95,8 +95,11 @@ class RoomsService:
                 "Normal mode is unavailable until a music provider is connected",
                 503,
             )
-        if mode == "normal":
-            music.validate_import(imported)
+        if imported is None:
+            raise DomainError(
+                "music_import_required", "Prepare Demo music before admission.", 503
+            )
+        music.validate_import(imported, mode)
         nickname, nickname_key = _nickname(nickname)
         character_id = _character(character_id)
         room_id = secrets.token_hex(16)
@@ -132,11 +135,14 @@ class RoomsService:
         if room["mode"] == "normal" and imported is None:
             raise DomainError(
                 "music_sign_in_required",
-                "Sign in to Spotify before joining this Normal room.",
+                "Connect your music source before joining this Normal room.",
                 409,
             )
-        if room["mode"] == "normal":
-            music.validate_import(imported)
+        if imported is None:
+            raise DomainError(
+                "music_import_required", "Prepare Demo music before admission.", 503
+            )
+        music.validate_import(imported, room["mode"])
         self.check_admission(conn, nickname, character_id, now_ms, room_id=room_id)
         nickname, nickname_key = _nickname(nickname)
         character_id = _character(character_id)
@@ -152,7 +158,7 @@ class RoomsService:
         )
 
     def search_fixtures(self, conn):
-        """Shared Demo metadata; never filter by a player's private song pool."""
+        """Shared Demo metadata for public song search."""
         return demo.search_fixtures(conn)
 
     def check_admission(self, conn, nickname, character_id, now_ms, *, room_id=None):
@@ -186,9 +192,11 @@ class RoomsService:
         imported=None,
     ):
         player_id, token = secrets.token_hex(16), secrets.token_urlsafe(32)
+        personal = imported["evidence"] == "personal"
+        provider = imported["provider"]
         account_hash = (
-            _token_hash(room_id + ":spotify:" + imported["account_id"])
-            if imported
+            _token_hash(room_id + ":" + provider + ":" + imported["account_id"])
+            if personal
             else None
         )
         if (
@@ -198,7 +206,7 @@ class RoomsService:
         ):
             raise DomainError(
                 "music_account_taken",
-                "That Spotify account has already joined this room.",
+                "That music account has already joined this room.",
                 409,
             )
         self.repo.add_player(
@@ -208,20 +216,19 @@ class RoomsService:
             nickname=nickname,
             nickname_key=nickname_key,
             character_id=character_id,
-            music_status="ready" if imported else "demo",
+            music_status="ready" if personal else "demo",
             token_hash=_token_hash(token),
             is_host=is_host,
             now_ms=now_ms,
-            music_provider="spotify" if imported else None,
+            music_provider=provider if personal else None,
             music_account_hash=account_hash,
-            shared_music_account=bool(imported and self.playtest),
+            shared_music_account=bool(personal and self.playtest),
         )
-        if imported:
-            music.store(conn, room_id, player_id, imported["songs"])
-            music.store(conn, room_id, player_id, imported.get("observed_songs", []))
-            music.store(conn, room_id, None, imported.get("decoys", []), decoys=True)
-        else:
-            demo.assign(conn, room_id, player_id)
+        music.store(conn, room_id, player_id, imported["songs"])
+        music.store_observations(
+            conn, room_id, player_id, imported.get("observed_songs", [])
+        )
+        music.store(conn, room_id, None, imported.get("decoys", []), decoys=True)
         self.repo.bump_revision(conn, room_id)
         return {
             "room": self.repo.room(conn, room_id),
@@ -358,8 +365,6 @@ class RoomsService:
             for s in self.repo.songs(conn, room_id)
             if s["preview_url"]
         ]
-        if room["mode"] == "demo":
-            songs.extend(demo.decoys(conn))
         return {
             "room_id": room_id,
             "revision": room["revision"],

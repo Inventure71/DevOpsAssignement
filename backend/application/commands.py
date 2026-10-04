@@ -1,12 +1,15 @@
-"""Named room use cases; HTTP receives values rather than database handles."""
+"""Room use cases and cross-domain command ordering."""
 
+from backend.application.music_admission import MusicAdmissionHandler
 from backend.catalog.selection import CatalogSelections
 from backend.core.errors import DomainError
 
 
 class RoomCommands:
-    def __init__(self, coordinator, search):
+    def __init__(self, coordinator, search, admission_handler=None, on_leave=None):
         self.c, self.search = coordinator, search
+        self.on_leave = on_leave
+        self.admission_handler = admission_handler or MusicAdmissionHandler(coordinator)
         self.selections = CatalogSelections(
             search.tokens,
             search.provider_results,
@@ -18,11 +21,18 @@ class RoomCommands:
 
     def create(self, payload):
         self.c.launch_mode.require(payload["mode"])
-        return self.c.admission(
-            lambda conn, now: self.c.rooms.create(
-                conn, payload["nickname"], payload["character_id"], payload["mode"], now
+        if payload["mode"] != "demo":
+            raise DomainError(
+                "music_sign_in_required",
+                "Connect your music to create a Real room.",
+                409,
             )
-        )
+        with self.c.db.read() as conn:
+            self.c.rooms.check_admission(
+                conn, payload["nickname"], payload["character_id"], self.c.clock()
+            )
+        imported = self.c.prepare_demo_import()
+        return self.admission_handler(payload, imported, lambda: True)
 
     def resolve(self, code):
         with self.c.db.read() as conn:
@@ -53,16 +63,25 @@ class RoomCommands:
             except DomainError as exc:
                 if exc.code != "unauthorized":
                     raise
-        with self.c.room_lock(room_id):
-
-            def admit(conn, now):
-                room = self.c.rooms.room(conn, room_id, now)
-                self.c.launch_mode.require(room["mode"])
-                return self.c.rooms.join(
-                    conn, room_id, payload["nickname"], payload["character_id"], now
-                )
-
-            admission = self.c.admission(admit)
+        with self.c.db.read() as conn:
+            room = self.c.rooms.check_admission(
+                conn,
+                payload["nickname"],
+                payload["character_id"],
+                self.c.clock(),
+                room_id=room_id,
+            )
+            self.c.launch_mode.require(room["mode"])
+        if room["mode"] != "demo":
+            raise DomainError(
+                "music_sign_in_required",
+                "Connect your music before joining this Real room.",
+                409,
+            )
+        imported = self.c.prepare_demo_import(include_decoys=False)
+        admission = self.admission_handler(
+            payload | {"room_id": room_id, "mode": "demo"}, imported, lambda: True
+        )
         return self.admission_result(admission), admission
 
     @staticmethod
@@ -72,6 +91,25 @@ class RoomCommands:
             "code": admission["room"]["code"],
             "player_id": admission["player"]["id"],
         }
+
+    def music_session_valid(self, admission):
+        """A completed receipt may deliver only a still-valid room membership."""
+        try:
+            return self.c.execute(
+                admission["room"]["id"],
+                admission["token"],
+                lambda conn, actor, now: True,
+                write=False,
+            )
+        except DomainError as error:
+            if error.code in {
+                "room_expired",
+                "unauthorized",
+                "room_not_found",
+                "mode_unavailable",
+            }:
+                return False
+            raise
 
     def state(self, room_id, token):
         return self.c.execute(
@@ -135,11 +173,18 @@ class RoomCommands:
         )
 
     def leave(self, room_id, token, payload):
-        return self.c.execute(
+        def operation(conn, actor, now):
+            return self.c.leave(conn, room_id, actor, payload, now), actor["id"]
+
+        result, player_id = self.c.execute(
             room_id,
             token,
-            lambda conn, actor, now: self.c.leave(conn, room_id, actor, payload, now),
+            operation,
         )
+        # Call after releasing the room lock; completion takes receipt then room.
+        if self.on_leave:
+            self.on_leave(room_id, player_id)
+        return result
 
     def check_music_admission(self, payload):
         self.c.launch_mode.require("normal")
@@ -154,7 +199,7 @@ class RoomCommands:
             if room and room["mode"] != "normal":
                 raise DomainError(
                     "invalid_music_room",
-                    "Demo rooms do not require Spotify sign-in.",
+                    "Demo rooms do not require a music account.",
                     409,
                 )
 

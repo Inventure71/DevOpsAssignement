@@ -296,14 +296,35 @@ def test_invalid_port_never_reaches_server_setup(project, port):
         launch.build_environment(project, "demo", options(port=port), {})
 
 
-def test_used_port_has_actionable_error_and_does_not_stop_its_owner():
+@pytest.mark.parametrize("reuse_address", [False, True])
+def test_used_port_has_actionable_error_and_does_not_stop_its_owner(reuse_address):
     with socket.socket() as listener:
+        if reuse_address:
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         listener.bind(("0.0.0.0", 0))
         listener.listen()
         port = listener.getsockname()[1]
         with pytest.raises(launch.LaunchError, match="choose --port"):
             network.available_port(port)
         assert listener.fileno() >= 0
+
+
+@pytest.mark.skipif(
+    os.name != "posix" or sys.platform == "cygwin",
+    reason="The server enables address reuse on POSIX platforms",
+)
+def test_recently_closed_server_connections_do_not_block_restart():
+    with socket.socket() as listener:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        port = listener.getsockname()[1]
+        with socket.create_connection(("127.0.0.1", port), timeout=2) as client:
+            with listener.accept()[0] as server_connection:
+                # Server closes first, leaving its address in TIME_WAIT.
+                server_connection.shutdown(socket.SHUT_WR)
+                assert client.recv(1) == b""
+    network.available_port(port)
 
 
 def test_check_with_missing_venv_does_not_create_files_or_run_pip(project, monkeypatch):

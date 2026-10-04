@@ -9,11 +9,16 @@ class MusicAdmissionHandler:
 
     def __call__(self, payload, imported, valid):
         c = self.coordinator
-        c.launch_mode.require("normal")
+        mode = payload.get("mode", "normal")
+        c.launch_mode.require(mode)
         room_id = payload.get("room_id")
 
         def persist(conn, now):
             self._require_valid(valid)
+            if room_id and c.rooms.room(conn, room_id, now)["mode"] != mode:
+                raise DomainError(
+                    "music_source_mismatch", "This music source does not match the room.", 409
+                )
             result = (
                 c.rooms.join(
                     conn,
@@ -28,7 +33,7 @@ class MusicAdmissionHandler:
                     conn,
                     payload["nickname"],
                     payload["character_id"],
-                    "normal",
+                    mode,
                     now,
                     imported=imported,
                 )
@@ -45,5 +50,5 @@ class MusicAdmissionHandler:
     def _require_valid(valid):
         if not valid():
             raise DomainError(
-                "music_admission_expired", "Spotify sign-in expired. Start again.", 401
+                "music_admission_expired", "Music connection expired. Start again.", 401
             )

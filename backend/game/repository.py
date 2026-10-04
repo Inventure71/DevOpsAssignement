@@ -145,7 +145,7 @@ class GameRepository:
         )
 
     def insert(self, conn, table, values):
-        # Identifiers are internal constants, never request input.
+        # SQL identifiers come from internal constants.
         assert table in {"games", "game_players", "rounds", "answers"}
         keys = ",".join(values)
         conn.execute(

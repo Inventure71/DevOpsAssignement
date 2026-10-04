@@ -9,7 +9,9 @@ from backend.application.room_locks import RoomLocks
 from backend.core.errors import DomainError
 from backend.game.service import GameService
 from backend.game.views import audio_manifest, game_view
-from backend.rooms.demo import seed_demo, validate_pack_assets
+from backend.music.importer import MusicImporter
+from backend.music.sources import DemoListeningAdapter, LocalPreviewResolver
+from backend.rooms.demo import catalog_snapshot, seed_demo, validate_pack_assets
 from backend.rooms.service import RoomsService
 from backend.storage.database import Database
 
@@ -128,6 +130,24 @@ class Coordinator:
     def admission(self, operation):
         with self.room_lock("admission"), self.db.transaction() as conn:
             return operation(conn, self.clock())
+
+    def prepare_demo_import(self, *, include_decoys=True):
+        self.launch_mode.require("demo")
+        with self.db.read() as conn:
+            pools = catalog_snapshot(conn)
+        source = DemoListeningAdapter(pools["personal"])
+        resolver = LocalPreviewResolver(
+            [*pools["personal"], *pools["decoy"]], self.config.demo_pack_dir
+        )
+        return MusicImporter(
+            source,
+            resolver,
+            lambda: pools["decoy"],
+            personal_target=36,
+            decoy_target=20,
+            minimum_personal=1,
+            minimum_decoys=1,
+        ).import_account(include_decoys=include_decoys)
 
     def settings(self, conn, room_id):
         if room_id in self._settings:
@@ -262,7 +282,7 @@ class Coordinator:
                 self.game.end(
                     conn, game["id"], player["id"], payload, now, kind="leave"
                 )
-            # Preserve the original host credential; it is not transferred.
+            # Preserve the original host credential.
         elif game and game["status"] in ("preparing", "playing"):
             # Preserve room credential as well as frozen roster for reconnect.
             pass

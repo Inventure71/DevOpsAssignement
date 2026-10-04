@@ -1,77 +1,79 @@
 # 03 — Game Rules
 
-The core business logic of the Game domain must be covered by unit tests. Cover rendering and its load-failure fallback also need browser verification.
-
-After the Sep 30 clarification, the first playable milestone uses assigned demo songs and host-device audio. Manual song picking is excluded. Apple familiarity levels apply only when personal imports are validated. Spotify familiarity mapping is not decided here; all-device audio is conditional (see `02_REQUIREMENTS.md` and `05_ARCHITECTURE.md`).
+Players guess the song and who listens to it. The host plays the shared audio and controls the room; the server controls phases and scoring. Admission settings are in [Requirements](02_REQUIREMENTS.md), and transport details are in the [API contract](07_API_AND_RUNTIME.md).
 
 ## 1. Game and round flow
-The host plays on their own screen and is the only admin. The backend, not that browser, imports each player's songs and coordinates the match.
 
-1. **Lobby:** the host chooses Normal or Demo before joins. Normal requires each player's music authorization; Demo assigns hidden songs from the seeded database. Import the pool once in the lobby; no manual picks or per-round history requests. Every player has a nickname and character.
-2. **Setup:** Start freezes the roster/settings and shows a five-second minimum setup countdown. Prepare and check the complete requested sequence and reserves (§6). If unfinished at zero, show "Preparing…" rather than start unchecked audio. Announce the actual playable count after any skipped slots.
-3. **Readiness:** deliver current-round timing, waveform and roster to players, and prepare audio on the active host tab. Browser acknowledgements are automatic, bound to the attempt and readiness generation. Initially every starting player must acknowledge within ten seconds; otherwise abort setup and return to the lobby with the timeout names. For later timeouts, the host chooses Retry or Continue without unready players (§9).
-4. **Countdown:** only after the barrier passes, publish a common server start time three seconds ahead. Browsers estimate their clock offset and display the countdown. Readiness alone is not a synchronization measurement.
-5. **Guessing:** music starts on the host device and each player can submit once within 10 / 20 / 30 seconds. Search the public song catalog and select a title/artist result, plus zero or more listener names. Submitting an empty listener list means **Nobody**; never submitting means **No answer**. Show nicknames, characters and Listening/Submitted status, with connectivity separately; hide guesses.
-6. **Closure:** all starting players have submitted, or the server deadline passes. A disconnected or barrier-excluded player stays in that roster and can answer after reconnecting before the deadline. Missing answers become blank with zero points. Close/score once and stop audio; no early fabricated Nobody answer.
-7. **Reveal (5 seconds):** show title, credited artists, frozen cover reference, real listeners (or "Nobody: decoy!"), and only the viewing player's own song/listener guesses, correctness and earned points. Other players' answers remain private, including from the host. Missing/broken artwork uses the bundled placeholder. A published reveal is final.
-8. **Leaderboard (5 seconds):** show current rankings, then automatically prepare the next round. There is no routine host Next tap. While the host is disconnected, finish current timed phases and wait on the leaderboard within the 60-second grace before starting another readiness cycle.
-9. **Finish:** keep the final ranking visible. Save results and return the room to its lobby for another game. The full starting roster remains in rankings.
+1. **Lobby:** choose Real (`normal` internally) or Demo. Each player has a nickname, color and imported or assigned hidden song pool.
+2. **Setup:** Start freezes roster/settings and prepares the full sequence and reserves (§6). Setup lasts at least five seconds; show Preparing while checks or host decoding continue.
+3. **Ready:** browsers automatically acknowledge current-round data. The host also prepares audio. Initially all starting players have ten seconds to acknowledge; a timeout returns the room to the lobby and names missing players.
+4. **Countdown:** publish a common server start time three seconds ahead.
+5. **Answering:** play audio on the host device. Players submit once within 10, 20 or 30 seconds, selecting a song and zero or more listener names. An empty submitted listener list means **Nobody**. No submission means **No answer**.
+6. **Closure:** close when all starting players submit or the deadline passes. Score once, stop audio and start preparing the next round separately.
+7. **Reveal (five seconds):** show the correct song, credited artists, cover, actual listeners and the caller's own guesses, correctness and points. A missing or broken cover uses the placeholder. Revealed scores are final.
+8. **Leaderboard (five seconds):** show rankings while next-round preparation continues. Fresh complete preparation leads directly to countdown; otherwise open the ready gate. Progression waits for an absent host within its sixty-second grace.
+9. **Finish:** persist final rankings, return the room to the lobby and keep results visible.
 
-The host preloads the planned clips and checked reserves during setup. Future song labels and listener mappings are withheld from ordinary state responses. Catalog search is shared public metadata and is not filtered to the room pool. Private host preload references can disclose metadata to someone inspecting that browser, as described in the API contract. Characters are cosmetic and frozen at Start, not a scoring input. See `07_API_AND_RUNTIME.md` for the API.
+Players see shared submission status, correct answers after reveal and rankings. Submitted guesses remain private to their owner, including from the host. Private host preload references contain the audio needed for the full plan; provider URLs can reveal metadata to someone inspecting that browser. Public responses omit future song labels and listener mappings.
 
-Answer privacy applies throughout the game, results and history. Players can see who has submitted, the revealed correct song and actual listeners, and ranking totals; they cannot inspect anyone else's song guess or listener selections. The host's administrative role grants no access to those answers. All answers remain stored internally for scoring, retries and diagnosis, including void attempts; this retention does not make them public.
+The frozen roster remains eligible throughout the match. Disconnected or barrier-excluded players can reconnect and answer before the deadline; missing answers score zero. Colors are cosmetic and frozen at Start.
 
 ## 2. Host settings that affect the rules
+
 | Setting | Options | Default |
 |---|---|---|
 | Game difficulty | Easy / Mixed / Hard | Mixed |
 | Decoy songs | On / Off | On |
 
-(Room mode, rounds, answer time and audio mode are in `02_REQUIREMENTS.md`.)
+Room mode, round count and answer time are defined in [Requirements](02_REQUIREMENTS.md).
 
 ## 3. Song guess: searchable catalog
 
-Players type a song name and select a title/artist result from a loading list. Results are not restricted to the played song, four choices or the room's hidden pool. The backend searches matching shared demo fixtures locally; other queries use Apple's public metadata search. Empty results, provider outages and rate limits are distinct UI states. A typed string alone is not a submitted song: the chosen result supplies an authenticated selection token. A player may also submit no song selection and still answer the listener part.
+Search or Enter looks up public title/artist metadata independently of the hidden room pool. Demo searches its complete pinned catalog locally; Real uses shared metadata and configured Apple search. Empty results, provider failures and rate limits have separate states. [Apple Search API](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/Searching.html) describes the public metadata service.
 
-The selection freezes title, display artist, structured artist IDs and optional artwork. The server validates its room scope, signature and expiry, then stores those facts with the answer. No provider lookup occurs during acceptance or scoring. Search does not change imported songs, familiarity or listener mappings, and never exposes correct-result flags or a player's personal library.
-
-Search requests are debounced and cached. The adapter follows the [Apple Search API](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/Searching.html), which returns catalog metadata independently of personal music authorization. It does not import history or download preview audio. See the API contract for query limits, provider budget and token lifetime.
+Selecting a result supplies a signed, room-scoped token containing song facts. Typing alone supplies no guess. The server validates signature and expiry and stores the selected facts; acceptance and scoring need no provider request. Search leaves listening pools and familiarity unchanged. A player may submit only the listener part.
 
 ## 4. Scoring
-Players who own the song are treated **exactly like everyone else**: they can earn the song points and the speed bonus, and selecting themselves is a correct pick. Preparation aims to balance whose songs appear (§6); skips and substitutions can change the final distribution.
+
+Listeners earn the same points as everyone else and can correctly select themselves.
 
 ### Song part
-- `speed_bonus = round(50 × (1 − seconds_taken / answer_time))`, only for the correct selected song. Server time measures acceptance relative to the announced start; client timestamps never determine points. The API specifies the ordering boundary; submissions are accepted only in `[start, deadline)`.
-- Correct selected song: `song_points = 100 + speed_bonus`.
-- Wrong selected song with at least one matching **credited artist identity**: `song_points = 50`, without speed bonus.
-- Wrong selected song with no matching artist, or no song selection: `song_points = 0`.
-- Full song credit requires the same nonempty stable song/track key, or the same normalized title with at least one common structured artist identity. Title normalization folds Unicode letters, diacritics, punctuation and whitespace, and removes trailing featured-credit suffixes. Live, remix and instrumental version labels remain distinct. Identical titles by different artists do not match.
-- Match sets of structured artist keys in the frozen correct/selected song facts. Multiple common artists still award 50, not 50 each. Display-string substring matching is not artist identity. Demo fixtures supply explicit identities; Normal imports retain Spotify credited artists and attach Apple artist-ID aliases only when validated catalog credits match. Apple developer search includes structured artist relationships. Missing featured identities are not invented from display strings. ISRC equality alone cannot award full credit to a mislabeled recording with incompatible title/artist facts.
+
+- Correct song: `song_points = 100 + speed_bonus`.
+- Wrong song sharing a credited artist identity: `song_points = 50`, with no speed bonus.
+- Other wrong song or no selection: `song_points = 0`.
+- `speed_bonus = half_up(50 × (1 − seconds_taken / answer_time))`, awarded only for a correct song. Server acceptance time measures elapsed time in `[start, deadline)`.
+
+Full song credit requires the same nonempty stable song key, or equal normalized guess titles with at least one common structured artist key or verified alias. Artist overlap uses identities, not display-name substrings; several shared artists still earn 50 once. ISRC equality alone does not establish a correct guess.
+
+Guess normalization folds Unicode, case, diacritics, punctuation and whitespace. It removes trailing featured credits and recognized release labels: Taylor's Version, Remaster/Remastered with an optional year, and Deluxe Edition. Labels must be trailing parentheses, brackets or a spaced dash suffix. Live, remix, acoustic, karaoke and instrumental versions remain distinct, as do identical titles by different artists. This scoring rule leaves strict recording identity, playback matching and listener ownership unchanged.
 
 ### Who part
-`who_score` is a number from 0 to 1:
 
-| Real listeners | Answer | who_score |
+| Actual listeners | Submitted answer | `who_score` |
 |---|---|---|
-| One or more | Some players | `max(0, correct − wrong) ÷ number of real listeners` |
-| One or more | "Nobody" | 0 |
-| None (decoy) | "Nobody" | 1 |
-| None (decoy) | Some players | 0 |
+| One or more | Player names | `max(0, correct − wrong) / actual_listener_count` |
+| One or more | Nobody | 0 |
+| None (decoy) | Nobody | 1 |
+| None (decoy) | Player names | 0 |
 
-- `who_points = 100 × who_score`
-- A submitted empty listener list is Nobody and uses the corresponding table row. A missing submission is No answer: zero for the entire round, not a scored Nobody guess. A submitted listener guess with no song selection can still earn who points.
-- **Wrong picks cancel correct ones:** selecting everyone scores zero when real listeners are at most half the roster. It can earn partial points when a majority listens, and full who points when everybody really listens; it is not a guaranteed winning strategy.
+`who_points = 100 × who_score`. Wrong picks cancel correct ones. Selecting everyone earns full who credit only when everyone listens. A submitted listener-only answer can earn who points; a missing submission always earns zero total points.
 
 ### Round total
-- **Perfect round** = correct selected song **and** `who_score = 1` → ×1.5
-- Artist-only partial credit never qualifies for the perfect bonus
-- `round_score = round((song_points + who_points) × difficulty_multiplier × perfect_multiplier)`
-- `difficulty_multiplier`: easy ×1 · medium ×1.5 · hard ×2 · **decoy ×1**
-- **All rounding is half up** (2.5 → 3) and is done **once, at the end** of each formula
-- **Use exact fractions** (Python's `fractions.Fraction`), not floats. With floats, 187.5 can come out as 187.4999… and round down. Python's built-in `round()` is also wrong here, because it rounds 2.5 to 2.
+
+`round_score = half_up((song_points + who_points) × difficulty_multiplier × perfect_multiplier)`
+
+| Multiplier | Value |
+|---|---|
+| Easy / medium / hard / decoy | 1 / 1.5 / 2 / 1 |
+| Perfect: correct song and `who_score = 1` | 1.5 |
+| Other answer, including artist-only credit | 1 |
+
+Use exact fractions and round half up once at the end of each formula (2.5 → 3).
 
 ### Fairness of the speed bonus
-In host-device mode, players share the same audio output. The server measures answers from the announced round start, so network delay can still affect the speed bonus. The PoC did not retain all-device timing measurements; that mode stays conditional until drift and audible playback are checked. A client's own clock never determines scoring.
+
+Players share the host's audio output. Server acceptance time determines speed points, so network and command queueing delay can affect them. Client timestamps do not determine scores.
 
 ### Worked examples
 **Normal round.** Listeners = {Anna, Ben}, 8 players in the room, medium song (×1.5), answer time 20 s.
@@ -97,88 +99,67 @@ In host-device mode, players share the same audio output. The server measures an
 | Gina | ❌ shared credited artist | 3 s | Nobody | 1 | (50 + 100) × 1, no perfect bonus | **150** |
 | Frank | No submission | — | No answer | — | No answer always scores zero | **0** |
 
+
 ## 5. Song difficulty (familiarity)
-Each automatically loaded song gets a level per player, based on the available listening signal; demo data supplies fixed levels. Players never tag or choose the songs themselves:
+
+Familiarity belongs to each player/song relationship. When a song has several listeners, use the level of the player it was picked from. Decoys use ×1.
 
 | Source | Easy | Medium | Hard |
 |---|---|---|---|
-| Apple Music | In **heavy rotation** | In **recently played** | Only in the **library** |
-| Demo | Assigned easy level | Assigned medium level | Assigned hard level |
+| Spotify | Short-term top 20 | Other short-term, medium-term or recent observations | Long-term-only observations |
+| Demo | Assigned easy | Assigned medium | Assigned hard |
 
-- Song identity is deduplicated within each room. Familiarity belongs to a player's relationship to a song, not the shared song record. Players do not inspect the source lists or choose the game's pool before play; manual picks and manual familiarity tags are excluded.
-- If a song appears in several Apple lists, the **easiest** level wins
-- If several players have the song, the level of the player it was **picked from** is used
-- Decoys have no level (×1)
+Spotify overlaps keep the easiest level. Demo assigns simulated levels. These are familiarity estimates from bounded observations; players do not choose songs or tag difficulty. Apple personal listening remains planned.
 
 ## 6. Preparing the full game sequence
-**Game difficulty:**
-- **Easy:** prefer easy songs; fill with medium, then hard
-- **Hard:** prefer hard songs; fill with medium, then easy
-- **Mixed:** any level
 
-When decoys are on, plan exactly **1 in 5 requested slots** (5 → 1, 10 → 2, 15 → 3), at random positions excluding slot 1. If there is no suitable decoy, use a normal song. Skipped slots retain their original slot numbers; the surviving sequence may have a different decoy fraction. Do not silently change historical listeners or difficulty to repair that fraction.
+Easy prefers easy → medium → hard; Hard prefers hard → medium → easy; Mixed accepts any level.
 
-**Preparation algorithm**
-1. Import/assign candidate pools once in the lobby, keeping familiarity per player. At least ten songs each is an admission/start minimum, not proof of enough distinct songs and reserves. Source lists and import count are still a real-provider decision.
-2. At Start, shuffle the frozen roster and choose all requested decoy positions. For normal slots, rotate the source player; decoys do not consume a turn.
-3. Choose each original candidate by difficulty with the fallback above. Reserve distinct replacement candidates from the imported pool; favor preserving its source player/difficulty, moving on when necessary. Decoys must have no frozen listener; an unavailable decoy can become normal. No live pool edits/imports.
-4. Resolve/check previews and have the host preload the complete selected sequence and usable reserves. A provider URL or HTTP success alone is not audible-playback evidence. Check the host browser's loading/decoding support without playing future songs aloud. Each slot may try its original candidate plus **at most three substitutions**. Candidate exhaustion can fail it sooner. Freeze the chosen song, source player, difficulty, checked reserves and diagnostic check results before scored play.
-5. If no candidate works, mark the **original requested slot** skipped. After checks, cancel setup with a clear error when `10 × skipped_slots > 3 × requested_rounds`. Otherwise announce how many rounds will actually play and retain the surviving prepared order.
-6. Inject the random generator so tests can use a fixed seed. Keep each played or failed candidate unique. Catalog search removes distractor-set generation; candidate availability and the replacement/skip rules still govern play.
+1. Import or assign pools in the lobby. Start requires at least ten playable songs per player.
+2. Shuffle the frozen roster and rotate the source player for normal slots. Decoys do not consume a player turn.
+3. With decoys enabled, choose one in five requested slots (5 → 1, 10 → 2, 15 → 3), at random positions excluding the first. A decoy must match no listener; unavailable decoys become normal songs.
+4. Select distinct candidates and reserves, favoring the slot's source player/difficulty. Each original slot has one candidate plus at most three substitutions, shared across setup and runtime recovery.
+5. The host loads and decodes the complete sequence and usable reserves. Freeze checked candidates and outcomes before play. Setup has a separate bounded timeout, default sixty seconds.
+6. Skip exhausted original slots. Cancel when `10 × skipped_slots > 3 × requested_rounds`.
 
-| Requested rounds | Maximum skipped slots without cancellation | Cancel at |
+| Requested rounds | Maximum skips | Cancel at |
 |---|---|---|
 | 5 | 1 | 2 |
 | 10 | 3 | 4 |
 | 15 | 4 | 5 |
 
-Exactly 30% skipped is allowed. Count a skipped slot once; failed candidates that obtain a usable replacement do not count as skips. The denominator remains requested rounds throughout, rather than imports, attempts or surviving rounds.
+Exactly 30% is allowed. Count each skipped original slot once; replacements are not skips. The denominator stays the requested round count, and surviving slots keep their original numbers. Skips can change the surviving decoy fraction. Played or failed candidates are never reused.
 
-**Runtime recovery:** prechecking lowers risk but cannot guarantee future playback. Accept a current host failure report only before closure/reveal; void that attempt, retain its answers and use only a checked frozen reserve. The same original slot retains its total three-substitution budget across setup and recovery. If exhausted, skip the slot; apply the cumulative strict 30% threshold, including setup skips. If exceeded after play began, abort with a clear error and labelled partial rankings. Readiness Retry does not substitute songs or consume this budget. Never replay a failed/played song.
-
-**Decoy pool:** Apple public charts remain conditional on credentials/validation. Demo uses separately seeded decoy candidates that are not assigned as personal songs. Lack of suitable decoys converts that slot to a normal song. The PoC records metadata/preview discovery, not this preparation implementation.
+A playback failure before closure voids the attempt and uses a checked frozen reserve. Retain its answers but exclude its points from rankings. Exhausted reserves skip the slot; cumulative skips above the threshold abort with partial rankings. Revealed attempts remain final. Readiness Retry changes the barrier, not the song or substitution budget.
 
 ## 7. Same song, several listeners
-Two songs are the **same song** when:
-- they have the same **ISRC** (a standard recording ID from Apple/Spotify) and compatible title/version and credited-artist facts; conflicting provider labels remain separate candidates, or
-- when an ISRC is missing: the same **title + artist**, compared case-insensitively, with spaces trimmed and "(feat. …)" removed; preserve Unicode letters
 
-All players who have the song count as its listeners. A decoy is only valid if it matches **no** player's song.
+Rooms groups imports by ISRC when available, otherwise by stable source song key. Matching identities must also have compatible normalized recording titles and credited artists; conflicting metadata is stored as a separate variant. Strict recording titles retain release/version labels that guess scoring may ignore (§4).
+
+Every player attached to that recording is a listener, including observations whose preview lookup failed. A later checked import can make the recording playable without changing those listeners. A decoy must have no listener in the frozen roster.
 
 ## 8. Leaderboard
-- Total = sum of a player's scores from `revealed` attempts in the game
-- Only `revealed` attempts contribute to totals or final rankings. Keep answers from `void` attempts for diagnosis, but exclude any recorded points from them.
-- **Ties share the same rank** (1, 1, 3…)
-- The room retains final rankings, rounds, guesses and scores until 30 days after its last completed game (or creation if none completes). History shows final rankings only; retained answers remain private to their owners. Aborted games retain clearly labelled partial rankings and do not extend retention.
+
+Total points sum only revealed attempts. Ties share ranks (1, 1, 3…). All starting players remain ranked, including departed players. Aborted games store labelled partial rankings.
+
+Rooms retain history for thirty days from creation or the last completed game. Aborts, polls and heartbeats do not renew that anchor. Public history exposes final rankings; retained guesses stay private.
 
 ## 9. Edge cases
-| Case | Rule |
+
+| Case | Behavior |
 |---|---|
-| Player disconnects or does not submit | Keep the starting identity and wait until deadline; missing answer gets zero |
-| Player submits no listener names | Explicit Nobody, even with no song selection; a valid decoy who guess can earn points |
-| Player selects wrong title but a common credited artist | 50 song points, no speed/perfect bonus; ordinary who/difficulty rules still apply |
-| Every player listens to the song | Selecting everyone is fully correct |
-| Same accepted answer is retried | Return its original receipt; a changed second answer conflicts |
-| Initial automatic readiness times out | After 10 seconds return to lobby naming the unready players; no scored round starts |
-| Later readiness times out | Host can Retry the same unstarted attempt with fresh 10 seconds, or Continue excluding unready players from that barrier only |
-| Barrier-excluded player reconnects | Same identity and prior points; can submit before this round's deadline, otherwise zero |
-| Host is unready | Cannot Continue without its audio readiness; do not start silent shared audio |
-| Stale readiness acknowledgement | Reject an old attempt/generation; it cannot start the current round |
-| Clip fails before reveal | Void/retain/exclude points; use checked reserves within the shared three-substitution budget and 30% skip rule |
-| Clip failure reported after reveal | Reveal is final; reject correction and keep published scoring |
-| Cover missing or fails | Bundled placeholder; reveal/scoring continue |
-| Player or host inspects another player's results | Correct-song/listener facts and rankings are shared; the other player's submitted answers remain private |
-| New browser joins mid-game | Reject new identity; existing same-browser identities can reconnect |
-| Import, character or membership edit during setup/play | Reject; allow again in lobby |
-| Host explicitly leaves | Abort immediately, retain labelled partial results |
-| Host loses connectivity | Five-second heartbeats, 60-second grace; no new readiness cycle until return, and no late revival |
-| Host refresh loses current audio | Restore identity but void interrupted unrevealed playback; do not silently replay the same song |
+| Later readiness timeout | Host retries with a fresh ten-second generation or excludes named unready non-host players from this barrier |
+| Excluded player returns | Keeps scores and answer eligibility; exclusions reset next round/generation |
+| Host unready | Shared audio must be ready; host cannot be excluded |
+| Stale acknowledgement | Reject old attempt/generation or consumed preparation |
+| Identical answer resend | Return original receipt, including after closure; changed second answer conflicts |
+| New browser joins mid-game | Reject new identity; existing credentials can reconnect |
+| Pool, color or membership edit during setup/play | Allow edits again in the lobby |
+| Host explicitly leaves | Abort immediately with partial results |
+| Host disconnects | Heartbeats every five seconds; sixty-second grace; next ready gate waits for return |
+| Host refresh interrupts unrevealed playback | Restore identity, void interrupted attempt and use recovery policy |
+| Cover fails | Placeholder; scoring and reveal continue |
 
 ## 10. What to test (feeds ADR-4)
-- **Scoring:** every worked example; half-up exact arithmetic; correct song speed boundaries; wrong song sharing one/multiple credited artist IDs (50 once, no speed/perfect); no common artist; listener-only submission; submitted empty Nobody versus missing zero; who-score clamps and all-listeners case.
-- **Preparation:** fixed-seed rotation/difficulty fallback, deduplication, no reused played/failed songs, full sequence/reserves frozen; originals plus at most three substitutions; candidate exhaustion; skipped-slot counting and strict 30% boundary for 5/10/15 rounds; decoy fallback and shortened ratio.
-- **Readiness/phases:** automatic ACKs, common future time and interval boundary; initial timeout names/lobby reset; later Retry/Continue; stale generations; no host exclusion; excluded players still answer/reconnect and remain ranked; 5-second setup minimum, 3-second countdown, 5-second reveal/leaderboard and automatic advance; host-absence/grace behavior.
-- **Catalog search:** local shared-fixture metadata, public provider results, bounded cache/budget and single-flight requests, explicit outage/empty states; room-scoped signed selections, expiry/tamper rejection, frozen selected facts and no provider I/O under the room command lock or at the answer deadline.
-- **Persistence/API:** immutable characters/artist identities/memberships; same-payload retry receipts versus changed answers/commands; transactional closure races, missing rows, final ranks and retained void answers; host-only mutation checks; phase-projected responses never disclose other players' answers, including to the host, while reveal returns only the caller's feedback.
-- **Lifecycle:** host leave/expiry, restart abort/reconciliation, no retention renewal on aborted setup/game, whole-room cleanup and room-scoped identity.
-- **Browser acceptance:** actual shared audio and countdown drift, first/load failure handling, artwork fallback, character/status display, refresh/rejoin, automatic loop and host recovery controls; then NFR1/load verification.
+
+Cover scoring examples and boundaries, deterministic planning and replacement limits, readiness generations and promotion, answer privacy, idempotency, transactional closure, host recovery and retention. Browser checks cover audible playback, timing, reconnect and artwork fallback. See [Testing Strategy](18_TESTING_STRATEGY.md) for test ownership and commands.

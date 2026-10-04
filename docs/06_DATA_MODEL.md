@@ -1,12 +1,12 @@
 # 06 — Data Model
 
-Current schema, verified against a freshly initialized SQLite database on 2026-10-04. The application uses one documented file: `DATA_DIR/whos_on_repeat.sqlite3`. Its default is `data/whos_on_repeat.sqlite3`. Rooms, Game and the public catalog retain logical table ownership within that file. SQL migrations are the executable source of truth; this document describes the schema after migrations, not the earlier option-answer draft.
+All persistence uses `DATA_DIR/whos_on_repeat.sqlite3` (default `data/whos_on_repeat.sqlite3`). Rooms, Game and the public catalog own separate table groups. [Application migrations 001–006](../backend/storage/migrations/) set `PRAGMA user_version=6`; catalog initialization tracks version 3 separately in `component_schema_versions` through [store.py](../backend/catalog/store.py) and [links.py](../backend/catalog/links.py).
 
-Application migrations [001–006](../backend/storage/migrations/) set `PRAGMA user_version=6`. Public catalog initialization in [store.py](../backend/catalog/store.py) and [links.py](../backend/catalog/links.py) tracks version 3 separately in `component_schema_versions`. Catalog initialization does not overwrite the application's version. SQLite JSON and FTS5 support are required; connections use WAL and bounded busy timeouts, with foreign keys enabled on application connections.
+Connections use WAL, foreign keys and bounded busy timeouts. SQLite JSON and FTS5 support are required.
 
 ## Rooms and Game tables
 
-The diagram shows actual column names. JSON columns are SQLite `TEXT` containing validated serialized values. Timestamps ending `_ms` are UTC milliseconds. Composite foreign keys enforce both identity and room/game scope.
+JSON columns store validated values as SQLite `TEXT`; `_ms` timestamps are UTC milliseconds. Composite foreign keys enforce room/game scope.
 
 ```mermaid
 erDiagram
@@ -152,19 +152,19 @@ erDiagram
     }
 ```
 
-Rooms owns `rooms`, `players`, `songs`, `player_songs` and `demo_catalog`. Game owns `games`, `game_players`, `rounds`, `game_round_preparations`, `answers` and `game_commands`. `games.room_id` references Rooms with delete restriction: application cleanup deletes game history before deleting the room. This is an intentional shared-file lifecycle constraint. Future independent service storage would need an explicit replacement for that foreign key and transaction boundary.
+Rooms owns `rooms`, `players`, `songs`, `player_songs` and `demo_catalog`. Game owns `games`, `game_players`, `rounds`, `game_round_preparations`, `answers` and `game_commands`. `games.room_id` restricts room deletion until game history is removed.
 
-`game_players.player_id` is a frozen identifier and has **no foreign key to live players**. Likewise `rounds.song_key` identifies a song in the frozen game JSON, not a mutable row in Rooms or public catalog storage. Later membership changes and catalog reseeding cannot rewrite the starting roster, answers or song facts. The independent `demo_catalog` lookup is copied into room songs on assignment; there is no foreign key from those copies back to the seed.
+`game_players.player_id` freezes player identity independently of live membership. `rounds.song_key` points into the frozen game snapshot. Demo assignment copies lookup songs into room storage. These snapshots preserve matches and results across membership changes and catalog reseeding.
 
 ## Keys, constraints and private state
 
 | Table | Additional scope/uniqueness and behavior |
 |---|---|
-| `rooms` | Unique six-character code; `mode` is `normal|demo`, `state` is `lobby|playing` |
+| `rooms` | Unique six-character code; `mode` is `normal / demo`, `state` is `lobby / playing` |
 | `players` | Unique `(room_id,id)` and normalized nickname per room; at most one host; credential digest unique; account uniqueness applies only where `shared_music_account=0` |
-| `songs` | Unique `(room_id,id)` and `(room_id,identity_key)`; `pool_kind` is `personal|decoy`; nullable preview retains unavailable observed ownership |
-| `player_songs` | PK `(player_id,song_id)`; composite FKs to `(room_id,id)` in both players and songs; familiarity is `easy|medium|hard` |
-| `demo_catalog` | Stable unique fixture ID; `personal|decoy`; selected local-pack preview URL validated before reseeding |
+| `songs` | Unique `(room_id,id)` and `(room_id,identity_key)`; `pool_kind` is `personal / decoy`; nullable preview retains unavailable observed ownership |
+| `player_songs` | PK `(player_id,song_id)`; composite FKs to `(room_id,id)` in both players and songs; familiarity is `easy / medium / hard` |
+| `demo_catalog` | Stable unique fixture ID; `personal / decoy`; selected local-pack preview URL validated before reseeding |
 | `games` | Unique `(room_id,start_request_id)`; one preparing/playing game per room; status/phase checks; frozen settings/song data plus mutable checked plan |
 | `game_players` | PK `(game_id,player_id)`; at most one frozen host; final score/rank stored on completion or labelled abort |
 | `rounds` | Unique `(game_id,id)`, `(game_id,round_number,attempt)` and `(game_id,song_key)`; at most one ready/playing attempt per game; original slot `1–15`, attempt `1–4` |
@@ -176,11 +176,13 @@ Round status is `ready|playing|revealed|void`; difficulty is `easy|medium|hard|d
 
 A submitted answer contains the signed selection's authenticated song facts or JSON `null`, the selected frozen player IDs, acceptance time and eventual points. `who_mode=nobody` is an explicit submitted empty selection. A missing answer has `status=missing`, `who_mode=blank`, null receipt/song guess and zero points. Their distinction survives persistence and reveal projections. Other players' answer facts remain private; each response contains only the caller's answer.
 
-Provider authorization secrets are never stored here. `music_account_hash` is a room-scoped account digest, not an access token or account recovery credential. `shared_music_account=1` marks explicit development playtest admissions while preserving normal account uniqueness. The character API/storage field names are retained; current values name supported blob colors.
+Room credentials are stored as `session_token_hash`. Personal music accounts use a digest of `room_id:provider:account_id`; provider tokens stay outside SQLite. `shared_music_account=1` marks explicit playtest admissions that can share an account. Demo stores neither a personal provider nor an account digest. `character_id` stores a supported blob color.
+
+Checked imports provide media. Observations preserve ownership with preview URLs stripped; compatible checked imports can later add playable audio. [Architecture](05_ARCHITECTURE.md#music-admission-and-the-public-catalog) describes this boundary.
 
 ## Public catalog and operational tables
 
-These tables contain shared public facts and cache state. They have no foreign keys to rooms, players, memberships, games or private listener evidence. Unix-second `REAL` values are used for catalog timestamps and expiry, independently of the gameplay millisecond clock.
+Public tables store metadata and caches independently of private room/listener state. Catalog timestamps and expiry use Unix-second `REAL` values.
 
 ```mermaid
 erDiagram
@@ -225,19 +227,17 @@ erDiagram
     }
 ```
 
-`catalog_fts` is an FTS5 virtual index with `title_normalized` and `artist_normalized`. Its external content is `catalog_songs`, associated by SQLite `rowid`. Insert/update/delete triggers keep it synchronized. SQLite-owned FTS shadow tables are implementation details, not additional domain entities.
+`catalog_fts` indexes `title_normalized` and `artist_normalized` from `catalog_songs`, linked by SQLite `rowid`. Insert/update/delete triggers keep the FTS5 index synchronized.
 
-Verified links use the six-column composite primary key shown above and retain public source/target metadata snapshots. Scope separates provider/storefront; purpose separates answer selection (`guess`) from audio recording (`recording`). Successful edges are saved in both directions. Their fingerprints incorporate version-aware title, credited artist identities, ISRC and matching-rule version. They have no expiry column: unchanged positive verification survives games and restarts. Temporary preview URLs and query-result coverage use their own `expires_at` fields. A preview expiry does not delete the verified identity link.
-
-Public catalog initialization opens only the application SQLite path. The old separate-catalog importer and its import-marker table are no longer part of the current schema or startup flow.
+Verified links use the six-column composite primary key shown above and retain source/target metadata snapshots. `scope` identifies provider/storefront; `purpose` distinguishes guess selection from recording resolution. Successful links are saved in both directions. Fingerprints include version-aware title, credited artist identities, ISRC and matching-rule version. Positive links persist while identity remains valid; query and preview expiry are separate.
 
 ## Initialization, retention and migration history
 
-Startup applies missing application migrations, validates foreign keys, seeds the Demo lookup, reconciles interrupted games, initializes the public catalog and reports ready only after runtime initialization succeeds. The small public MusicBrainz starter is imported only into an empty public catalog. Optional full metadata import is an offline tool, not required startup work or audio download.
+Startup applies migrations, checks foreign keys, reconciles interrupted games and initializes the public catalog. A valid installed Demo pack seeds `demo_catalog`; an absent pack disables Demo, and an existing invalid pack fails validation before initialization. The public MusicBrainz starter seeds an empty catalog. Full metadata import is an optional offline tool.
 
-Demo contains 100 pinned recordings: 80 personal and 20 decoy. Each participant receives 36 personal songs. Reseeding replaces only the lookup, preserving existing room copies and frozen games. Media installs separately into the ignored versioned pack directory; startup validates it and never downloads music. Old local room/game history was removed during precommit cleanup before obsolete media deletion; shared public metadata, verified links and caches were retained.
+Demo reseeding replaces the lookup while preserving room copies and frozen games. Media installation and provenance are documented in [catalog setup](../catalog/README.md).
 
-Room retention is 30 days from creation or the last completed game. Polls, heartbeats and aborted games do not extend the anchor. Cleanup removes Game rows first, then Rooms rows, in a transaction. Room deletion does not remove shared public catalog metadata or verified links.
+Retention is thirty days from room creation or the last completed game. Cleanup deletes Game history before Rooms rows in one transaction. Shared public metadata and verified links remain. [Game Rules](03_GAME_RULES.md#8-leaderboard) defines results and retention behavior.
 
 | Migration | Retained purpose |
 |---|---|
@@ -249,4 +249,4 @@ Room retention is 30 days from creation or the last completed game. Polls, heart
 | `006_round_preparation.sql` | Separate next-round candidate and renewable preparation acknowledgements |
 | Catalog component v3 | Permanent scoped verified links and source/target snapshots; migrate older successful selections |
 
-Old `options_json`, `song_option` and `catalog_selections` structures are migration inputs, not the current schema or API. Migration/restart tests, frozen snapshot checks and `PRAGMA foreign_key_check` validate persistence behavior. This model is shared with ADR 3 and the submission report; diagrams must follow this current schema rather than copied historical DDL.
+Historical option-answer and `catalog_selections` structures are migration inputs. Current answers store selected-song facts; permanent links live in `verified_links`. Migration/restart tests and `PRAGMA foreign_key_check` verify these relationships.

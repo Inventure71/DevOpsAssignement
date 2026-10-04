@@ -1,4 +1,4 @@
-// Accessible async combobox. It owns query UI, never scoring or credentials.
+// Accessible combobox with cancellable search and selection requests.
 const style = `
 :host{display:block;position:relative;font-family:inherit;color:#151515}
 *{box-sizing:border-box} .field{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #eeecec;border-radius:999px;padding:10px 12px 10px 22px;box-shadow:0 9px 35px #2f172004}

@@ -1,4 +1,4 @@
-"""Rooms business policy with an explicit repository double; no SQLite or HTTP."""
+"""Rooms policy tested through a repository double."""
 
 import json
 from unittest.mock import create_autospec
@@ -44,6 +44,24 @@ def scenario():
     repo.music_account_taken.return_value = False
     repo.song_counts.return_value = {"host": 36}
     return RoomsService(repo=repo), repo, room, player
+
+
+def demo_import():
+    return {
+        "provider": "demo",
+        "evidence": "simulated",
+        "account_id": None,
+        "songs": [
+            {
+                "song_key": "demo:one",
+                "title": "Title",
+                "artist": "Artist",
+                "artists": [{"artist_key": "demo:artist", "name": "Artist"}],
+                "preview_url": "/clip",
+                "familiarity": "easy",
+            }
+        ],
+    }
 
 
 def error(code, operation):
@@ -130,18 +148,23 @@ def test_create_allocates_identity_after_validation_and_handles_exhausted_codes(
         lambda: service.create(None, "Host", "coral", "normal", 1000),
     )
     repo.room_by_code.return_value = None
-    assign = create_autospec(
-        __import__("backend.rooms.demo", fromlist=["assign"]).assign
+    store = create_autospec(__import__("backend.rooms.music", fromlist=["store"]).store)
+    monkeypatch.setattr("backend.rooms.music.store", store)
+    result = service.create(
+        None, " Host ", "coral", "demo", 1000, imported=demo_import()
     )
-    monkeypatch.setattr("backend.rooms.demo.assign", assign)
-    result = service.create(None, " Host ", "coral", "demo", 1000)
     assert result["token"] and result["player"]["id"] == "host"
     args = repo.add_player.call_args.kwargs
     assert args["nickname"] == "Host" and args["nickname_key"] == "host"
     assert args["is_host"] and args["token_hash"] != result["token"]
-    assign.assert_called_once()
+    assert store.call_count == 3
     repo.room_by_code.return_value = {"id": "existing"}
-    error("room_capacity", lambda: service.create(None, "Host", "coral", "demo", 1000))
+    error(
+        "room_capacity",
+        lambda: service.create(
+            None, "Host", "coral", "demo", 1000, imported=demo_import()
+        ),
+    )
 
 
 def test_join_requires_music_signin_in_normal_and_assigns_demo_only_in_demo(
@@ -155,13 +178,60 @@ def test_join_requires_music_signin_in_normal_and_assigns_demo_only_in_demo(
     )
     repo.add_player.assert_not_called()
     room["mode"] = "demo"
-    assign = create_autospec(
-        __import__("backend.rooms.demo", fromlist=["assign"]).assign
-    )
-    monkeypatch.setattr("backend.rooms.demo.assign", assign)
-    service.join(None, "room", "Guest", "sky", 1000)
+    store = create_autospec(__import__("backend.rooms.music", fromlist=["store"]).store)
+    monkeypatch.setattr("backend.rooms.music.store", store)
+    service.join(None, "room", "Guest", "sky", 1000, imported=demo_import())
     assert repo.add_player.call_args.kwargs["is_host"] is False
-    assign.assert_called_once()
+    assert store.call_count == 3
+
+
+@pytest.mark.parametrize(
+    "changes,code",
+    [
+        ({"provider": None}, "music_source_mismatch"),
+        ({"provider": "other"}, "music_source_mismatch"),
+        ({"evidence": "personal"}, "music_source_mismatch"),
+        ({"account_id": "fake-account"}, "invalid_music_import"),
+        ({"songs": []}, "music_import_insufficient"),
+    ],
+)
+def test_demo_admission_requires_complete_simulated_source_before_writes(
+    scenario, changes, code
+):
+    service, repo, _, _ = scenario
+    error(
+        code,
+        lambda: service.create(
+            None, "Host", "coral", "demo", 1000, imported=demo_import() | changes
+        ),
+    )
+    repo.create_room.assert_not_called()
+    repo.add_player.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "field,value", [("preview_url", None), ("artists", []), ("familiarity", "unknown")]
+)
+def test_demo_admission_rejects_incomplete_song_evidence_before_writes(
+    scenario, field, value
+):
+    service, repo, _, _ = scenario
+    imported = demo_import()
+    imported["songs"][0][field] = value
+    error(
+        "invalid_music_import",
+        lambda: service.create(None, "Host", "coral", "demo", 1000, imported=imported),
+    )
+    repo.create_room.assert_not_called()
+
+
+def test_demo_join_requires_preparation_before_membership_writes(scenario):
+    service, repo, _, _ = scenario
+    error(
+        "music_import_required",
+        lambda: service.join(None, "room", "Guest", "sage", 1000),
+    )
+    repo.add_player.assert_not_called()
 
 
 @pytest.mark.parametrize("token", [None, "", "x" * 257])
@@ -237,14 +307,14 @@ def test_snapshot_exports_only_playable_values_with_explicit_ownership_and_decoy
         "artwork_url": None,
         "pool_kind": "personal",
     }
-    repo.songs.return_value = [row, row | {"id": "unplayable", "preview_url": None}]
+    repo.songs.return_value = [
+        row,
+        row | {"id": "unplayable", "preview_url": None},
+        row | {"id": "decoy", "pool_kind": "decoy"},
+    ]
     repo.song_memberships.return_value = [
         {"song_id": "song", "player_id": "host", "familiarity": "easy"}
     ]
-    monkeypatch.setattr(
-        "backend.rooms.demo.decoys",
-        lambda conn: [{"song_key": "decoy", "listeners": []}],
-    )
     snapshot = service.snapshot(None, "room")
     assert snapshot["host_id"] == "host" and snapshot["minimum_players"] == 3
     assert len(snapshot["songs"]) == 2

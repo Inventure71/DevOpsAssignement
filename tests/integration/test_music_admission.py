@@ -18,7 +18,7 @@ from backend.core.errors import DomainError
 from backend.music.media import matches_recording
 
 
-MUSIC = "/api/music/spotify"
+MUSIC = "/api/music"
 
 
 class Clock:
@@ -171,6 +171,8 @@ class FakeImporter:
         self.apple.register([*songs, *decoys])
         self.imports.append((account, include_decoys))
         return {
+            "provider": "spotify",
+            "evidence": "personal",
             "account_id": account,
             "songs": songs,
             "decoys": decoys,
@@ -237,20 +239,20 @@ def normal_session(tmp_path, request):
 def begin(client, nickname, room_id=None):
     response = client.post(
         MUSIC + "/admissions",
-        json={"nickname": nickname, "character_id": "coral", "room_id": room_id},
+        json={"nickname": nickname, "character_id": "coral", "room_id": room_id, "provider": "spotify"},
     )
     assert response.status_code == 200, response.text
-    return parse_qs(urlsplit(response.json()["authorization_url"]).query)["state"][0]
+    return parse_qs(urlsplit(response.json()["authorization"]["url"]).query)["state"][0]
 
 
 def finish(client, state, account):
     response = client.get(
-        MUSIC + "/callback",
+        MUSIC + "/spotify/callback",
         params={"state": state, "code": account},
         follow_redirects=False,
     )
     assert response.status_code == 303, response.text
-    assert response.headers["location"] == "/?spotify=processing"
+    assert response.headers["location"] == "/?music=processing"
     return await_status(client)
 
 
@@ -269,6 +271,9 @@ def await_status(client):
 def admit(client, nickname, account, room_id=None):
     result = finish(client, begin(client, nickname, room_id), account)
     assert result["status"] == "complete", result
+    assert client.post(
+        MUSIC + "/acknowledge", json={"admission_id": result["admission_id"]}
+    ).status_code == 200
     return result["admission"]
 
 
@@ -416,13 +421,13 @@ def test_music_config_explains_lan_sign_in_capability(
         music_importer=FakeImporter(spotify, apple),
     )
     with TestClient(app, base_url=origin) as client:
-        config = client.get(MUSIC + "/config").json()
+        config = client.get(MUSIC + "/config").json()["providers"]["spotify"]
         assert config["enabled"] is True
         assert config["requires_shared_url"] is requires_shared
         if requires_shared:
             response = client.post(
                 MUSIC + "/admissions",
-                json={"nickname": "LAN User", "character_id": "coral"},
+                json={"nickname": "LAN User", "character_id": "coral", "provider": "spotify"},
             )
             assert response.status_code == 503
             assert response.json()["error"]["code"] == "music_shared_url_required"
@@ -443,13 +448,13 @@ def test_pkce_receipt_cookie_wrong_state_cross_browser_and_replay(normal_session
         (session["new_client"](), state),
     ):
         response = browser.get(
-            MUSIC + "/callback",
+            MUSIC + "/spotify/callback",
             params={"state": supplied_state, "code": "host-account"},
             follow_redirects=False,
         )
         assert (
             response.status_code == 303
-            and response.headers["location"] == "/?spotify=error"
+            and response.headers["location"] == "/?music=error"
         )
     assert session["spotify"].exchanges == []
     with session["app"].state.coordinator.db.read() as conn:
@@ -470,11 +475,11 @@ def test_pkce_receipt_cookie_wrong_state_cross_browser_and_replay(normal_session
     assert host.get(prefix + "/state").json()["me"]["id"] == room["player_id"]
     assert host.get(MUSIC + "/status").json()["admission"] == room
     replay = host.get(
-        MUSIC + "/callback",
+        MUSIC + "/spotify/callback",
         params={"state": state, "code": "host-account"},
         follow_redirects=False,
     )
-    assert replay.headers["location"] == "/?spotify=error"
+    assert replay.headers["location"] == "/?music=error"
     assert len(session["spotify"].exchanges) == 1
 
 
@@ -484,7 +489,7 @@ def test_failed_imports_never_create_half_a_room_or_player(normal_session, failu
     state = begin(host, "Host")
     if failure == "denied":
         response = host.get(
-            MUSIC + "/callback",
+            MUSIC + "/spotify/callback",
             params={"state": state, "error": "access_denied"},
             follow_redirects=False,
         )
@@ -581,7 +586,7 @@ def test_concurrent_pending_imports_cannot_exceed_five_players(normal_session):
     session["importer"].block_accounts = {"racer0", "racer1"}
     for index, browser in enumerate(racers):
         response = browser.get(
-            MUSIC + "/callback",
+            MUSIC + "/spotify/callback",
             params={"state": states[index], "code": "racer" + str(index)},
             follow_redirects=False,
         )
@@ -599,7 +604,7 @@ def test_concurrent_pending_imports_cannot_exceed_five_players(normal_session):
     state = host.get("/api/rooms/" + room["room_id"] + "/state").json()
     assert len(state["players"]) == state["room"]["maximum_players"] == 5
     rejected = session["new_client"]().post(
-        MUSIC + "/admissions", json={"nickname": "Sixth", "room_id": room["room_id"]}
+        MUSIC + "/admissions", json={"nickname": "Sixth", "room_id": room["room_id"], "provider": "spotify"}
     )
     assert (
         rejected.status_code == 409 and rejected.json()["error"]["code"] == "room_full"

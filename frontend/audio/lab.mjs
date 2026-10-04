@@ -1,6 +1,6 @@
 import { waveformLevels } from "./levels.mjs";
 
-// Isolated fixture audio. The drawing component never fetches or schedules sound.
+// Owns preview playback for isolated lab scenes.
 export function createLabAudio({
   url,
   durationSeconds = 20,

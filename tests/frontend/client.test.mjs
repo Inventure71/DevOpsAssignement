@@ -8,14 +8,6 @@ import {
 import { createRuntime } from "../../frontend/application/runtime.mjs";
 import { createActions } from "../../frontend/application/actions.mjs";
 
-function storage() {
-  const values = new Map();
-  return {
-    getItem: (key) => values.get(key) || null,
-    setItem: (key, value) => values.set(key, value),
-    removeItem: (key) => values.delete(key),
-  };
-}
 function snapshot(game = "game", round = "round", version = 1) {
   return {
     room: { id: "room", revision: 1 },
@@ -38,7 +30,7 @@ function snapshot(game = "game", round = "round", version = 1) {
   };
 }
 function model() {
-  const value = createModel(storage());
+  const value = createModel();
   value.rememberRoom({ room_id: "room" });
   value.applySnapshot(snapshot(), "room");
   return value;

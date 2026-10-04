@@ -20,6 +20,8 @@ test("screen identity follows navigation, restoration, dismissed games and round
     "history",
   );
   assert.equal(screenKey({ ui: { page: "play" } }), "entry");
+  assert.equal(screenKey({ ui: { page: "play", roomId: "previous", musicConnection: {} } }), "music-connection");
+  assert.equal(screenKey({ ui: { page: "play", musicConnection: {}, musicImport: {} } }), "music-import");
   assert.equal(
     screenKey({ ui: { page: "play", roomId: "room" } }),
     "restoring",

@@ -11,7 +11,7 @@ from backend.rooms.demo import seed_demo
 from backend.rooms.service import RoomsService
 from backend.storage.database import Database
 from tests.support.catalog import write_large_catalog
-from tests.support.demo import demo_config, make_demo_pack
+from tests.support.demo import demo_config, make_demo_pack, prepared_demo_import
 
 
 def test_canonical_demo_boots_serves_assets_and_starts_default_game(tmp_path):
@@ -66,9 +66,10 @@ def test_reseed_preserves_current_room_copies_and_frozen_snapshot(tmp_path):
     rooms = RoomsService()
     with db.transaction() as conn:
         seed_demo(conn, write_large_catalog(tmp_path / "large.json"))
-        old = rooms.create(conn, "Old Host", "coral", "demo", 1000)
+        old = rooms.create(
+            conn, "Old Host", "coral", "demo", 1000, imported=prepared_demo_import(conn)
+        )
         frozen = rooms.snapshot(conn, old["room"]["id"])
-        old_ids = {s["song_key"] for s in frozen["songs"] if s["listeners"]}
         seed_demo(conn, CATALOG_PATH)
         seed_demo(conn, CATALOG_PATH)
         assert conn.execute("SELECT COUNT(*) FROM demo_catalog").fetchone()[0] == 100
@@ -77,14 +78,16 @@ def test_reseed_preserves_current_room_copies_and_frozen_snapshot(tmp_path):
             for row in conn.execute(
                 "SELECT id FROM songs WHERE room_id=?", (old["room"]["id"],)
             )
-        } == old_ids
+        } == {s["song_key"] for s in frozen["songs"]}
         assert [
             song
             for song in rooms.snapshot(conn, old["room"]["id"])["songs"]
             if song["listeners"]
         ] == [song for song in frozen["songs"] if song["listeners"]]
-        assert len(frozen["songs"]) == 60
-        new = rooms.create(conn, "New Host", "coral", "demo", 1000)
+        assert len(frozen["songs"]) == 56
+        new = rooms.create(
+            conn, "New Host", "coral", "demo", 1000, imported=prepared_demo_import(conn)
+        )
         assert (
             rooms.lobby(conn, new["room"]["id"], 1000)["players"][0]["song_count"] == 36
         )
@@ -167,6 +170,8 @@ def test_app_resources_work_when_started_outside_checkout(tmp_path, monkeypatch)
         assert response.content == module.read_bytes()
         with app.state.coordinator.db.read() as conn:
             assert conn.execute("PRAGMA user_version").fetchone()[0] == 6
-            song = conn.execute("SELECT preview_url FROM demo_catalog LIMIT 1").fetchone()
+            song = conn.execute(
+                "SELECT preview_url FROM demo_catalog LIMIT 1"
+            ).fetchone()
         assert client.get(song["preview_url"]).status_code == 200
     assert config.database_path.is_file()
